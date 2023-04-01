@@ -18,7 +18,7 @@ import gzip
 import random
 from enum import Enum
 from typing import Callable
-from typing import Union, List, Mapping, Tuple, Optional
+from typing import Union, List, Mapping, Tuple, Optional, Any
 
 
 ###
@@ -183,7 +183,7 @@ class GuideCountError(Enum):
 
 @typechecked
 def infer_true_guides(observed_guide_sequence: str, whitelist_guide_sequences_series: Union[List[str], pd.Series],
-encoded_whitelist_guide_sequences_series: np.array, consider_truncated_sequences: bool = False, hamming_threshold: int = 3):
+encoded_whitelist_guide_sequences_series, consider_truncated_sequences: bool = False, hamming_threshold: int = 3, verbose_result = False):
     #observed_guide_sequence = str(observed_guide_row["observed_sequence"])
     
     # If considering truncated guides, truncate all whitelist guides to the same size of the observed guide, else only consider whitelisted guides of the same length (likely all guides provided are same length of 20nt)
@@ -223,12 +223,22 @@ encoded_whitelist_guide_sequences_series: np.array, consider_truncated_sequences
         
         # If the minimum hamming distance is greater than the specified threshold, then the guide is too ambigious to assign, so no match.
         if hamming_min >= hamming_threshold:
-            return GuideCountError.NO_MATCH
+            if verbose_result:
+                return {"Error": GuideCountError.NO_MATCH, "hamming_min": hamming_min}
+            else:
+                return GuideCountError.NO_MATCH
         
         # If there are multiple guides with the minimum hamming distance, then the guide is ambigious, so no mapping (due to multiple match)
         # NOTE (3/30/2023): This could potentially be an issue with igRNAs maybe?
         elif len(guides_with_hamming_min) > 1:
-            return GuideCountError.MULTIPLE_MATCH
+            if verbose_result:
+                return {"Error": GuideCountError.MULTIPLE_MATCH,
+                "exact_match": False, 
+                "num_matches": len(guides_with_hamming_min),
+                "matches": guides_with_hamming_min,
+                "hamming_min": hamming_min}
+            else:
+                return GuideCountError.MULTIPLE_MATCH
         
         # Else if there is 1 guide with the match, then return the match
         else:
@@ -236,7 +246,15 @@ encoded_whitelist_guide_sequences_series: np.array, consider_truncated_sequences
     
     # Else if there are multiple exact match, which should never occur unless the whitelisted guide list is not unique, then return multiple match.
     else:
-        return GuideCountError.MULTIPLE_MATCH
+        
+        if verbose_result:
+            return {"Error": GuideCountError.MULTIPLE_MATCH,
+            "exact_match": True, 
+            "num_matches": len(whitelist_guide_sequences_series_match),
+            "matches": whitelist_guide_sequences_series_match,
+            "hamming_min": 0}
+        else:
+            return GuideCountError.MULTIPLE_MATCH
         #raise Exception("Multiple exact matches of the provided whitelisted guides - there are likely duplicates in the provided whitelist, please remove. Observed guide={}, guide matches={}".format(observed_guide_sequence, guide_sequences_series_match)) # NOTE 12/6/22: REMOVED THIS EXCEPTION - another reason is from truncated guides having multiple matches. In production code, just make sure to ensure that the whitelist is the set.
 
 '''
@@ -247,7 +265,7 @@ encoded_whitelist_guide_sequences_series: np.array, consider_truncated_sequences
     This is useful in determing the ideal hamming distance threshold specific to a guide library
 '''
 @typechecked
-def determine_hamming_threshold(whitelist_guide_sequences_series: Union[List[str],pd.Series], encoded_whitelist_guide_sequences_series: np.array, sample_count: int = 100, quantile: float = 0.05) -> float:
+def determine_hamming_threshold(whitelist_guide_sequences_series: Union[List[str],pd.Series], encoded_whitelist_guide_sequences_series, sample_count: int = 100, quantile: float = 0.05) -> float:
     #encoded_whitelist_guide_sequences_series = encode_guide_series(guide_sequences_series)
     
     mutation_count_until_nonunique = []
@@ -291,14 +309,9 @@ def determine_hamming_threshold(whitelist_guide_sequences_series: Union[List[str
     Take in input FASTQ filename, and a set of whitelisted guide sequences
 '''
 @typechecked
-def get_guide_counts(whitelist_guide_sequences_series: pd.Series, fastq_fn: str, hamming_threshold_strict: int = 3, hamming_threshold_dynamic: bool = False, cores: int=1):
-    # Retrieve all observed guide sequences
-    print("Retrieving FASTQ guide sequences and counting: " + fastq_fn)
-    observed_guide_raw_sequences = retrieve_fastq_guide_sequences(fastq_fn, cores=cores)
-    
-    # Count each unique observed guide sequence
-    observed_guide_sequences_counts = Counter(observed_guide_raw_sequences)
-    
+def get_guide_counts(observed_guide_sequences_counts: Counter, whitelist_guide_sequences_series: pd.Series, hamming_threshold_strict: int = 3, hamming_threshold_dynamic: bool = False, cores: int=1):
+
+    whitelist_guide_sequences_series.index = whitelist_guide_sequences_series.values
     # Create observed guide DF to contain all information
     # The "observed sequence" column represents all *unique* observed sequences that may have self-edits/errors. The "observed counts" column represents the count of each observed count.
     observed_guides_df = pd.DataFrame({"observed_sequence":[str(sequence) for sequence in observed_guide_sequences_counts.keys()], "observed_counts":observed_guide_sequences_counts.values()})
@@ -314,15 +327,20 @@ def get_guide_counts(whitelist_guide_sequences_series: pd.Series, fastq_fn: str,
     # Infer whitelist guides from observed guides
     print("Inferring the true guides from observed guides")
 
+    infer_true_guides_p = partial(infer_true_guides,
+            whitelist_guide_sequences_series=whitelist_guide_sequences_series,
+            encoded_whitelist_guide_sequences_series=encoded_whitelist_guide_sequences_series,
+            hamming_threshold=hamming_threshold, verbose_result=False)
+
     inferred_true_guide_sequences = None
     with Pool(cores) as pool:
         inferred_true_guide_sequences = pool.map(
-        infer_true_guides,
-        observed_guides_df["observed_sequence"],
-        chunksize=len(observed_guides_df["observed_sequence"])/cores,
+        infer_true_guides_p,
+        observed_guides_df["observed_sequence"]
         )
         
-    
+    print("Completed inference")
+
     observed_guides_df["inferred_guides"] = inferred_true_guide_sequences
     
     '''
@@ -347,5 +365,83 @@ def get_guide_counts(whitelist_guide_sequences_series: pd.Series, fastq_fn: str,
     
     qc_dict = {"guide_sequences_unassigned_counts":observed_guides_df_no_match.sum(), "guide_sequences_multiple_counts": observed_guides_df_multiple_match.sum(), "total_guide_counts": observed_guides_df["observed_counts"].sum(), "percent_mapped": percent_mapped}
     
-    return observed_guide_raw_sequences, whitelist_guide_sequences_series_counts, observed_guides_df, qc_dict
+    return whitelist_guide_sequences_series_counts, observed_guides_df, qc_dict
+
+
+
+###
+### Read in sequences from a pre-parsed reporter file
+### 
+import csv
+import multiprocessing as mp
+from collections import Counter
+from functools import reduce
+
+
+def gen_chunks(reader, chunksize=1000):
+    """
+    Chunk generator. Take a CSV `reader` and yield
+    `chunksize` sized slices.
+    Source: https://gist.github.com/miku/820490
+    """
+    chunk = []
+    for index, line in enumerate(reader):
+        if index % chunksize == 0 and index > 0:
+            yield chunk
+            chunk = []
+        chunk.append(line)
+    yield chunk
+
+
+def process(tsv_chunk):
+    local_counter = Counter()
+    
+    for row in tsv_chunk.copy():
+        local_counter[row[1]] += 1
+    
+    return local_counter
+
+
+def map_sample_protospacers(parsing_demult_handler, cores=1):
+    tsv_reader = csv.reader(parsing_demult_handler, delimiter='\t')  # change delimiter for normal csv files
+    header = next(tsv_reader)
+      
+    read_chunks = gen_chunks(tsv_reader, chunksize=10000)
+    with mp.Pool(processes=cores) as pool:
+        chunk_counters = pool.map(process, read_chunks)
+        combined_counter = reduce(lambda x, y: x + y, chunk_counters)
+    
+    return combined_counter 
+
+
+###
+### MAIN FUNCTIONS
+###
+
+'''
+    Take in input FASTQ filename, and a set of whitelisted guide sequences
+'''
+@typechecked
+def get_guide_counts_from_fastq(whitelist_guide_sequences_series: pd.Series, fastq_fn: str, hamming_threshold_strict: int = 3, hamming_threshold_dynamic: bool = False, cores: int=1):
+    # Retrieve all observed guide sequences
+    print("Retrieving FASTQ guide sequences and counting: " + fastq_fn)
+    observed_guide_raw_sequences = retrieve_fastq_guide_sequences(fastq_fn, cores=cores)
+    
+    # Count each unique observed guide sequence
+    observed_guide_sequences_counts = Counter(observed_guide_raw_sequences)
+    
+    return get_guide_counts(observed_guide_sequences_counts, whitelist_guide_sequences_series, hamming_threshold_strict, hamming_threshold_dynamic, cores)
+
+
+'''
+    Take in input FASTQ filename, and a set of whitelisted guide sequences
+'''
+@typechecked
+def get_guide_counts_from_reporter_tsv(whitelist_guide_sequences_series: pd.Series, reporter_tsv_fn: str, hamming_threshold_strict: int = 3, hamming_threshold_dynamic: bool = False, cores: int=1):
+    combined_counter = None
+    with open(reporter_tsv_fn, "r", newline='') as reporter_tsv_handler:
+        combined_counter = map_sample_protospacers(reporter_tsv_handler, cores)
+
+    return get_guide_counts(combined_counter, whitelist_guide_sequences_series, hamming_threshold_strict, hamming_threshold_dynamic, cores)
+
 
