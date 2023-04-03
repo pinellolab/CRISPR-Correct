@@ -393,22 +393,28 @@ def gen_chunks(reader, chunksize=1000):
     yield chunk
 
 
-def process(tsv_chunk):
+def process(tsv_chunk, include_surrogate = False):
     local_counter = Counter()
     
     for row in tsv_chunk.copy():
-        local_counter[row[1]] += 1
+        if include_surrogate:
+            local_counter[(row[1], row[2], row[3])] += 1
+        else:
+            local_counter[row[1]] += 1
     
     return local_counter
 
 
-def map_sample_protospacers(parsing_demult_handler, cores=1):
+def map_sample_protospacers(parsing_demult_handler, include_surrogate = False, cores=1):
     tsv_reader = csv.reader(parsing_demult_handler, delimiter='\t')  # change delimiter for normal csv files
     header = next(tsv_reader)
       
     read_chunks = gen_chunks(tsv_reader, chunksize=10000)
+
+    process_func = partial(process, include_surrogate=include_surrogate)
+
     with mp.Pool(processes=cores) as pool:
-        chunk_counters = pool.map(process, read_chunks)
+        chunk_counters = pool.map(process_func, read_chunks)
         combined_counter = reduce(lambda x, y: x + y, chunk_counters)
     
     return combined_counter 
