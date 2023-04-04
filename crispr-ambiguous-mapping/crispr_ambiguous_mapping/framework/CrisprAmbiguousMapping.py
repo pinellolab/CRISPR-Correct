@@ -530,7 +530,7 @@ def get_reporter_counts(observed_guide_reporters_counts: Counter, whitelist_guid
     # Retrieve the observed sequences that were mapped and set the inferred guides
     inferred_guide_sequence_counter = observed_guides_df_passed_inference.groupby("inferred_guides")["observed_counts"].sum()
 
-    whitelist_guide_reporter_counts = whitelist_guide_reporter_df.apply(lambda reporter: inferred_guide_sequence_counter[tuple(reporter)], axis=1)
+    whitelist_guide_reporter_counts = whitelist_guide_reporter_df.apply(lambda reporter: inferred_guide_sequence_counter.get(tuple(reporter), 0), axis=1)
     multi_index = pd.MultiIndex.from_arrays([whitelist_guide_reporter_df['protospacer'], whitelist_guide_reporter_df['surrogate'], whitelist_guide_reporter_df['barcode']], names=['protospacer', 'surrogate', 'barcode'])
     whitelist_guide_reporter_counts.index = multi_index
     
