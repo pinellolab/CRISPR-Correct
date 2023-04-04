@@ -469,7 +469,7 @@ def get_guide_counts(observed_guide_sequences_counts: Counter, whitelist_guide_s
     whitelist_guide_sequences_series_counts = whitelist_guide_sequences_series.apply(lambda guide: inferred_guide_sequence_counter[guide])
     whitelist_guide_sequences_series_counts.index = whitelist_guide_sequences_series
     
-    qc_dict = {"guide_sequences_unassigned_counts":observed_guides_df_no_match.sum(), "guide_sequences_multiple_counts": observed_guides_df_multiple_match.sum(), "total_guide_counts": observed_guides_df["observed_counts"].sum(), "percent_mapped": percent_mapped}
+    qc_dict = {"guide_sequences_unassigned_counts":observed_guides_df_no_match["observed_counts"].sum(), "guide_sequences_multiple_counts": observed_guides_df_multiple_match["observed_counts"].sum(), "total_guide_counts": observed_guides_df["observed_counts"].sum(), "percent_mapped": percent_mapped}
     
     return whitelist_guide_sequences_series_counts, observed_guides_df, qc_dict
 
@@ -518,6 +518,7 @@ def get_reporter_counts(observed_guide_reporters_counts: Counter, whitelist_guid
     '''
         QC
     '''
+    print("Retrieving QC tables")
     # QC: Determine the number of guides passed by determining that the result is not an error
     observed_guides_df_passed_inference = observed_guides_df[observed_guides_df["inferred_guides"].apply(lambda guide : type(guide) != GuideCountError)]
     # QC: Calculate number of guides that were unassigned
@@ -527,14 +528,18 @@ def get_reporter_counts(observed_guide_reporters_counts: Counter, whitelist_guid
     # QC: Calculate percent mapped
     percent_mapped = observed_guides_df_passed_inference["observed_counts"].sum()/observed_guides_df["observed_counts"].sum()
     
+    print("Get whitelist reporter counts")
     # Retrieve the observed sequences that were mapped and set the inferred guides
     inferred_guide_sequence_counter = observed_guides_df_passed_inference.groupby("inferred_guides")["observed_counts"].sum()
 
     whitelist_guide_reporter_counts = whitelist_guide_reporter_df.apply(lambda reporter: inferred_guide_sequence_counter.get(tuple(reporter), 0), axis=1)
+    
+    
     multi_index = pd.MultiIndex.from_arrays([whitelist_guide_reporter_df['protospacer'], whitelist_guide_reporter_df['surrogate'], whitelist_guide_reporter_df['barcode']], names=['protospacer', 'surrogate', 'barcode'])
     whitelist_guide_reporter_counts.index = multi_index
     
-    qc_dict = {"guide_sequences_unassigned_counts":observed_guides_df_no_match.sum(), "guide_sequences_multiple_counts": observed_guides_df_multiple_match.sum(), "total_guide_counts": observed_guides_df["observed_counts"].sum(), "percent_mapped": percent_mapped}
+
+    qc_dict = {"guide_sequences_unassigned_counts":observed_guides_df_no_match["observed_counts"].sum(), "guide_sequences_multiple_counts": observed_guides_df_multiple_match["observed_counts"].sum(), "total_guide_counts": observed_guides_df["observed_counts"].sum(), "percent_mapped": percent_mapped}
     
     return whitelist_guide_reporter_counts, observed_guides_df, qc_dict
 
