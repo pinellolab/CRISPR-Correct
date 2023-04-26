@@ -154,16 +154,41 @@ def parse_guide_sequence(read_sequence: Union[str, Seq], parser_function: Callab
     Iterate over all the reads in the FASTQ (parallelized) and retrieve the observed guide sequence
 '''
 @typechecked
-def retrieve_fastq_guide_sequences(fastq_file: str, cores: int=1) -> Union[List[str], List[Seq]]:
-    parse_read_left_flank_p = partial(parse_read_left_flank, left_flank="CACCG", guide_sequence_length=20)
-    parse_guide_sequence_p = partial(parse_guide_sequence, parser_function=parse_read_left_flank_p)
-    
-    with gzip.open(fastq_file, "rt", encoding="utf-8") as handle, Pool(cores) as pool:
-        fastq_guide_sequences = pool.map(
-        parse_guide_sequence_p,
-        (seq.seq for seq in SeqIO.parse(handle, 'fastq')),
-        chunksize=2000,
-        )
+def retrieve_fastq_guide_sequences(fastq_file: str, parse_left_flank: bool = True, parse_flank_sequence: Union[None, str] = None, cores: int=1) -> Union[List[str], List[Seq]]:
+    parse_guide_sequence_p = None
+    if parse_left_flank:
+        if parse_flank_sequence is None:
+            print("No flank sequence passed. Setting left-flank default sequence to CACCG assuming U6 G+N20 guide")
+            flank_sequence = "CACCG"
+        else:
+            flank_sequence = parse_flank_sequence
+
+        parse_read_left_flank_p = partial(parse_read_left_flank, left_flank=flank_sequence, guide_sequence_length=20)
+        parse_guide_sequence_p = partial(parse_guide_sequence, parser_function=parse_read_left_flank_p)
+    else:
+        if parse_flank_sequence is None:
+            print("No flank sequence passed. Setting right-flank default sequence to GTTTT. If you are using sgRNA(F+E) design, flank sequence may need to be changed")
+            flank_sequence = "GTTTT"
+        else:
+            flank_sequence = parse_flank_sequence
+        
+        parse_read_right_flank_p = partial(parse_read_right_flank, right_flank=flank_sequence, guide_sequence_length=20)
+        parse_guide_sequence_p = partial(parse_guide_sequence, parser_function=parse_read_right_flank_p)
+
+    if fastq_file.endswith('.gz'):
+        with gzip.open(fastq_file, "rt", encoding="utf-8") as handle, Pool(cores) as pool:
+            fastq_guide_sequences = pool.map(
+                parse_guide_sequence_p,
+                (seq.seq for seq in SeqIO.parse(handle, 'fastq')),
+                chunksize=2000,
+            )
+    else:
+        with Pool(cores) as pool:
+            fastq_guide_sequences = pool.map(
+                parse_guide_sequence_p,
+                (seq.seq for seq in SeqIO.parse(fastq_file, 'fastq')),
+                chunksize=2000,
+            )
 
     return fastq_guide_sequences
 
@@ -608,10 +633,10 @@ def map_sample_protospacers(parsing_demult_handler, include_surrogate = False, c
     Take in input FASTQ filename, and a set of whitelisted guide sequences
 '''
 @typechecked
-def get_guide_counts_from_fastq(whitelist_guide_sequences_series: pd.Series, fastq_fn: str, hamming_threshold_strict: int = 3, hamming_threshold_dynamic: bool = False, cores: int=1):
+def get_guide_counts_from_fastq(whitelist_guide_sequences_series: pd.Series, fastq_fn: str, hamming_threshold_strict: int = 3, hamming_threshold_dynamic: bool = False, parse_left_flank: bool = True, parse_flank_sequence: Union[None, str] = None, cores: int=1):
     # Retrieve all observed guide sequences
     print("Retrieving FASTQ guide sequences and counting: " + fastq_fn)
-    observed_guide_raw_sequences = retrieve_fastq_guide_sequences(fastq_fn, cores=cores)
+    observed_guide_raw_sequences = retrieve_fastq_guide_sequences(fastq_fn, parse_left_flank=parse_left_flank, parse_flank_sequence=parse_flank_sequence, cores=cores)
     
     # Count each unique observed guide sequence
     observed_guide_sequences_counts = Counter(observed_guide_raw_sequences)
