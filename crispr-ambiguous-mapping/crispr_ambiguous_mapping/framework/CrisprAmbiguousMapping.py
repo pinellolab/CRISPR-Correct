@@ -119,6 +119,17 @@ def retrieve_hamming_distance_whitelist(target_guide_encoded, whitelist_guide_en
     '''
     return ((target_guide_encoded*whitelist_guide_encoded[:, np.newaxis]).sum(axis=3)^1).sum(axis=2).flatten()
 
+def determine_hamming_distance_classic(seq1, seq2):
+    if len(seq1) != len(seq2):
+        raise ValueError("Sequences must have equal length.")
+    
+    distance = 0
+    for i in range(len(seq1)):
+        if seq1[i] != seq2[i]:
+            distance += 1
+    
+    return distance
+
 ###
 ### GUIDE PARSING HELPER FUNCTIONS
 ###
@@ -192,7 +203,6 @@ def retrieve_fastq_guide_sequences(fastq_file: str, parse_left_flank: bool = Tru
 
     return fastq_guide_sequences
 
-
 ###
 ### GUIDE MAPPING MAIN FUNCTIONS
 ###
@@ -200,6 +210,13 @@ class GuideCountError(Enum):
     NO_MATCH = "No guide found within hamming distance"
     MULTIPLE_MATCH = "Multiple exact matches found for guide (likely a truncated guide read assuming guide series is unique)"
     NO_GUIDE_WITH_SAME_LENGTH = "No whitelisted guides with same length as observed guide - maybe try enabling truncating whitelisted guides"
+    NO_BARCODE_SAME_LENGTH = "No whitelisted barcode with the same length as the observed"
+    NO_MATCH_GUIDE_HAMMING_THRESHOLD = "No whitelisted guide that is below the provided guide hamming distance threshold"
+    NO_MATCH_BARCODE_HAMMING_THRESHOLD = "No whitelisted barcode that is below the provided barcode hamming distance threshold"
+    NO_MATCH_SURROGATE_HAMMING_THRESHOLD = "The inferred whitelisted surrogate does not match with the observed surrogate below the given hamming distance threshold"
+    MULTIPLE_MATCH_EXACT = "Multiple exact guide matches, double check that there are no duplicates in your guide library (especially if truncation is enabled)"
+    NO_MATCH_MISSING_INFO = "The guide/surrogate/barcode were not all provided"
+    
    
 '''
     Given an observed, potentially self-edited guide (in 'row["observed_sequence"]'), try and find the true guide sequence from the whitelist ("guide_sequences_series") based on hamming distance
@@ -252,9 +269,9 @@ encoded_whitelist_guide_sequences_series, consider_truncated_sequences: bool = F
         # If the minimum hamming distance is greater than the specified threshold, then the guide is too ambigious to assign, so no match.
         if hamming_min >= hamming_threshold:
             if verbose_result:
-                return {"Error": GuideCountError.NO_MATCH, "hamming_min": hamming_min}
+                return {"Error": GuideCountError.NO_MATCH_GUIDE_HAMMING_THRESHOLD, "hamming_min": hamming_min}
             else:
-                return GuideCountError.NO_MATCH
+                return GuideCountError.NO_MATCH_GUIDE_HAMMING_THRESHOLD
         
         # If there are multiple guides with the minimum hamming distance, then the guide is ambigious, so no mapping (due to multiple match)
         # NOTE (3/30/2023): This could potentially be an issue with igRNAs maybe?
@@ -276,93 +293,88 @@ encoded_whitelist_guide_sequences_series, consider_truncated_sequences: bool = F
     else:
         
         if verbose_result:
-            return {"Error": GuideCountError.MULTIPLE_MATCH,
+            return {"Error": GuideCountError.MULTIPLE_MATCH_EXACT,
             "exact_match": True, 
             "num_matches": len(whitelist_guide_sequences_series_match),
             "matches": whitelist_guide_sequences_series_match,
             "hamming_min": 0}
         else:
-            return GuideCountError.MULTIPLE_MATCH
+            return GuideCountError.MULTIPLE_MATCH_EXACT
         #raise Exception("Multiple exact matches of the provided whitelisted guides - there are likely duplicates in the provided whitelist, please remove. Observed guide={}, guide matches={}".format(observed_guide_sequence, guide_sequences_series_match)) # NOTE 12/6/22: REMOVED THIS EXCEPTION - another reason is from truncated guides having multiple matches. In production code, just make sure to ensure that the whitelist is the set.
 
 @typechecked
 def infer_true_reporters(observed_reporter_sequences, whitelist_guide_reporter_df: pd.DataFrame,
-encoded_whitelist_guide_sequences_series, encoded_whitelist_barcodes_series, barcode_hamming_threshold: int = 2, hamming_threshold: int = 4, verbose_result = False):
+encoded_whitelist_guide_sequences_series, encoded_whitelist_barcodes_series, surrogate_hamming_threshold: int = 10, barcode_hamming_threshold: int = 2, hamming_threshold: int = 7, verbose_result = False):
     for element in observed_reporter_sequences:
         if (element is None) or (element == "None") or (element == ""):
             if verbose_result:
-                return {"Error": GuideCountError.NO_MATCH, "message": "Observed protospacer/surrogate/barcode is None"}
+                return {"Error": GuideCountError.NO_MATCH_MISSING_INFO, "message": "Observed protospacer/surrogate/barcode is None"}
             else:
-                return GuideCountError.NO_MATCH
+                return GuideCountError.NO_MATCH_MISSING_INFO
     
     observed_reporter_sequences = pd.Series(observed_reporter_sequences, index=["protospacer", "surrogate", "barcode"])
     
     # Check if the observed protospacer length is the same length of the whitelisted guides
     if len(observed_reporter_sequences["protospacer"]) != encoded_whitelist_guide_sequences_series.shape[1]: 
         if verbose_result:
-            return {"Error": GuideCountError.NO_MATCH, "message": f"Observed protospacer {observed_reporter_sequences['protospacer']} not of correct length: {encoded_whitelist_guide_sequences_series.shape[1]}"}
+            return {"Error": GuideCountError.NO_GUIDE_WITH_SAME_LENGTH, "message": f"Observed protospacer {observed_reporter_sequences['protospacer']} not of correct length: {encoded_whitelist_guide_sequences_series.shape[1]}"}
         else:
-            return GuideCountError.NO_MATCH
+            return GuideCountError.NO_GUIDE_WITH_SAME_LENGTH
     if len(observed_reporter_sequences["barcode"]) != encoded_whitelist_barcodes_series.shape[1]: 
         if verbose_result:
-            return {"Error": GuideCountError.NO_MATCH, "message": f"Observed barcode {observed_reporter_sequences['barcode']} not of correct length: {encoded_whitelist_barcodes_series.shape[1]}"}
+            return {"Error": GuideCountError.NO_BARCODE_SAME_LENGTH, "message": f"Observed barcode {observed_reporter_sequences['barcode']} not of correct length: {encoded_whitelist_barcodes_series.shape[1]}"}
         else:
-            return GuideCountError.NO_MATCH   
+            return GuideCountError.NO_BARCODE_SAME_LENGTH   
             
     # Determine if there are exact matches, hopefully just a single match
     whitelist_guide_reporter_df_match = whitelist_guide_reporter_df[(whitelist_guide_reporter_df["protospacer"]==observed_reporter_sequences["protospacer"]) & (whitelist_guide_reporter_df["surrogate"]==observed_reporter_sequences["surrogate"]) & (whitelist_guide_reporter_df["barcode"]==observed_reporter_sequences["barcode"])] #whitelist_guide_sequences_series == observed_guide_sequence
     
-    # If there is a single exact match, great, no need for fancy mat
+    # If there is a single exact match, great, no need for fancy math
     if whitelist_guide_reporter_df_match.shape[0] == 1: # Exact match found, return
         return tuple(whitelist_guide_reporter_df_match.iloc[0])
     
     # If no matches, possible a self-edit or a sequencing error, try and find guide with lowest hamming distance
     elif whitelist_guide_reporter_df_match.shape[0] == 0: # No match found, search based on hamming distance
         
-        
         ###
         ### FILTER BY BARCODE (NOTE: 4/2/23: This is the main difference with the traditional filtering by protospacer)
         ### TODO 4/2/23: Assumes perfect barcode match, but in the future I can also select for barcodes of 1 hamming - 2 hamming if there is no matches with 0 hamming
         ###
-        observed_barcode_encoded = encode_DNA_base_vectorized(numpify_string_vectorized(observed_reporter_sequences["barcode"])) 
-        observed_barcode_dists = retrieve_hamming_distance_whitelist(observed_barcode_encoded, encoded_whitelist_barcodes_series)
-        barcode_hamming_min = observed_barcode_dists.min()
-        if barcode_hamming_min >= barcode_hamming_threshold:
+        observed_barcode_encoded = encode_DNA_base_vectorized(numpify_string_vectorized(observed_reporter_sequences["barcode"]))  # Encode the observed barcode
+        observed_barcode_dists = retrieve_hamming_distance_whitelist(observed_barcode_encoded, encoded_whitelist_barcodes_series) # Retrieve hamming distance with whitelist barcode
+        barcode_hamming_min = observed_barcode_dists.min() # Get the barcode with the minimum  hamming distance
+        if barcode_hamming_min >= barcode_hamming_threshold: # If the barcode surpasses the threshold, fail the read due to no barcode. 
             if verbose_result:
-                return {"Error": GuideCountError.NO_MATCH, "barcode_hamming_min": barcode_hamming_min, "message": f"No barcode below threshold {barcode_hamming_threshold}"}
+                return {"Error": GuideCountError.NO_MATCH_BARCODE_HAMMING_THRESHOLD, "barcode_hamming_min": barcode_hamming_min, "message": f"No barcode below threshold {barcode_hamming_threshold}"}
             else:
-                return GuideCountError.NO_MATCH
+                return GuideCountError.NO_MATCH_BARCODE_HAMMING_THRESHOLD
             
-        barcode_matches_indices = np.where(observed_barcode_dists == barcode_hamming_min)[0]
+        barcode_matches_indices = np.where(observed_barcode_dists == barcode_hamming_min)[0] # Get the indices of ALL barcode matches
         
-        whitelist_guide_reporter_df_barcode = whitelist_guide_reporter_df.iloc[barcode_matches_indices]
+        whitelist_guide_reporter_df_barcode = whitelist_guide_reporter_df.iloc[barcode_matches_indices] # Get the whitelist reporters with the matched barcode(s)
         encoded_whitelist_guide_sequences_series_barcode = encoded_whitelist_guide_sequences_series[barcode_matches_indices]
+        
         ###
-        ### Now do similar as before
+        ### Map the protospacer among those with the correct barcode
         ###
-
+        observed_guide_sequence_encoded = encode_DNA_base_vectorized(numpify_string_vectorized(observed_reporter_sequences["protospacer"]))  # Encode the observed protospacer
         
-        # Encode the observed guide
-        observed_guide_sequence_encoded = encode_DNA_base_vectorized(numpify_string_vectorized(observed_reporter_sequences["protospacer"])) 
         
-        # Calculate the hamming distance of the guide with all whitelisted guides - vectorized operation
-        observed_guide_sequence_dists = retrieve_hamming_distance_whitelist(observed_guide_sequence_encoded, encoded_whitelist_guide_sequences_series_barcode)
+        observed_guide_sequence_dists = retrieve_hamming_distance_whitelist(observed_guide_sequence_encoded, encoded_whitelist_guide_sequences_series_barcode) # Calculate the hamming distance of the guide with all whitelisted guides - vectorized operation
         
-        # Get the minimum hamming distance calculated
-        hamming_min = observed_guide_sequence_dists.min()
         
-        # Get all whitelisted guides with the minimum hamming distance (could be multiple)
-        reporters_with_hamming_min_df = whitelist_guide_reporter_df_barcode.iloc[np.where(observed_guide_sequence_dists == hamming_min)[0]]
+        hamming_min = observed_guide_sequence_dists.min() # Get the minimum hamming distance calculated
         
-        # If the minimum hamming distance is greater than the specified threshold, then the guide is too ambigious to assign, so no match.
-        if hamming_min >= hamming_threshold:
+        reporters_with_hamming_min_df = whitelist_guide_reporter_df_barcode.iloc[np.where(observed_guide_sequence_dists == hamming_min)[0]] # Get all whitelisted guides with the minimum hamming distance (could be multiple)
+        
+        if hamming_min >= hamming_threshold: # If the minimum hamming distance is greater than the specified threshold, then the guide is too ambigious to assign, so no match.
             if verbose_result:
-                return {"Error": GuideCountError.NO_MATCH, "hamming_min": hamming_min}
+                return {"Error": GuideCountError.NO_MATCH_GUIDE_HAMMING_THRESHOLD, "hamming_min": hamming_min}
             else:
-                return GuideCountError.NO_MATCH
+                return GuideCountError.NO_MATCH_GUIDE_HAMMING_THRESHOLD
         
         # If there are multiple guides with the minimum hamming distance, then the guide is ambigious, so no mapping (due to multiple match)
-        # NOTE (3/30/2023): This could potentially be an issue with igRNAs maybe?
+        # NOTE (3/30/2023): This could potentially be an issue with igRNAs maybe? (Response 6/30/23) No, the barcode should be able to distinguish between igRNAs
         elif reporters_with_hamming_min_df.shape[0] > 1:
             if verbose_result:
                 return {"Error": GuideCountError.MULTIPLE_MATCH,
@@ -373,21 +385,31 @@ encoded_whitelist_guide_sequences_series, encoded_whitelist_barcodes_series, bar
             else:
                 return GuideCountError.MULTIPLE_MATCH
         
-        # Else if there is 1 guide with the match, then return the match
+        # Else if there is 1 guide with the match, then double check that the observed surrogate matches the mapped surrogate (or if it is due to recombination)
         else:
-            return tuple(reporters_with_hamming_min_df.iloc[0])
+            inferred_reporter_sequences = tuple(reporters_with_hamming_min_df.iloc[0])
+            inferred_surrogate_sequence = inferred_reporter_sequences["surrogate"]
+            observed_surrogate_sequence = observed_reporter_sequences["surrogate"][-len(inferred_surrogate_sequence):] # Because their may be slippage of the polyT upstream of surrogate, slice relative to the downstream end.
+            
+            surrogate_hamming_distance = determine_hamming_distance_classic(inferred_surrogate_sequence, observed_surrogate_sequence)
+            if surrogate_hamming_distance >= surrogate_hamming_threshold:
+                if verbose_result:
+                    return {"Error": GuideCountError.NO_MATCH_SURROGATE_HAMMING_THRESHOLD, "surrogate_hamming_distance": surrogate_hamming_distance, "inferred_reporter_sequences": inferred_reporter_sequences}
+                else:
+                    return GuideCountError.NO_MATCH_SURROGATE_HAMMING_THRESHOLD
+            else:
+                return inferred_reporter_sequences
     
     # Else if there are multiple exact match, which should never occur unless the whitelisted guide list is not unique, then return multiple match.
     else:
-        
         if verbose_result:
-            return {"Error": GuideCountError.MULTIPLE_MATCH,
+            return {"Error": GuideCountError.MULTIPLE_MATCH_EXACT,
             "exact_match": True, 
             "num_matches": whitelist_guide_reporter_df_match.shape[0],
             "matches": whitelist_guide_reporter_df_match,
             "hamming_min": 0}
         else:
-            return GuideCountError.MULTIPLE_MATCH
+            return GuideCountError.MULTIPLE_MATCH_EXACT
         #raise Exception("Multiple exact matches of the provided whitelisted guides - there are likely duplicates in the provided whitelist, please remove. Observed guide={}, guide matches={}".format(observed_guide_sequence, guide_sequences_series_match)) # NOTE 12/6/22: REMOVED THIS EXCEPTION - another reason is from truncated guides having multiple matches. In production code, just make sure to ensure that the whitelist is the set.
 
      
@@ -508,7 +530,7 @@ def get_guide_counts(observed_guide_sequences_counts: Counter, whitelist_guide_s
     return whitelist_guide_sequences_series_counts, observed_guides_df, qc_dict
 
 @typechecked
-def get_reporter_counts(observed_guide_reporters_counts: Counter, whitelist_guide_reporter_df: pd.DataFrame, barcode_hamming_threshold_strict: int = 2, hamming_threshold_strict: int = 4, hamming_threshold_dynamic: bool = False, cores: int=1):
+def get_reporter_counts(observed_guide_reporters_counts: Counter, whitelist_guide_reporter_df: pd.DataFrame, surrogate_hamming_threshold_strict: int = 2, barcode_hamming_threshold_strict: int = 2, hamming_threshold_strict: int = 7, hamming_threshold_dynamic: bool = False, cores: int=1):
 
     whitelist_guide_reporter_df.index = whitelist_guide_reporter_df["protospacer"]
     
@@ -533,7 +555,7 @@ def get_reporter_counts(observed_guide_reporters_counts: Counter, whitelist_guid
             whitelist_guide_reporter_df=whitelist_guide_reporter_df,
             encoded_whitelist_guide_sequences_series=encoded_whitelist_guide_sequences_series,
             encoded_whitelist_barcodes_series=encoded_whitelist_barcodes_series,
-            hamming_threshold=hamming_threshold, barcode_hamming_threshold=barcode_hamming_threshold_strict, verbose_result=False)
+            hamming_threshold=hamming_threshold, barcode_hamming_threshold=barcode_hamming_threshold_strict, surrogate_hamming_threshold=surrogate_hamming_threshold_strict, verbose_result=False)
 
     inferred_true_reporter_sequences = None
     if cores > 1:
@@ -665,10 +687,10 @@ def get_guide_counts_from_reporter_tsv(whitelist_guide_sequences_series: pd.Seri
     return get_guide_counts(combined_counter, whitelist_guide_sequences_series, hamming_threshold_strict, hamming_threshold_dynamic, cores)
 
 @typechecked
-def get_reporter_counts_from_reporter_tsv(whitelist_guide_reporter_df: pd.DataFrame, reporter_tsv_fn: str, barcode_hamming_threshold_strict: int = 2, hamming_threshold_strict: int = 3, hamming_threshold_dynamic: bool = False, cores: int=1):
+def get_reporter_counts_from_reporter_tsv(whitelist_guide_reporter_df: pd.DataFrame, reporter_tsv_fn: str, surrogate_hamming_threshold_strict: int = 10, barcode_hamming_threshold_strict: int = 2, hamming_threshold_strict: int = 7, hamming_threshold_dynamic: bool = False, cores: int=1):
     
     combined_counter = None
     with open(reporter_tsv_fn, "r", newline='') as reporter_tsv_handler:
         combined_counter = map_sample_protospacers(reporter_tsv_handler, include_surrogate = True, cores=cores)
 
-    return get_reporter_counts(observed_guide_reporters_counts=combined_counter, whitelist_guide_reporter_df=whitelist_guide_reporter_df, barcode_hamming_threshold_strict=barcode_hamming_threshold_strict, hamming_threshold_strict=hamming_threshold_strict, hamming_threshold_dynamic=hamming_threshold_dynamic, cores=cores)
+    return get_reporter_counts(observed_guide_reporters_counts=combined_counter, whitelist_guide_reporter_df=whitelist_guide_reporter_df, surrogate_hamming_threshold_strict=surrogate_hamming_threshold_strict, barcode_hamming_threshold_strict=barcode_hamming_threshold_strict, hamming_threshold_strict=hamming_threshold_strict, hamming_threshold_dynamic=hamming_threshold_dynamic, cores=cores)
