@@ -235,8 +235,11 @@ encoded_whitelist_guide_sequences_series, consider_truncated_sequences: bool = F
         #guide_sequences_series_encoded = encode_guide_series(whitelist_guide_sequences_series_match)
         
         # Encode the observed guide
-        observed_guide_sequence_encoded = encode_DNA_base_vectorized(numpify_string_vectorized(observed_guide_sequence)) 
-        
+        try:
+            observed_guide_sequence_encoded = encode_DNA_base_vectorized(numpify_string_vectorized(observed_guide_sequence)) 
+        except Exception as e:
+            print(f"Error on observed guide sequence: {observed_guide_sequence}")
+            raise e
         # Calculate the hamming distance of the guide with all whitelisted guides - vectorized operation
         observed_guide_sequence_dists = retrieve_hamming_distance_whitelist(observed_guide_sequence_encoded, encoded_whitelist_guide_sequences_series)
         
@@ -464,12 +467,18 @@ def get_guide_counts(observed_guide_sequences_counts: Counter, whitelist_guide_s
             hamming_threshold=hamming_threshold, verbose_result=False)
 
     inferred_true_guide_sequences = None
-    with Pool(cores) as pool:
-        inferred_true_guide_sequences = pool.map(
-        infer_true_guides_p,
-        observed_guides_df["observed_sequence"]
-        )
-        
+    
+    if cores > 1:
+        with Pool(cores) as pool:
+            print("Inferencing parallel")
+            inferred_true_guide_sequences = pool.map(
+            infer_true_guides_p,
+            observed_guides_df["observed_sequence"]
+            )
+    else:
+        print("Inferencing sequentially")
+        inferred_true_guide_sequences = [infer_true_guides_p(observed_sequence) for observed_sequence in observed_guides_df["observed_sequence"]]    
+    
     print("Completed inference")
 
     observed_guides_df["inferred_guides"] = inferred_true_guide_sequences
@@ -651,7 +660,7 @@ def get_guide_counts_from_fastq(whitelist_guide_sequences_series: pd.Series, fas
 def get_guide_counts_from_reporter_tsv(whitelist_guide_sequences_series: pd.Series, reporter_tsv_fn: str, hamming_threshold_strict: int = 3, hamming_threshold_dynamic: bool = False, cores: int=1):
     combined_counter = None
     with open(reporter_tsv_fn, "r", newline='') as reporter_tsv_handler:
-        combined_counter = map_sample_protospacers(reporter_tsv_handler, cores)
+        combined_counter = map_sample_protospacers(reporter_tsv_handler, include_surrogate=False, cores=cores)
 
     return get_guide_counts(combined_counter, whitelist_guide_sequences_series, hamming_threshold_strict, hamming_threshold_dynamic, cores)
 
