@@ -121,7 +121,7 @@ def retrieve_hamming_distance_whitelist(target_guide_encoded, whitelist_guide_en
 
 def determine_hamming_distance_classic(seq1, seq2):
     if len(seq1) != len(seq2):
-        raise ValueError("Sequences must have equal length.")
+        raise ValueError(f"Sequences must have equal length. {seq1} and {seq2}")
     
     distance = 0
     for i in range(len(seq1)):
@@ -216,6 +216,7 @@ class GuideCountError(Enum):
     NO_MATCH_SURROGATE_HAMMING_THRESHOLD = "The inferred whitelisted surrogate does not match with the observed surrogate below the given hamming distance threshold"
     MULTIPLE_MATCH_EXACT = "Multiple exact guide matches, double check that there are no duplicates in your guide library (especially if truncation is enabled)"
     NO_MATCH_MISSING_INFO = "The guide/surrogate/barcode were not all provided"
+    NO_MATCH_OBSERVED_SURROGATE_SHORTER = "The observed surrogate is shorter than the inferred surrogate"
     
    
 '''
@@ -242,7 +243,7 @@ encoded_whitelist_guide_sequences_series, consider_truncated_sequences: bool = F
     
     # If there is a single exact match, great, no need for fancy mat
     if len(whitelist_guide_sequences_series_match) == 1: # Exact match found, return
-        return whitelist_guide_sequences_series_match.index[0]
+        return tuple(whitelist_guide_sequences_series_match.index[0])
     
     # If no matches, possible a self-edit or a sequencing error, try and find guide with lowest hamming distance
     elif len(whitelist_guide_sequences_series_match) == 0: # No match found, search based on hamming distance
@@ -287,7 +288,7 @@ encoded_whitelist_guide_sequences_series, consider_truncated_sequences: bool = F
         
         # Else if there is 1 guide with the match, then return the match
         else:
-            return guides_with_hamming_min.index[0]
+            return tuple(guides_with_hamming_min.index[0])
     
     # Else if there are multiple exact match, which should never occur unless the whitelisted guide list is not unique, then return multiple match.
     else:
@@ -388,17 +389,24 @@ encoded_whitelist_guide_sequences_series, encoded_whitelist_barcodes_series, sur
         # Else if there is 1 guide with the match, then double check that the observed surrogate matches the mapped surrogate (or if it is due to recombination)
         else:
             inferred_reporter_sequences = tuple(reporters_with_hamming_min_df.iloc[0])
-            inferred_surrogate_sequence = inferred_reporter_sequences["surrogate"]
-            observed_surrogate_sequence = observed_reporter_sequences["surrogate"][-len(inferred_surrogate_sequence):] # Because their may be slippage of the polyT upstream of surrogate, slice relative to the downstream end.
+            inferred_surrogate_sequence = inferred_reporter_sequences[1]
+            observed_surrogate_sequence = observed_reporter_sequences["surrogate"]
             
-            surrogate_hamming_distance = determine_hamming_distance_classic(inferred_surrogate_sequence, observed_surrogate_sequence)
-            if surrogate_hamming_distance >= surrogate_hamming_threshold:
-                if verbose_result:
-                    return {"Error": GuideCountError.NO_MATCH_SURROGATE_HAMMING_THRESHOLD, "surrogate_hamming_distance": surrogate_hamming_distance, "inferred_reporter_sequences": inferred_reporter_sequences}
+            if len(observed_surrogate_sequence) >= len(inferred_surrogate_sequence):
+                observed_surrogate_sequence = observed_surrogate_sequence[-len(inferred_surrogate_sequence):] # Because their may be slippage of the polyT upstream of surrogate, slice relative to the downstream end.
+                surrogate_hamming_distance = determine_hamming_distance_classic(inferred_surrogate_sequence, observed_surrogate_sequence)
+                if surrogate_hamming_distance >= surrogate_hamming_threshold:
+                    if verbose_result:
+                        return {"Error": GuideCountError.NO_MATCH_SURROGATE_HAMMING_THRESHOLD, "surrogate_hamming_distance": surrogate_hamming_distance, "inferred_reporter_sequences": inferred_reporter_sequences}
+                    else:
+                        return GuideCountError.NO_MATCH_SURROGATE_HAMMING_THRESHOLD
                 else:
-                    return GuideCountError.NO_MATCH_SURROGATE_HAMMING_THRESHOLD
+                    return inferred_reporter_sequences
             else:
-                return inferred_reporter_sequences
+                if verbose_result:
+                        return {"Error": GuideCountError.NO_MATCH_OBSERVED_SURROGATE_SHORTER, "inferred_reporter_sequences": inferred_reporter_sequences}
+                else:
+                    return GuideCountError.NO_MATCH_OBSERVED_SURROGATE_SHORTER
     
     # Else if there are multiple exact match, which should never occur unless the whitelisted guide list is not unique, then return multiple match.
     else:
