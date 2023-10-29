@@ -19,7 +19,7 @@ import random
 from enum import Enum
 from typing import Callable
 from typing import Union, List, Mapping, Tuple, Optional, Any
-
+from concurrent.futures import ProcessPoolExecutor
 
 ###
 ### UTILITY FUNCTIONS
@@ -186,22 +186,25 @@ def retrieve_fastq_guide_sequences(fastq_file: str, parse_left_flank: bool = Tru
         parse_read_right_flank_p = partial(parse_read_right_flank, right_flank=flank_sequence, guide_sequence_length=20)
         parse_guide_sequence_p = partial(parse_guide_sequence, parser_function=parse_read_right_flank_p)
 
-    if fastq_file.endswith('.gz'):
-        with gzip.open(fastq_file, "rt", encoding="utf-8") as handle, Pool(cores) as pool:
-            fastq_guide_sequences = pool.map(
-                parse_guide_sequence_p,
-                (seq.seq for seq in SeqIO.parse(handle, 'fastq')),
-                chunksize=2000,
-            )
-    else:
-        with Pool(cores) as pool:
-            fastq_guide_sequences = pool.map(
-                parse_guide_sequence_p,
-                (seq.seq for seq in SeqIO.parse(fastq_file, 'fastq')),
-                chunksize=2000,
-            )
+    # Looks for a flanking sequences (CACCG, or GTTTT) in the read, then extracts the 20nt guide sequence
 
-    return fastq_guide_sequences
+
+    import gzip
+
+    def parse_fastq_guide_sequences(file_handler):
+        fastq_guide_sequences = []
+        for line_number, line in enumerate(file):
+            if line_number % 4 == 1:
+                fastq_guide_sequences.append(parse_guide_sequence_p(line.strip()))
+        return fastq_guide_sequences
+    
+    if fastq_file.endswith('.gz'):
+            print(f"Opening FASTQ.gz file with gzip, filename={fastq_file}")
+            with gzip.open(fastq_file, "rt", encoding="utf-8") as file:
+                return parse_fastq_guide_sequences(file)
+    else:
+        with open(fastq_file, "r") as file:
+            return parse_fastq_guide_sequences(file)
 
 ###
 ### GUIDE MAPPING MAIN FUNCTIONS
@@ -243,7 +246,7 @@ encoded_whitelist_guide_sequences_series, consider_truncated_sequences: bool = F
     
     # If there is a single exact match, great, no need for fancy mat
     if len(whitelist_guide_sequences_series_match) == 1: # Exact match found, return
-        return tuple(whitelist_guide_sequences_series_match.index[0])
+        return tuple([str(whitelist_guide_sequences_series_match.index[0])])
     
     # If no matches, possible a self-edit or a sequencing error, try and find guide with lowest hamming distance
     elif len(whitelist_guide_sequences_series_match) == 0: # No match found, search based on hamming distance
@@ -288,7 +291,7 @@ encoded_whitelist_guide_sequences_series, consider_truncated_sequences: bool = F
         
         # Else if there is 1 guide with the match, then return the match
         else:
-            return tuple(guides_with_hamming_min.index[0])
+            return tuple([str(guides_with_hamming_min.index[0])])
     
     # Else if there are multiple exact match, which should never occur unless the whitelisted guide list is not unique, then return multiple match.
     else:
@@ -528,11 +531,14 @@ def get_guide_counts(observed_guide_sequences_counts: Counter, whitelist_guide_s
     # Retrieve the observed sequences that were mapped and set the inferred guides
     inferred_guide_sequence_counter = Counter()
     for _, row in observed_guides_df_passed_inference.iterrows():
-        inferred_guide_sequence_counter[row["inferred_guides"]] += row["observed_counts"]
+        inferred_guide_sequence_counter[row["inferred_guides"][0]] += row["observed_counts"]
     
     whitelist_guide_sequences_series_counts = whitelist_guide_sequences_series.apply(lambda guide: inferred_guide_sequence_counter[guide])
     whitelist_guide_sequences_series_counts.index = whitelist_guide_sequences_series
     
+    multi_index = pd.MultiIndex.from_arrays([whitelist_guide_sequences_series], names=['protospacer'])
+    whitelist_guide_sequences_series_counts.index = multi_index
+
     qc_dict = {"guide_sequences_unassigned_counts":observed_guides_df_no_match["observed_counts"].sum(), "guide_sequences_multiple_counts": observed_guides_df_multiple_match["observed_counts"].sum(), "total_guide_counts": observed_guides_df["observed_counts"].sum(), "percent_mapped": percent_mapped}
     
     return whitelist_guide_sequences_series_counts, observed_guides_df, qc_dict
