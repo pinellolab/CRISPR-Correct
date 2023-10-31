@@ -1,3 +1,6 @@
 #!/usr/bin/env python
 
-from .framework.CrisprAmbiguousMapping import *
+from . import framework
+from . import utility 
+
+

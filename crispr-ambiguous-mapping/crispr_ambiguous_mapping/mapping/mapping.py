@@ -5,11 +5,8 @@ from Bio.Seq import Seq
 from pandarallel import pandarallel
 import matplotlib.pyplot as plt
 from collections import Counter
-import pickle
-from datetime import date
 from typeguard import typechecked
-from os import listdir
-from os.path import isfile, join
+from datetime import date
 import re
 from multiprocessing import Pool
 from functools import partial
@@ -21,190 +18,7 @@ from typing import Callable
 from typing import Union, List, Mapping, Tuple, Optional, Any
 from concurrent.futures import ProcessPoolExecutor
 
-###
-### UTILITY FUNCTIONS
-###
-
-def save_or_load_pickle(directory, label, py_object = None, date_string = None):
-    '''Save a pickle for caching that is notated by the date'''
-    
-    if date_string == None:
-        today = date.today()
-        date_string = str(today.year) + ("0" + str(today.month) if today.month < 10 else str(today.month)) + str(today.day)
-    
-    filename = directory + label + "_" + date_string + '.pickle'
-    print(filename)
-    if py_object == None:
-        with open(filename, 'rb') as handle:
-            py_object = pickle.load(handle)
-            return py_object
-    else:
-        with open(filename, 'wb') as handle:
-            pickle.dump(py_object, handle, protocol=pickle.HIGHEST_PROTOCOL)
-
-def display_all_pickle_versions(directory, label):
-    '''Retrieve all pickles with a label, specifically to identify versions available'''
-    return [f for f in listdir(directory) if isfile(join(directory, f)) and label == f[:len(label)]]
-
-
-###
-### GUIDE MAPPING HELPER FUNCTIONS
-###
-
-# Vector encoding of each base, since we want to vectorized
-non_ambigious_encoding_dict = dict({
-    "A": np.asarray([1,0,0,0]),
-    "C": np.asarray([0,1,0,0]),
-    "G": np.asarray([0,0,1,0]),
-    "T": np.asarray([0,0,0,1]),
-    "U": np.asarray([0,0,0,1])
-})
-
-'''
- Helper function for retrieving the encoding for ambigious bases based on IUPAC codes
-'''
-def ambiguity_encoder(bases):
-    return np.logical_or.reduce([non_ambigious_encoding_dict[base] for base in bases]).astype(int)
-
-'''
-    Final dictionary for getting encoding of each IUPAC base
-'''
-full_encoding_dict = dict({
-    "A": non_ambigious_encoding_dict["A"],
-    "C": non_ambigious_encoding_dict["C"],
-    "G": non_ambigious_encoding_dict["G"],
-    "T": non_ambigious_encoding_dict["T"], 
-    "R": ambiguity_encoder(["A", "G"]),
-    "Y": ambiguity_encoder(["C", "T"]),
-    "S": ambiguity_encoder(["G", "C"]),
-    "W": ambiguity_encoder(["A", "T"]),
-    "K": ambiguity_encoder(["G", "T"]),
-    "M": ambiguity_encoder(["A", "C"]),
-    "B": ambiguity_encoder(["C", "G", "T"]),
-    "D": ambiguity_encoder(["A", "G", "T"]),
-    "H": ambiguity_encoder(["A", "C", "T"]),
-    "V": ambiguity_encoder(["A", "C", "G"]),
-    "N": ambiguity_encoder(["A", "C", "G", "T"]),
-})
-
-'''
-    Main function to encode a single base
-'''
-def encode_DNA_base(char):
-    return full_encoding_dict[char]
-encode_DNA_base_vectorized = np.vectorize(encode_DNA_base, signature='()->(n)') # Vectorized function for a string (i.e. gRNA)
-
-'''
-    Function for converting string (i.e. gRNA) into a np array of chars  - may be deprecated (NOTE 20221202)
-'''
-def numpify_string(string):
-    return np.array(list(string), dtype=str)
-numpify_string_vectorized = np.vectorize(numpify_string, signature='()->(n)') # Vectorize the function
-
-def encode_guide_series(guide_series) -> np.array:
-    guide_numpy = guide_series.to_numpy(dtype=object)
-    guide_numpy = guide_numpy.astype(str)
-    guide_numpy_char = np.array(list(map(list, guide_numpy))) # Map into a list of list of characters
-    guide_numpy_encoding = encode_DNA_base_vectorized(guide_numpy_char)
-    return guide_numpy_encoding
-
-
-def retrieve_hamming_distance_whitelist(target_guide_encoded, whitelist_guide_encoded):
-    '''
-        This takes a encoded guide sequence and a list of encoded whitelisted guides and matrix computes the hamming distance of the 
-        encoded guide across all whitelisted guides in a single operation
-        
-        (target_guide_encoded*whitelist_guide_encoded[:, np.newaxis]).sum(axis=3) # Determines 
-        
-    '''
-    return ((target_guide_encoded*whitelist_guide_encoded[:, np.newaxis]).sum(axis=3)^1).sum(axis=2).flatten()
-
-def determine_hamming_distance_classic(seq1, seq2):
-    if len(seq1) != len(seq2):
-        raise ValueError(f"Sequences must have equal length. {seq1} and {seq2}")
-    
-    distance = 0
-    for i in range(len(seq1)):
-        if seq1[i] != seq2[i]:
-            distance += 1
-    
-    return distance
-
-###
-### GUIDE PARSING HELPER FUNCTIONS
-###
-
-'''
-    Strategies to parse read
-'''
-@typechecked
-def parse_read_positional(read_sequence: Union[str, Seq], position_start: int, position_end: int) -> Union[str, Seq]:  
-    return read_sequence[position_start:position_end]
-
-@typechecked
-def parse_read_left_flank(read_sequence: Union[str, Seq], left_flank:Union[str, Seq], guide_sequence_length:int) -> Union[str, Seq]: 
-    position_start = read_sequence.find(left_flank) + len(left_flank)
-    return read_sequence[position_start:position_start+guide_sequence_length]
-
-@typechecked
-def parse_read_right_flank(read_sequence: Union[str, Seq], right_flank:Union[str, Seq], guide_sequence_length:int) -> Union[str, Seq]:
-    position_end = read_sequence.find(right_flank)
-    return read_sequence[position_end-guide_sequence_length:position_end]
-
-
-'''
-    Extract the guide sequence from the read provided
-'''
-@typechecked
-def parse_guide_sequence(read_sequence: Union[str, Seq], parser_function: Callable) -> Union[str, Seq]:
-    read_guide_sequence = parser_function(read_sequence)
-    return read_guide_sequence
-
-
-'''
-    Iterate over all the reads in the FASTQ (parallelized) and retrieve the observed guide sequence
-'''
-@typechecked
-def retrieve_fastq_guide_sequences(fastq_file: str, parse_left_flank: bool = True, parse_flank_sequence: Union[None, str] = None, cores: int=1) -> Union[List[str], List[Seq]]:
-    parse_guide_sequence_p = None
-    if parse_left_flank:
-        if parse_flank_sequence is None:
-            print("No flank sequence passed. Setting left-flank default sequence to CACCG assuming U6 G+N20 guide")
-            flank_sequence = "CACCG"
-        else:
-            flank_sequence = parse_flank_sequence
-
-        parse_read_left_flank_p = partial(parse_read_left_flank, left_flank=flank_sequence, guide_sequence_length=20)
-        parse_guide_sequence_p = partial(parse_guide_sequence, parser_function=parse_read_left_flank_p)
-    else:
-        if parse_flank_sequence is None:
-            print("No flank sequence passed. Setting right-flank default sequence to GTTTT. If you are using sgRNA(F+E) design, flank sequence may need to be changed")
-            flank_sequence = "GTTTT"
-        else:
-            flank_sequence = parse_flank_sequence
-        
-        parse_read_right_flank_p = partial(parse_read_right_flank, right_flank=flank_sequence, guide_sequence_length=20)
-        parse_guide_sequence_p = partial(parse_guide_sequence, parser_function=parse_read_right_flank_p)
-
-    # Looks for a flanking sequences (CACCG, or GTTTT) in the read, then extracts the 20nt guide sequence
-
-
-    import gzip
-
-    def parse_fastq_guide_sequences(file_handler):
-        fastq_guide_sequences = []
-        for line_number, line in enumerate(file):
-            if line_number % 4 == 1:
-                fastq_guide_sequences.append(parse_guide_sequence_p(line.strip()))
-        return fastq_guide_sequences
-    
-    if fastq_file.endswith('.gz'):
-            print(f"Opening FASTQ.gz file with gzip, filename={fastq_file}")
-            with gzip.open(fastq_file, "rt", encoding="utf-8") as file:
-                return parse_fastq_guide_sequences(file)
-    else:
-        with open(fastq_file, "r") as file:
-            return parse_fastq_guide_sequences(file)
+from . import sequence_encoding
 
 ###
 ### GUIDE MAPPING MAIN FUNCTIONS
@@ -257,12 +71,12 @@ encoded_whitelist_guide_sequences_series, consider_truncated_sequences: bool = F
         
         # Encode the observed guide
         try:
-            observed_guide_sequence_encoded = encode_DNA_base_vectorized(numpify_string_vectorized(observed_guide_sequence)) 
+            observed_guide_sequence_encoded = sequence_encoding.encode_DNA_base_vectorized(sequence_encoding.numpify_string_vectorized(observed_guide_sequence)) 
         except Exception as e:
             print(f"Error on observed guide sequence: {observed_guide_sequence}")
             raise e
         # Calculate the hamming distance of the guide with all whitelisted guides - vectorized operation
-        observed_guide_sequence_dists = retrieve_hamming_distance_whitelist(observed_guide_sequence_encoded, encoded_whitelist_guide_sequences_series)
+        observed_guide_sequence_dists = sequence_encoding.retrieve_hamming_distance_whitelist(observed_guide_sequence_encoded, encoded_whitelist_guide_sequences_series)
         
         # Get the minimum hamming distance calculated
         hamming_min = observed_guide_sequence_dists.min()
@@ -344,8 +158,8 @@ encoded_whitelist_guide_sequences_series, encoded_whitelist_barcodes_series, sur
         ### FILTER BY BARCODE (NOTE: 4/2/23: This is the main difference with the traditional filtering by protospacer)
         ### TODO 4/2/23: Assumes perfect barcode match, but in the future I can also select for barcodes of 1 hamming - 2 hamming if there is no matches with 0 hamming
         ###
-        observed_barcode_encoded = encode_DNA_base_vectorized(numpify_string_vectorized(observed_reporter_sequences["barcode"]))  # Encode the observed barcode
-        observed_barcode_dists = retrieve_hamming_distance_whitelist(observed_barcode_encoded, encoded_whitelist_barcodes_series) # Retrieve hamming distance with whitelist barcode
+        observed_barcode_encoded = sequence_encoding.encode_DNA_base_vectorized(sequence_encoding.numpify_string_vectorized(observed_reporter_sequences["barcode"]))  # Encode the observed barcode
+        observed_barcode_dists = sequence_encoding.retrieve_hamming_distance_whitelist(observed_barcode_encoded, encoded_whitelist_barcodes_series) # Retrieve hamming distance with whitelist barcode
         barcode_hamming_min = observed_barcode_dists.min() # Get the barcode with the minimum  hamming distance
         if barcode_hamming_min >= barcode_hamming_threshold: # If the barcode surpasses the threshold, fail the read due to no barcode. 
             if verbose_result:
@@ -361,10 +175,10 @@ encoded_whitelist_guide_sequences_series, encoded_whitelist_barcodes_series, sur
         ###
         ### Map the protospacer among those with the correct barcode
         ###
-        observed_guide_sequence_encoded = encode_DNA_base_vectorized(numpify_string_vectorized(observed_reporter_sequences["protospacer"]))  # Encode the observed protospacer
+        observed_guide_sequence_encoded = sequence_encoding.encode_DNA_base_vectorized(sequence_encoding.numpify_string_vectorized(observed_reporter_sequences["protospacer"]))  # Encode the observed protospacer
         
         
-        observed_guide_sequence_dists = retrieve_hamming_distance_whitelist(observed_guide_sequence_encoded, encoded_whitelist_guide_sequences_series_barcode) # Calculate the hamming distance of the guide with all whitelisted guides - vectorized operation
+        observed_guide_sequence_dists = sequence_encoding.retrieve_hamming_distance_whitelist(observed_guide_sequence_encoded, encoded_whitelist_guide_sequences_series_barcode) # Calculate the hamming distance of the guide with all whitelisted guides - vectorized operation
         
         
         hamming_min = observed_guide_sequence_dists.min() # Get the minimum hamming distance calculated
@@ -397,7 +211,7 @@ encoded_whitelist_guide_sequences_series, encoded_whitelist_barcodes_series, sur
             
             if len(observed_surrogate_sequence) >= len(inferred_surrogate_sequence):
                 observed_surrogate_sequence = observed_surrogate_sequence[-len(inferred_surrogate_sequence):] # Because their may be slippage of the polyT upstream of surrogate, slice relative to the downstream end.
-                surrogate_hamming_distance = determine_hamming_distance_classic(inferred_surrogate_sequence, observed_surrogate_sequence)
+                surrogate_hamming_distance = sequence_encoding.determine_hamming_distance_classic(inferred_surrogate_sequence, observed_surrogate_sequence)
                 if surrogate_hamming_distance >= surrogate_hamming_threshold:
                     if verbose_result:
                         return {"Error": GuideCountError.NO_MATCH_SURROGATE_HAMMING_THRESHOLD, "surrogate_hamming_distance": surrogate_hamming_distance, "inferred_reporter_sequences": inferred_reporter_sequences}
@@ -458,10 +272,10 @@ def determine_hamming_threshold(whitelist_guide_sequences_series: Union[List[str
             new_nt = random.sample(nt_list, 1)[0]
             current_guide_sequence_separated[position] = new_nt
             current_guide_sequence = "".join(current_guide_sequence_separated)
-            current_guide_sequence_encoded = encode_DNA_base_vectorized(numpify_string_vectorized(current_guide_sequence)) 
+            current_guide_sequence_encoded = sequence_encoding.encode_DNA_base_vectorized(sequence_encoding.numpify_string_vectorized(current_guide_sequence)) 
             
             # Calculate the hamming distance of the mutated guide to all other guides
-            hamming_distances =  retrieve_hamming_distance_whitelist(current_guide_sequence_encoded, encoded_whitelist_guide_sequences_series)
+            hamming_distances =  sequence_encoding.retrieve_hamming_distance_whitelist(current_guide_sequence_encoded, encoded_whitelist_guide_sequences_series)
             if len(np.where(hamming_distances == hamming_distances.min())[0]) > 1: # TODO (3/30/23): Can also add to the conditional whether the minimum hamming distance guide is still the original guide - but it is probably rare cases where this would not be the case, so not too important to implement
                 mutation_count_until_nonunique.append(iteration+1)
                 break   
@@ -484,7 +298,7 @@ def get_guide_counts(observed_guide_sequences_counts: Counter, whitelist_guide_s
     observed_guides_df = pd.DataFrame({"observed_sequence":[str(sequence) for sequence in observed_guide_sequences_counts.keys()], "observed_counts":observed_guide_sequences_counts.values()})
  
     # Get the hamming distance threshold. THe hamming distance must be below this threshold to assign an observed guide to a whitelist guide.
-    encoded_whitelist_guide_sequences_series = encode_guide_series(whitelist_guide_sequences_series)
+    encoded_whitelist_guide_sequences_series = sequence_encoding.encode_guide_series(whitelist_guide_sequences_series)
     if hamming_threshold_dynamic:
         hamming_threshold = int(determine_hamming_threshold(whitelist_guide_sequences_series, encoded_whitelist_guide_sequences_series, sample_count = 100, quantile = 0.05))
         print("Hamming threshold is " + str(hamming_threshold))
@@ -553,8 +367,8 @@ def get_reporter_counts(observed_guide_reporters_counts: Counter, whitelist_guid
     observed_guides_df = pd.DataFrame({"observed_sequence":observed_guide_reporters_counts.keys(), "observed_counts":observed_guide_reporters_counts.values()})
  
     # Get the hamming distance threshold. THe hamming distance must be below this threshold to assign an observed guide to a whitelist guide.
-    encoded_whitelist_guide_sequences_series = encode_guide_series(whitelist_guide_reporter_df["protospacer"])
-    encoded_whitelist_barcodes_series = encode_guide_series(whitelist_guide_reporter_df["barcode"])
+    encoded_whitelist_guide_sequences_series = sequence_encoding.encode_guide_series(whitelist_guide_reporter_df["protospacer"])
+    encoded_whitelist_barcodes_series = sequence_encoding.encode_guide_series(whitelist_guide_reporter_df["barcode"])
     
     if hamming_threshold_dynamic:
         hamming_threshold = int(determine_hamming_threshold(whitelist_guide_reporter_df["protospacer"], encoded_whitelist_guide_sequences_series, sample_count = 100, quantile = 0.05))
@@ -615,65 +429,22 @@ def get_reporter_counts(observed_guide_reporters_counts: Counter, whitelist_guid
 
 
 
-###
-### Read in sequences from a pre-parsed reporter file
-### 
-import csv
-import multiprocessing as mp
-from collections import Counter
-from functools import reduce
-
-def gen_chunks(reader, chunksize=1000):
-    """
-    Chunk generator. Take a CSV `reader` and yield
-    `chunksize` sized slices.
-    Source: https://gist.github.com/miku/820490
-    """
-    chunk = []
-    for index, line in enumerate(reader):
-        if index % chunksize == 0 and index > 0:
-            yield chunk
-            chunk = []
-        chunk.append(line)
-    yield chunk
-
-def process(tsv_chunk, include_surrogate = False):
-    local_counter = Counter()
-    
-    for row in tsv_chunk.copy():
-        if include_surrogate:
-            local_counter[(row[1], row[2], row[3])] += 1
-        else:
-            local_counter[row[1]] += 1
-    
-    return local_counter
 
 
-@typechecked
-def map_sample_protospacers(parsing_demult_handler, include_surrogate = False, cores=1):
-    tsv_reader = csv.reader(parsing_demult_handler, delimiter='\t')  # change delimiter for normal csv files
-    header = next(tsv_reader)
-      
-    read_chunks = gen_chunks(tsv_reader, chunksize=10000)
 
-    process_func = partial(process, include_surrogate=include_surrogate)
 
-    combined_counter = None
-    if cores > 1:
-        with mp.Pool(processes=cores) as pool:
-            chunk_counters = pool.map(process_func, read_chunks)
-            combined_counter = reduce(lambda x, y: x + y, chunk_counters)
-    else:
-        chunk_counters = [process_func(read_chunk) for read_chunk in read_chunks]
-        combined_counter = reduce(lambda x, y: x + y, chunk_counters)
 
-    return combined_counter 
+
+
+
+
 
 
 ###
 ### MAIN FUNCTIONS
 ###
-
+from . import reporter_tsv_parsing
+from . import standard_guide_fastq_parsing
 '''
     Take in input FASTQ filename, and a set of whitelisted guide sequences
 '''
@@ -681,13 +452,12 @@ def map_sample_protospacers(parsing_demult_handler, include_surrogate = False, c
 def get_guide_counts_from_fastq(whitelist_guide_sequences_series: pd.Series, fastq_fn: str, hamming_threshold_strict: int = 3, hamming_threshold_dynamic: bool = False, parse_left_flank: bool = True, parse_flank_sequence: Union[None, str] = None, cores: int=1):
     # Retrieve all observed guide sequences
     print("Retrieving FASTQ guide sequences and counting: " + fastq_fn)
-    observed_guide_raw_sequences = retrieve_fastq_guide_sequences(fastq_fn, parse_left_flank=parse_left_flank, parse_flank_sequence=parse_flank_sequence, cores=cores)
+    observed_guide_raw_sequences = standard_guide_fastq_parsing.retrieve_fastq_guide_sequences(fastq_fn, parse_left_flank=parse_left_flank, parse_flank_sequence=parse_flank_sequence, cores=cores)
     
     # Count each unique observed guide sequence
     observed_guide_sequences_counts = Counter(observed_guide_raw_sequences)
     
     return get_guide_counts(observed_guide_sequences_counts, whitelist_guide_sequences_series, hamming_threshold_strict, hamming_threshold_dynamic, cores)
-
 
 '''
     Take in input FASTQ filename, and a set of whitelisted guide sequences
@@ -696,7 +466,7 @@ def get_guide_counts_from_fastq(whitelist_guide_sequences_series: pd.Series, fas
 def get_guide_counts_from_reporter_tsv(whitelist_guide_sequences_series: pd.Series, reporter_tsv_fn: str, hamming_threshold_strict: int = 3, hamming_threshold_dynamic: bool = False, cores: int=1):
     combined_counter = None
     with open(reporter_tsv_fn, "r", newline='') as reporter_tsv_handler:
-        combined_counter = map_sample_protospacers(reporter_tsv_handler, include_surrogate=False, cores=cores)
+        combined_counter = reporter_tsv_parsing.map_sample_protospacers(reporter_tsv_handler, include_surrogate=False, cores=cores)
 
     return get_guide_counts(combined_counter, whitelist_guide_sequences_series, hamming_threshold_strict, hamming_threshold_dynamic, cores)
 
@@ -705,6 +475,6 @@ def get_reporter_counts_from_reporter_tsv(whitelist_guide_reporter_df: pd.DataFr
     
     combined_counter = None
     with open(reporter_tsv_fn, "r", newline='') as reporter_tsv_handler:
-        combined_counter = map_sample_protospacers(reporter_tsv_handler, include_surrogate = True, cores=cores)
+        combined_counter = reporter_tsv_parsing.map_sample_protospacers(reporter_tsv_handler, include_surrogate = True, cores=cores)
 
     return get_reporter_counts(observed_guide_reporters_counts=combined_counter, whitelist_guide_reporter_df=whitelist_guide_reporter_df, surrogate_hamming_threshold_strict=surrogate_hamming_threshold_strict, barcode_hamming_threshold_strict=barcode_hamming_threshold_strict, hamming_threshold_strict=hamming_threshold_strict, hamming_threshold_dynamic=hamming_threshold_dynamic, cores=cores)
