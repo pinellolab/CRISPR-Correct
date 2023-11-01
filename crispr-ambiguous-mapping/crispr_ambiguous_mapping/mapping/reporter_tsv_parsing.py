@@ -1,12 +1,10 @@
-###
-### Read in sequences from a pre-parsed reporter file (the reporter file is deprecated, and instead replaced with the UMI-tools output parsing)
-### 
 import csv
 import multiprocessing as mp
 from collections import Counter
 from functools import reduce
 from typeguard import typechecked
 from functools import partial
+from typing import Union, Tuple
 
 def gen_chunks(reader, chunksize=1000):
     """
@@ -35,23 +33,24 @@ def process(tsv_chunk, include_surrogate = False):
 
 
 @typechecked
-def map_sample_protospacers(parsing_demult_handler, include_surrogate = False, cores=1):
-    tsv_reader = csv.reader(parsing_demult_handler, delimiter='\t')  # change delimiter for normal csv files
-    header = next(tsv_reader)
-      
-    read_chunks = gen_chunks(tsv_reader, chunksize=10000)
+def get_reporter_tsv_observed_sequence_counts(reporter_tsv_fn:str, include_surrogate = False, cores=1) -> Union[Counter[Tuple[str,str,str]], Counter[str]]: 
+    with open(reporter_tsv_fn, "r", newline='') as reporter_tsv_handler:
+        tsv_reader = csv.reader(reporter_tsv_handler, delimiter='\t')  # change delimiter for normal csv files
+        header = next(tsv_reader)
+        
+        read_chunks = gen_chunks(tsv_reader, chunksize=10000)
 
-    process_func = partial(process, include_surrogate=include_surrogate)
+        process_func = partial(process, include_surrogate=include_surrogate)
 
-    combined_counter = None
-    if cores > 1:
-        with mp.Pool(processes=cores) as pool:
-            chunk_counters = pool.map(process_func, read_chunks)
+        combined_counter = None
+        if cores > 1:
+            with mp.Pool(processes=cores) as pool:
+                chunk_counters = pool.map(process_func, read_chunks)
+                combined_counter = reduce(lambda x, y: x + y, chunk_counters)
+        else:
+            chunk_counters = [process_func(read_chunk) for read_chunk in read_chunks]
             combined_counter = reduce(lambda x, y: x + y, chunk_counters)
-    else:
-        chunk_counters = [process_func(read_chunk) for read_chunk in read_chunks]
-        combined_counter = reduce(lambda x, y: x + y, chunk_counters)
 
-    return combined_counter 
+        return combined_counter 
 
 
