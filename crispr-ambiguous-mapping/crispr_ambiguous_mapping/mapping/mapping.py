@@ -729,9 +729,9 @@ def infer_whitelist_sequence(observed_guide_reporter_sequence, whitelist_guide_r
         else:
             barcode_available = False
             # IMPORTANT CHECK TODO: I wonder if these are needed (since they are added at the appropriate points off the flow.
-            complete_match_result.protospacer_match_surrogate_match_barcode_match = MatchSetSingleInferenceMatchResult(error=barcode_error_result)
-            complete_match_result.protospacer_mismatch_surrogate_match_barcode_match = SurrogateProtospacerMismatchSingleInferenceMatchResult(error=barcode_error_result)
-            complete_match_result.protospacer_match_barcode_match = MatchSetSingleInferenceMatchResult(error=barcode_error_result)
+            # complete_match_result.protospacer_match_surrogate_match_barcode_match = MatchSetSingleInferenceMatchResult(error=barcode_error_result)
+            # complete_match_result.protospacer_mismatch_surrogate_match_barcode_match = SurrogateProtospacerMismatchSingleInferenceMatchResult(error=barcode_error_result)
+            # complete_match_result.protospacer_match_barcode_match = MatchSetSingleInferenceMatchResult(error=barcode_error_result)
             
 
     
@@ -805,8 +805,10 @@ def infer_whitelist_sequence(observed_guide_reporter_sequence, whitelist_guide_r
                         whitelist_guide_reporter_df_hamming_protospacer_match_surrogate_match = whitelist_guide_reporter_df_hamming_protospacer_match.iloc[protospacer_match_surrogate_match_indices] # Get all whitelisted guides with the minimum hamming distance (could be multiple)
                         complete_match_result.protospacer_match_surrogate_match = MatchSetSingleInferenceMatchResult(value=MatchSetSingleInferenceMatchResultValue(matches=whitelist_guide_reporter_df_hamming_protospacer_match_surrogate_match))
                     else:
-                        # IMPORTANT CHECK TODO: Where is error_result declared? Is it the wrong variable? MADE A MISTAKE - Need to create the error object.....
-                        complete_match_result.protospacer_match_surrogate_match = MatchSetSingleInferenceMatchResult(error=error_result)
+                        complete_match_result.protospacer_match_surrogate_match = MatchSetSingleInferenceMatchResult(
+                                        error=SurrogateHammingThresholdGuideCountError(
+                                            hamming_min=observed_surrogate_sequence_dists_protospacer_match_min, 
+                                            hamming_threshold=surrogate_hamming_threshold))
                 else:
                     complete_match_result.protospacer_match_surrogate_match = MatchSetSingleInferenceMatchResult(error=surrogate_error_result)
 
@@ -838,12 +840,11 @@ def infer_whitelist_sequence(observed_guide_reporter_sequence, whitelist_guide_r
                                     protospacer_surrogate_matches=whitelist_guide_reporter_df_hamming_barcode_match_surrogate_match_protospacer_match
                                 ))
                             else:
-                                # if verbose_result:
-                                #     error_result = {"Error": GuideCountError.NO_MATCH_SURROGATE_HAMMING_THRESHOLD, "surrogate_hamming_min": observed_surrogate_sequence_dists_barcode_match_min}
-                                # else:
-                                #     error_result = GuideCountError.NO_MATCH_SURROGATE_HAMMING_THRESHOLD
-                                # Error, protospacer hamming threshold not met. For any result requiring protospacer, set error
-                                complete_match_result.protospacer_mismatch_surrogate_match_barcode_match = SurrogateProtospacerMismatchSingleInferenceMatchResult(error=error_result)
+                                complete_match_result.protospacer_mismatch_surrogate_match_barcode_match = SurrogateProtospacerMismatchSingleInferenceMatchResult(
+                                    error=SurrogateHammingThresholdGuideCountError(
+                                        hamming_min=observed_surrogate_sequence_dists_barcode_match_min,
+                                        hamming_threshold=surrogate_hamming_threshold
+                                    ))
                         else:
                             complete_match_result.protospacer_mismatch_surrogate_match_barcode_match = SurrogateProtospacerMismatchSingleInferenceMatchResult(error=barcode_error_result)
 
@@ -869,17 +870,20 @@ def infer_whitelist_sequence(observed_guide_reporter_sequence, whitelist_guide_r
                         # else:
                         #     error_result = GuideCountError.NO_MATCH_SURROGATE_HAMMING_THRESHOLD
                         # Error, protospacer hamming threshold not met. For any result requiring protospacer, set error
-                        complete_match_result.protospacer_mismatch_surrogate_match = SurrogateProtospacerMismatchSingleInferenceMatchResult(error=error_result)
+                        complete_match_result.protospacer_mismatch_surrogate_match = SurrogateProtospacerMismatchSingleInferenceMatchResult(
+                            error=SurrogateHammingThresholdGuideCountError(
+                                hamming_min=observed_surrogate_sequence_dists_min,
+                                hamming_threshold=surrogate_hamming_threshold
+                            ))
                 else:
                     complete_match_result.protospacer_mismatch_surrogate_match_barcode_match = SurrogateProtospacerMismatchSingleInferenceMatchResult(error=surrogate_error_result)
                     complete_match_result.protospacer_mismatch_surrogate_match = SurrogateProtospacerMismatchSingleInferenceMatchResult(error=surrogate_error_result)
                 
         else: # If the barcode surpasses the threshold, fail the read due to no barcode. 
-            # if verbose_result:
-            #     error_result = {"Error": GuideCountError.NO_MATCH_PROTOSPACER_HAMMING_THRESHOLD, "protospacer_hamming_min": observed_protospacer_sequence_dists_min}
-            # else:
-            #     error_result = GuideCountError.NO_MATCH_PROTOSPACER_HAMMING_THRESHOLD
-            # Error, protospacer hamming threshold not met. For any result requiring protospacer, set error
+            error_result = ProtospacerHammingThresholdGuideCountError(
+                hamming_min=observed_protospacer_sequence_dists_min,
+                hamming_threshold=protospacer_hamming_threshold
+            )
             complete_match_result.protospacer_match = MatchSetSingleInferenceMatchResult(error=error_result)
             complete_match_result.protospacer_match_surrogate_match_barcode_match = MatchSetSingleInferenceMatchResult(error=error_result)
             complete_match_result.protospacer_match_surrogate_match = MatchSetSingleInferenceMatchResult(error=error_result)
