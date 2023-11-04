@@ -55,7 +55,7 @@ def perform_sequence_count(sequence_counter, r1_protospacer_fastq_filehandler, r
     return sequence_counter
 
 @typechecked
-def get_umitools_observed_sequence_counts(r1_protospacer_fastq_file: str, r2_surrogate_fastq_file: Optional[str] = None, barcode_pattern_regex: Optional[str] = None, umi_pattern_regex: Optional[str] = None) -> defaultdict(Tuple[str,Optional[str],Optional[str]], Counter[Optional[str]]) -> Union[Counter[str], defaultdict(str, Counter[str]), Counter[Tuple[str, str]], defaultdict(Tuple[str, str], Counter[str]), Counter[Tuple[str, str, str]], defaultdict(Tuple[str, str, str], Counter[str])]:
+def get_umitools_observed_sequence_counts(r1_protospacer_fastq_file: str, r2_surrogate_fastq_file: Optional[str] = None, barcode_pattern_regex: Optional[str] = None, umi_pattern_regex: Optional[str] = None) -> Union[Counter[str], defaultdict(str, Counter[str]), Counter[Tuple[str, str]], defaultdict(Tuple[str, str], Counter[str]), Counter[Tuple[str, str, str]], defaultdict(Tuple[str, str, str], Counter[str])]:
     def parse_fastq(r1_protospacer_fastq_filehandler, r2_surrogate_fastq_filehandler):
         if r2_surrogate_fastq_file is None: # ONLY R1
             fastq_single_read_group = grouper(r1_protospacer_fastq_filehandler)
