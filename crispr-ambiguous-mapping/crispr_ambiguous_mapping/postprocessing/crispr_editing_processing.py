@@ -11,7 +11,7 @@ from functools import reduce
 import pickle
 from collections import defaultdict
 from dataclasses import dataclass
-from .CrisprAmbiguousMapping import save_or_load_pickle
+from ..utility.pickle_loading import save_or_load_pickle
 
 def determine_mutations_in_sequence(true_sequence, observed_sequence):
     mutation_array = []

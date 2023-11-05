@@ -1,4 +1,2 @@
-#!/usr/bin/env python
-
-from .CrisprAmbiguousMapping import *
-from .CrisprEditingProcessing import *
+from .main_mapping import *
+from .models import *
