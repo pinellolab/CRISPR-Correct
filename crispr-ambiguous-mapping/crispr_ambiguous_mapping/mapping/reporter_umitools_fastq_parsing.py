@@ -2,7 +2,8 @@
 ### GUIDE PARSING HELPER FUNCTIONS
 ###
 from typeguard import typechecked
-from typing import Union, Optional, List, Tuple
+from typing import Union, Optional, List, Tuple, DefaultDict
+from typing import Counter as CounterType
 from collections import Counter
 from typing import Callable
 from functools import partial
@@ -55,19 +56,19 @@ def perform_sequence_count(sequence_counter, r1_protospacer_fastq_filehandler, r
     return sequence_counter
 
 @typechecked
-def get_umitools_observed_sequence_counts(r1_protospacer_fastq_file: str, r2_surrogate_fastq_file: Optional[str] = None, barcode_pattern_regex: Optional[str] = None, umi_pattern_regex: Optional[str] = None) -> Union[Counter[str], defaultdict(str, Counter[str]), Counter[Tuple[str, str]], defaultdict(Tuple[str, str], Counter[str]), Counter[Tuple[str, str, str]], defaultdict(Tuple[str, str, str], Counter[str])]:
+def get_umitools_observed_sequence_counts(r1_protospacer_fastq_file: str, r2_surrogate_fastq_file: Optional[str] = None, barcode_pattern_regex: Optional[str] = None, umi_pattern_regex: Optional[str] = None) -> Union[CounterType[str], DefaultDict[str, CounterType[str]], CounterType[Tuple[str, str]], DefaultDict[Tuple[str, str], CounterType[str]], CounterType[Tuple[str, str, str]], DefaultDict[Tuple[str, str, str], CounterType[str]]]:
     def parse_fastq(r1_protospacer_fastq_filehandler, r2_surrogate_fastq_filehandler):
         if r2_surrogate_fastq_file is None: # ONLY R1
             fastq_single_read_group = grouper(r1_protospacer_fastq_filehandler)
             if barcode_pattern_regex is None: # ONLY R1; NO BARCODE
                 if umi_pattern_regex is None: # ONLY R1; NO BARCODE; NO UMI
-                    sequence_counter: Counter[str] = Counter()
+                    sequence_counter: CounterType[str] = Counter()
                     for fastq_paired_read_group in fastq_single_read_group:
                         r1_sequence_read = fastq_paired_read_group[1]
                         protospacer=r1_sequence_read
                         sequence_counter[protospacer] += 1
                 else: # ONLY R1; NO BARCODE; YES UMI
-                    sequence_counter: defaultdict(str, Counter[str]) = defaultdict(Counter)
+                    sequence_counter: DefaultDict[str, CounterType[str]] = defaultdict(Counter)
                     for fastq_paired_read_group in fastq_single_read_group:
                         r1_header_read = fastq_paired_read_group[0]
                         r1_sequence_read = fastq_paired_read_group[1]
@@ -76,14 +77,14 @@ def get_umitools_observed_sequence_counts(r1_protospacer_fastq_file: str, r2_sur
                         sequence_counter[protospacer][umi] += 1
             else: # ONLY R1; YES BARCODE
                 if umi_pattern_regex is None: # ONLY R1; YES BARCODE; NO UMI
-                    sequence_counter: Counter[Tuple[str, str]] = Counter()
+                    sequence_counter: CounterType[Tuple[str, str]] = Counter()
                     for fastq_paired_read_group in fastq_single_read_group:
                         r1_sequence_read = fastq_paired_read_group[1]
                         protospacer=r1_sequence_read
                         barcode = re.search(barcode_pattern_regex, r1_header_read)
                         sequence_counter[(protospacer, barcode)] += 1
                 else: # ONLY R1; YES BARCODE; YES UMI
-                    sequence_counter: defaultdict(Tuple[str, str], Counter[str]) = defaultdict(Counter)
+                    sequence_counter: DefaultDict[Tuple[str, str], CounterType[str]] = defaultdict(Counter)
                     for fastq_paired_read_group in fastq_single_read_group:
                         r1_header_read = fastq_paired_read_group[0]
                         r1_sequence_read = fastq_paired_read_group[1]
@@ -95,14 +96,14 @@ def get_umitools_observed_sequence_counts(r1_protospacer_fastq_file: str, r2_sur
             fastq_paired_read_group = grouper(zip(r1_protospacer_fastq_filehandler, r2_surrogate_fastq_filehandler))
             if barcode_pattern_regex is None: # YES R2; NO BARCODE
                 if umi_pattern_regex is None: # YES R2; NO BARCODE; NO UMI
-                    sequence_counter: Counter[Tuple[str, str]] = Counter()
+                    sequence_counter: CounterType[Tuple[str, str]] = Counter()
                     for fastq_paired_read_group in fastq_paired_read_group:
                         r1_sequence_read, r2_sequence_read = fastq_paired_read_group[1]
                         protospacer=r1_sequence_read
                         surrogate=r2_sequence_read
                         sequence_counter[(protospacer, surrogate)] += 1
                 else: # YES R2; NO BARCODE; YES UMI
-                    sequence_counter: defaultdict(Tuple[str,str], Counter[str]) = defaultdict(Counter)
+                    sequence_counter: DefaultDict[Tuple[str,str], CounterType[str]] = defaultdict(Counter)
                     for fastq_paired_read_group in fastq_paired_read_group:
                         r1_header_read, _ = fastq_paired_read_group[0]
                         r1_sequence_read, r2_sequence_read = fastq_paired_read_group[1]
@@ -114,7 +115,7 @@ def get_umitools_observed_sequence_counts(r1_protospacer_fastq_file: str, r2_sur
                         sequence_counter[(protospacer, surrogate)][umi] += 1
             else: # YES R2; YES BARCODE
                 if umi_pattern_regex is None: # YES R2; YES BARCODE; NO UMI
-                    sequence_counter: Counter[Tuple[str, str, str]] = Counter()
+                    sequence_counter: CounterType[Tuple[str, str, str]] = Counter()
                     for fastq_paired_read_group in fastq_paired_read_group:
                         r1_header_read, _ = fastq_paired_read_group[0]
                         r1_sequence_read, r2_sequence_read = fastq_paired_read_group[1]
@@ -125,7 +126,7 @@ def get_umitools_observed_sequence_counts(r1_protospacer_fastq_file: str, r2_sur
                         umi = re.search(umi_pattern_regex, r1_header_read)
                         sequence_counter[(protospacer, surrogate, barcode)] += 1
                 else: # YES R2; YES BARCODE; YES UMI
-                    sequence_counter: defaultdict(Tuple[str, str, str], Counter[str]) = defaultdict(Counter)
+                    sequence_counter: DefaultDict[Tuple[str, str, str], CounterType[str]] = defaultdict(Counter)
                     for fastq_paired_read_group in fastq_paired_read_group:
                         r1_header_read, _ = fastq_paired_read_group[0]
                         r1_sequence_read, r2_sequence_read = fastq_paired_read_group[1]

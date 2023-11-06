@@ -5,6 +5,7 @@ from functools import reduce
 from typeguard import typechecked
 from functools import partial
 from typing import Union, Tuple
+from typing import Counter as CounterType
 
 def gen_chunks(reader, chunksize=1000):
     """
@@ -33,7 +34,7 @@ def process(tsv_chunk, include_surrogate = False):
 
 
 @typechecked
-def get_reporter_tsv_observed_sequence_counts(reporter_tsv_fn:str, include_surrogate = False, cores=1) -> Union[Counter[Tuple[str,str,str]], Counter[str]]: 
+def get_reporter_tsv_observed_sequence_counts(reporter_tsv_fn:str, include_surrogate = False, cores=1) -> Union[CounterType[Tuple[str,str,str]], CounterType[str]]: 
     with open(reporter_tsv_fn, "r", newline='') as reporter_tsv_handler:
         tsv_reader = csv.reader(reporter_tsv_handler, delimiter='\t')  # change delimiter for normal csv files
         header = next(tsv_reader)

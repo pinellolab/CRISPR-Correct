@@ -60,8 +60,6 @@ def encode_guide_series(guide_series) -> np.array:
     guide_numpy_encoding = encode_DNA_base_vectorized(guide_numpy_char)
     return guide_numpy_encoding
 
-
-
 def retrieve_hamming_distance_whitelist(target_guide_encoded, whitelist_guide_encoded):
     '''
         This takes a encoded guide sequence and a list of encoded whitelisted guides and matrix computes the hamming distance of the 

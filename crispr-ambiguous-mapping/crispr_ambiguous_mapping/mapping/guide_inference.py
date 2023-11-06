@@ -20,11 +20,12 @@ import gzip
 import random
 from enum import Enum
 from typing import Callable
-from typing import Union, List, Mapping, Tuple, Optional, Any
+from typing import Union, List, Mapping, Tuple, Optional, Any, DefaultDict
+from typing import Counter as CounterType
 from concurrent.futures import ProcessPoolExecutor
-from .models import *
-from . import sequence_encoding
 
+from . import sequence_encoding
+from .models import *
 
 '''
     Given an observed, potentially self-edited guide (in 'row["observed_sequence"]'), try and find the true guide sequence from the whitelist ("guide_sequences_series") based on hamming distance
@@ -639,7 +640,7 @@ def get_whitelist_reporter_counts(observed_guide_reporters_counts: Counter, whit
     return whitelist_guide_reporter_counts, observed_guides_df, qc_dict
 
 @typechecked
-def get_whitelist_reporter_counts_with_umi(observed_guide_reporter_umi_counts: defaultdict(Tuple[str,Optional[str],Optional[str]], Counter[Optional[str]]), whitelist_guide_reporter_df: pd.DataFrame, contains_surrogate:bool = False, contains_barcode:bool = False, contains_umi:bool = False, protospacer_hamming_threshold_strict: Optional[int] = 7, surrogate_hamming_threshold_strict: Optional[int] = 2, barcode_hamming_threshold_strict: Optional[int] = 2, cores: int=1):
+def get_whitelist_reporter_counts_with_umi(observed_guide_reporter_umi_counts: DefaultDict[Tuple[str,Optional[str],Optional[str]], CounterType[Optional[str]]], whitelist_guide_reporter_df: pd.DataFrame, contains_surrogate:bool = False, contains_barcode:bool = False, contains_umi:bool = False, protospacer_hamming_threshold_strict: Optional[int] = 7, surrogate_hamming_threshold_strict: Optional[int] = 2, barcode_hamming_threshold_strict: Optional[int] = 2, cores: int=1):
     encoded_whitelist_protospacer_sequences_series = sequence_encoding.encode_guide_series(whitelist_guide_reporter_df["protospacer"])
     if contains_surrogate:
         encoded_whitelist_surrogate_sequences_series = sequence_encoding.encode_guide_series(whitelist_guide_reporter_df["surrogate"])
@@ -706,7 +707,7 @@ def get_whitelist_reporter_counts_with_umi(observed_guide_reporter_umi_counts: d
         inferred_true_reporter_sequences = [infer_whitelist_sequence_p(observed_guide_reporter) for observed_guide_reporter in observed_guide_reporter_list]
     
     # Map inference results to result object
-    observed_guide_reporter_umi_counts_inferred: defaultdict(dict)= defaultdict(dict)
+    observed_guide_reporter_umi_counts_inferred: DefaultDict[dict]= defaultdict(dict)
     for observed_guide_reporter_key_index, observed_guide_reporter_key in enumerate(observed_guide_reporter_list):
         observed_guide_reporter_umi_counts_inferred[observed_guide_reporter_key] = {
             "observed_value": observed_guide_reporter_umi_counts[observed_guide_reporter_key],

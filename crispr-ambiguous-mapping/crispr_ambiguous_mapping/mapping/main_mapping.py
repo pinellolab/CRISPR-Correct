@@ -20,7 +20,8 @@ import gzip
 import random
 from enum import Enum
 from typing import Callable
-from typing import Union, List, Mapping, Tuple, Optional, Any
+from typing import Union, List, Mapping, Tuple, Optional, Any, DefaultDict
+from typing import Counter as CounterType
 from concurrent.futures import ProcessPoolExecutor
 from dataclasses import dataclass
 
@@ -38,7 +39,7 @@ from . import guide_inference
 def get_whitelist_guide_counts_from_raw_fastq(whitelist_guide_sequences_series: pd.Series, fastq_fn: str, hamming_threshold_strict: int = 3, hamming_threshold_dynamic: bool = False, parse_left_flank: bool = True, parse_flank_sequence: Union[None, str] = None, cores: int=1):
     # Retrieve all observed guide sequences
     print("Retrieving FASTQ guide sequences and counting: " + fastq_fn)
-    observed_guide_sequences_counts: Counter[str] = guide_raw_fastq_parsing.get_raw_fastq_observed_sequence_counts(fastq_fn, parse_left_flank=parse_left_flank, parse_flank_sequence=parse_flank_sequence, cores=cores)
+    observed_guide_sequences_counts: CounterType[str] = guide_raw_fastq_parsing.get_raw_fastq_observed_sequence_counts(fastq_fn, parse_left_flank=parse_left_flank, parse_flank_sequence=parse_flank_sequence, cores=cores)
     
     return guide_inference.get_whitelist_guide_counts(observed_guide_sequences_counts, whitelist_guide_sequences_series, hamming_threshold_strict, hamming_threshold_dynamic, cores)
 
@@ -47,7 +48,7 @@ def get_whitelist_guide_counts_from_raw_fastq(whitelist_guide_sequences_series: 
 '''
 @typechecked
 def get_whitelist_reporter_counts_from_reporter_tsv(whitelist_guide_reporter_df: pd.DataFrame, reporter_tsv_fn: str, surrogate_hamming_threshold_strict: int = 10, barcode_hamming_threshold_strict: int = 2, hamming_threshold_strict: int = 7, hamming_threshold_dynamic: bool = False, cores: int=1):
-    observed_guide_reporter_counts: Union[Counter[Tuple[str,str,str]], Counter[str]] = reporter_tsv_parsing.get_reporter_tsv_observed_sequence_counts(reporter_tsv_fn, include_surrogate = True, cores=cores)
+    observed_guide_reporter_counts: Union[CounterType[Tuple[str,str,str]], CounterType[str]] = reporter_tsv_parsing.get_reporter_tsv_observed_sequence_counts(reporter_tsv_fn, include_surrogate = True, cores=cores)
 
     return guide_inference.get_whitelist_reporter_counts(observed_guide_reporters_counts=observed_guide_reporter_counts, whitelist_guide_reporter_df=whitelist_guide_reporter_df, surrogate_hamming_threshold_strict=surrogate_hamming_threshold_strict, barcode_hamming_threshold_strict=barcode_hamming_threshold_strict, hamming_threshold_strict=hamming_threshold_strict, hamming_threshold_dynamic=hamming_threshold_dynamic, cores=cores)
 
@@ -78,32 +79,32 @@ def get_whitelist_reporter_counts_from_umitools_output(whitelist_guide_reporter_
         if barcode_pattern_regex is None: # ONLY R1; NO BARCODE
             if umi_pattern_regex is None: # ONLY R1; NO BARCODE; NO UMI
                 # These lines are really added just to document the type... observed_guide_reporter_umi_counts is already added to the partial above anyways
-                observed_guide_reporter_umi_counts: Counter[str] = observed_guide_reporter_umi_counts
+                observed_guide_reporter_umi_counts: CounterType[str] = observed_guide_reporter_umi_counts
                 return get_whitelist_reporter_counts_with_umi_PARTIAL(contains_surrogate=False, contains_barcode=False, contains_umi = False)
             else: # ONLY R1; NO BARCODE; YES UMI
-                observed_guide_reporter_umi_counts: defaultdict(str, Counter[str]) = observed_guide_reporter_umi_counts
+                observed_guide_reporter_umi_counts: DefaultDict[str, CounterType[str]] = observed_guide_reporter_umi_counts
                 return get_whitelist_reporter_counts_with_umi_PARTIAL(contains_surrogate=False, contains_barcode=False, contains_umi = True)
         else: # ONLY R1; YES BARCODE
             if umi_pattern_regex is None: # ONLY R1; YES BARCODE; NO UMI
-                observed_guide_reporter_umi_counts: Counter[Tuple[str, str]] = observed_guide_reporter_umi_counts
+                observed_guide_reporter_umi_counts: CounterType[Tuple[str, str]] = observed_guide_reporter_umi_counts
                 return get_whitelist_reporter_counts_with_umi_PARTIAL(contains_surrogate=False, contains_barcode=True, contains_umi = False)
             else: # ONLY R1; YES BARCODE; YES UMI
-                observed_guide_reporter_umi_counts: defaultdict(Tuple[str, str], Counter[str]) = observed_guide_reporter_umi_counts
+                observed_guide_reporter_umi_counts: DefaultDict[Tuple[str, str], CounterType[str]] = observed_guide_reporter_umi_counts
                 return get_whitelist_reporter_counts_with_umi_PARTIAL(contains_surrogate=False, contains_barcode=True, contains_umi = True)
     else: # YES R2
         if barcode_pattern_regex is None: # YES R2; NO BARCODE
             if umi_pattern_regex is None: # YES R2; NO BARCODE; NO UMI
-                observed_guide_reporter_umi_counts: Counter[Tuple[str, str]] = observed_guide_reporter_umi_counts
+                observed_guide_reporter_umi_counts: CounterType[Tuple[str, str]] = observed_guide_reporter_umi_counts
                 return get_whitelist_reporter_counts_with_umi_PARTIAL(contains_surrogate=True, contains_barcode=False, contains_umi = False)
             else: # YES R2; NO BARCODE; YES UMI
-                observed_guide_reporter_umi_counts: defaultdict(Tuple[str, str], Counter[str]) = observed_guide_reporter_umi_counts
+                observed_guide_reporter_umi_counts: DefaultDict[Tuple[str, str], CounterType[str]] = observed_guide_reporter_umi_counts
                 return get_whitelist_reporter_counts_with_umi_PARTIAL(contains_surrogate=True, contains_barcode=False, contains_umi = True)
         else: # YES R2; YES BARCODE
             if umi_pattern_regex is None: # YES R2; YES BARCODE; NO UMI
-                observed_guide_reporter_umi_counts: Counter[Tuple[str, str, str]] = observed_guide_reporter_umi_counts
+                observed_guide_reporter_umi_counts: CounterType[Tuple[str, str, str]] = observed_guide_reporter_umi_counts
                 return get_whitelist_reporter_counts_with_umi_PARTIAL(contains_surrogate=True, contains_barcode=True, contains_umi = False)
             else: # YES R2; YES BARCODE; YES UMI
-                observed_guide_reporter_umi_counts: defaultdict(Tuple[str, str, str], Counter[str]) = observed_guide_reporter_umi_counts
+                observed_guide_reporter_umi_counts: DefaultDict[Tuple[str, str, str], CounterType[str]] = observed_guide_reporter_umi_counts
                 return get_whitelist_reporter_counts_with_umi_PARTIAL(contains_surrogate=True, contains_barcode=True, contains_umi = True)
 
 

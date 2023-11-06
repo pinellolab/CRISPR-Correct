@@ -1,6 +1,7 @@
 from typeguard import typechecked
 from typing import Union
 from typing import Callable
+from typing import Counter as CounterType
 from functools import partial
 from collections import Counter
 
@@ -34,7 +35,7 @@ def parse_guide_sequence(read_sequence: str, parser_function: Callable) -> str:
 
 
 @typechecked
-def get_raw_fastq_observed_sequence_counts(fastq_file: str, parse_left_flank: bool = True, parse_flank_sequence: Union[None, str] = None, cores: int=1) -> Counter[str]:
+def get_raw_fastq_observed_sequence_counts(fastq_file: str, parse_left_flank: bool = True, parse_flank_sequence: Union[None, str] = None, cores: int=1) -> CounterType[str]:
     parse_guide_sequence_p = None
     if parse_left_flank:
         if parse_flank_sequence is None:

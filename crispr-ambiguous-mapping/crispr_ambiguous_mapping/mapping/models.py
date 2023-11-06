@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import Union, List, Mapping, Tuple, Optional, Any
+from typing import Union, List, Mapping, Tuple, Optional, Any, DefaultDict
 from enum import Enum
 from collections import Counter, defaultdict
 import pandas as pd
@@ -25,8 +25,9 @@ class GuideCountError:
 
 @dataclass
 class UnequalLengthGuideCountError(GuideCountError):
-    sequence_length: int
-    expected_length: int
+    # NOTE: Added default argument to prevent error of having non-default after defaults in child classes
+    sequence_length: Optional[int]  = None
+    expected_length: Optional[int] = None
 
 @dataclass
 class ProtospacerUnequalLengthGuideCountError(UnequalLengthGuideCountError):
@@ -42,7 +43,7 @@ class BarcodeUnequalLengthGuideCountError(UnequalLengthGuideCountError):
 
 @dataclass
 class MissingInfoGuideCountError(GuideCountError):
-    sequence_value: any
+    sequence_value: Optional[Any] = None
 
 @dataclass
 class ProtospacerMissingInfoGuideCountError(MissingInfoGuideCountError):
@@ -59,8 +60,8 @@ class BarcodeMissingInfoGuideCountError(MissingInfoGuideCountError):
 
 @dataclass
 class HammingThresholdGuideCountError(GuideCountError):
-    hamming_min: int
-    hamming_threshold: int
+    hamming_min: Optional[int] = None
+    hamming_threshold: Optional[int] = None
 
 @dataclass
 class ProtospacerHammingThresholdGuideCountError(HammingThresholdGuideCountError):
@@ -80,7 +81,7 @@ class SingleInferenceMatchResultValue:
 
 @dataclass
 class MatchSetSingleInferenceMatchResultValue(SingleInferenceMatchResultValue):
-    matches: pd.DataFrame
+    matches: Optional[pd.DataFrame] = None
 
 @dataclass
 class SurrogateProtospacerMismatchSingleInferenceMatchResultValue(SingleInferenceMatchResultValue):
@@ -121,9 +122,9 @@ class SingleInferenceQualityControlResult:
     num_total_umi_noncollapsed_counts: Optional[int] = None
     num_total_umi_collapsed_counts: Optional[int] = None
     num_total_counts: Optional[int] = None
-    guide_count_error_type_umi_noncollapsed_count: defaultdict(GuideCountError, int) = None
-    guide_count_error_type_umi_collapsed_count: defaultdict(GuideCountError, int) = None
-    guide_count_error_type_count: defaultdict(GuideCountError, int) = None
+    guide_count_error_type_umi_noncollapsed_count: DefaultDict[GuideCountError, int] = None
+    guide_count_error_type_umi_collapsed_count: DefaultDict[GuideCountError, int] = None
+    guide_count_error_type_count: DefaultDict[GuideCountError, int] = None
 
 @dataclass
 class MatchSetSingleInferenceQualityControlResult(SingleInferenceQualityControlResult):
