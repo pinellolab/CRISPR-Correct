@@ -54,11 +54,11 @@ def get_whitelist_reporter_counts_from_reporter_tsv(whitelist_guide_reporter_df:
 
 
 @typechecked
-def get_whitelist_reporter_counts_from_umitools_output(whitelist_guide_reporter_df: pd.DataFrame, fastq_r1_fn: str, fastq_r2_fn: str, barcode_pattern_regex: Optional[str] = None, umi_pattern_regex: Optional[str] = None, surrogate_hamming_threshold_strict: Optional[int] = 10, barcode_hamming_threshold_strict: Optional[int] = 2, protospacer_hamming_threshold_strict: Optional[int] = 7, cores: int=1):
+def get_whitelist_reporter_counts_from_umitools_output(whitelist_guide_reporter_df: pd.DataFrame, fastq_r1_fn: str, fastq_r2_fn: str, barcode_pattern_regex: Optional[str] = None, umi_pattern_regex: Optional[str] = None, revcomp_protospacer: bool = False, revcomp_surrogate: bool = True, revcomp_barcode: bool = True, surrogate_hamming_threshold_strict: Optional[int] = 10, barcode_hamming_threshold_strict: Optional[int] = 2, protospacer_hamming_threshold_strict: Optional[int] = 7, cores: int=1):
     #
     # Get counts of observed FASTQ sequences
     #
-    observed_guide_reporter_umi_counts = reporter_umitools_fastq_parsing.get_umitools_observed_sequence_counts(r1_protospacer_fastq_file=fastq_r1_fn, r2_surrogate_fastq_file=fastq_r2_fn, barcode_pattern_regex=barcode_pattern_regex, umi_pattern_regex=umi_pattern_regex)
+    observed_guide_reporter_umi_counts = reporter_umitools_fastq_parsing.get_umitools_observed_sequence_counts(r1_protospacer_fastq_file=fastq_r1_fn, r2_surrogate_fastq_file=fastq_r2_fn, barcode_pattern_regex=barcode_pattern_regex, umi_pattern_regex=umi_pattern_regex, revcomp_protospacer = revcomp_protospacer, revcomp_surrogate = revcomp_surrogate, revcomp_barcode = revcomp_barcode)
 
     #   
     # Map the observed sequences to the true whitelist sequence

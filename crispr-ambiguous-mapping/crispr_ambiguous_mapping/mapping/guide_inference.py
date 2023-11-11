@@ -230,9 +230,7 @@ encoded_whitelist_guide_sequences_series, encoded_whitelist_barcodes_series, sur
 
 @typechecked
 def infer_whitelist_sequence(observed_guide_reporter_sequence, whitelist_guide_reporter_df: pd.DataFrame, contains_surrogate:bool, contains_barcode:bool, contains_umi:bool, encoded_whitelist_protospacer_sequences_series: np.array, encoded_whitelist_surrogate_sequences_series: Optional[np.array] = None, encoded_whitelist_barcode_sequences_series: Optional[np.array] = None, count_duplicate_mappings: bool = False, protospacer_hamming_threshold: int = 7, surrogate_hamming_threshold: int = 10, barcode_hamming_threshold: int = 2):
-    # TODO: Consider not support non-verbose-result option.
-    # LEFTOFF: Fix the import notes below - importantly need to instantiate all the "error_results" again
-
+    print(f"Running inference with {observed_guide_reporter_sequence}")
     # Convert from tuple to labeled pandas series. TODO: May already be in this structure.
     observed_reporter_sequences_indices = ["protospacer"]
     if contains_surrogate:
@@ -446,6 +444,8 @@ def infer_whitelist_sequence(observed_guide_reporter_sequence, whitelist_guide_r
         complete_match_result.protospacer_mismatch_surrogate_match_barcode_match = SurrogateProtospacerMismatchSingleInferenceMatchResult(error=protospacer_error_result)
         complete_match_result.protospacer_mismatch_surrogate_match = SurrogateProtospacerMismatchSingleInferenceMatchResult(error=protospacer_error_result)
         
+    
+    print(f"Completed inference {complete_match_result}")
     return complete_match_result
 
 
@@ -696,14 +696,17 @@ def get_whitelist_reporter_counts_with_umi(observed_guide_reporter_umi_counts: D
 
     # Perform inference
     observed_guide_reporter_list = observed_guide_reporter_umi_counts.keys()
+    print(observed_guide_reporter_list)
     inferred_true_reporter_sequences = None
     if cores > 1:
+        print(f"Running inference parallelized with cores {cores}")
         with Pool(cores) as pool:
             inferred_true_reporter_sequences = pool.map(
             infer_whitelist_sequence_p,
             observed_guide_reporter_list
            )
     else:
+        print("Running inference non-parallelized")
         inferred_true_reporter_sequences = [infer_whitelist_sequence_p(observed_guide_reporter) for observed_guide_reporter in observed_guide_reporter_list]
     
     # Map inference results to result object
