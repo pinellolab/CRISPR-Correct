@@ -228,19 +228,31 @@ encoded_whitelist_guide_sequences_series, encoded_whitelist_barcodes_series, sur
             return GuideCountErrorType.MULTIPLE_MATCH_EXACT
         #raise Exception("Multiple exact matches of the provided whitelisted guides - there are likely duplicates in the provided whitelist, please remove. Observed guide={}, guide matches={}".format(observed_guide_sequence, guide_sequences_series_match)) # NOTE 12/6/22: REMOVED THIS EXCEPTION - another reason is from truncated guides having multiple matches. In production code, just make sure to ensure that the whitelist is the set.
 
+
 @typechecked
-def infer_whitelist_sequence(observed_guide_reporter_sequence, whitelist_guide_reporter_df: pd.DataFrame, contains_surrogate:bool, contains_barcode:bool, contains_umi:bool, encoded_whitelist_protospacer_sequences_series: np.array, encoded_whitelist_surrogate_sequences_series: Optional[np.array] = None, encoded_whitelist_barcode_sequences_series: Optional[np.array] = None, count_duplicate_mappings: bool = False, protospacer_hamming_threshold: int = 7, surrogate_hamming_threshold: int = 10, barcode_hamming_threshold: int = 2):
-    print(f"Running inference with {observed_guide_reporter_sequence}")
+def infer_whitelist_sequence(observed_guide_reporter_sequence_input: Tuple[str, Optional[str], Optional[str]], 
+        whitelist_guide_reporter_df: pd.DataFrame, 
+        contains_surrogate:bool, 
+        contains_barcode:bool, 
+        contains_umi:bool, 
+        encoded_whitelist_protospacer_sequences_series: np.ndarray, 
+        encoded_whitelist_surrogate_sequences_series: Optional[np.ndarray] = None, 
+        encoded_whitelist_barcode_sequences_series: Optional[np.ndarray] = None, 
+        count_duplicate_mappings: bool = False, 
+        protospacer_hamming_threshold: int = 7, 
+        surrogate_hamming_threshold: int = 10, 
+        barcode_hamming_threshold: int = 2):
+    print(f"Running inference with {observed_guide_reporter_sequence_input}")
     # Convert from tuple to labeled pandas series. TODO: May already be in this structure.
     observed_reporter_sequences_indices = ["protospacer"]
     if contains_surrogate:
         observed_reporter_sequences_indices.append("surrogate")
     if contains_barcode:
         observed_reporter_sequences_indices.append("barcode")
-    observed_guide_reporter_sequence = pd.Series(observed_guide_reporter_sequence, index=observed_reporter_sequences_indices)
+    observed_guide_reporter_sequence = pd.Series(observed_guide_reporter_sequence_input, index=observed_reporter_sequences_indices)
     
 
-    def validate_observed_sequence(sequence_name: str, encoded_whitelist_sequence_series: np.array, missing_info_error: MissingInfoGuideCountError, unequal_length_error: UnequalLengthGuideCountError):
+    def validate_observed_sequence(sequence_name: str, encoded_whitelist_sequence_series: np.ndarray, missing_info_error: MissingInfoGuideCountError, unequal_length_error: UnequalLengthGuideCountError):
         if (observed_guide_reporter_sequence[sequence_name] is None) or (observed_guide_reporter_sequence[sequence_name] == "None") or (observed_guide_reporter_sequence[sequence_name].strip() == ""):
             return missing_info_error
         
@@ -639,6 +651,7 @@ def get_whitelist_reporter_counts(observed_guide_reporters_counts: Counter, whit
     
     return whitelist_guide_reporter_counts, observed_guides_df, qc_dict
 
+# TODO: There will probably be some type errors with the DefaultDict when testing on non UMI (since it requires CounterType), so make sure to test with different variations of inputs
 @typechecked
 def get_whitelist_reporter_counts_with_umi(observed_guide_reporter_umi_counts: DefaultDict[Tuple[str,Optional[str],Optional[str]], CounterType[Optional[str]]], whitelist_guide_reporter_df: pd.DataFrame, contains_surrogate:bool = False, contains_barcode:bool = False, contains_umi:bool = False, protospacer_hamming_threshold_strict: Optional[int] = 7, surrogate_hamming_threshold_strict: Optional[int] = 2, barcode_hamming_threshold_strict: Optional[int] = 2, cores: int=1):
     encoded_whitelist_protospacer_sequences_series = sequence_encoding.encode_guide_series(whitelist_guide_reporter_df["protospacer"])
@@ -710,7 +723,7 @@ def get_whitelist_reporter_counts_with_umi(observed_guide_reporter_umi_counts: D
         inferred_true_reporter_sequences = [infer_whitelist_sequence_p(observed_guide_reporter) for observed_guide_reporter in observed_guide_reporter_list]
     
     # Map inference results to result object
-    observed_guide_reporter_umi_counts_inferred: DefaultDict[dict]= defaultdict(dict)
+    observed_guide_reporter_umi_counts_inferred: DefaultDict[Tuple[str,Optional[str],Optional[str]], dict]= defaultdict(dict)
     for observed_guide_reporter_key_index, observed_guide_reporter_key in enumerate(observed_guide_reporter_list):
         observed_guide_reporter_umi_counts_inferred[observed_guide_reporter_key] = {
             "observed_value": observed_guide_reporter_umi_counts[observed_guide_reporter_key],
