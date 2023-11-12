@@ -653,7 +653,7 @@ def get_whitelist_reporter_counts(observed_guide_reporters_counts: Counter, whit
 
 # TODO: There will probably be some type errors with the DefaultDict when testing on non UMI (since it requires CounterType), so make sure to test with different variations of inputs
 @typechecked
-def get_whitelist_reporter_counts_with_umi(observed_guide_reporter_umi_counts: DefaultDict[Tuple[str,Optional[str],Optional[str]], CounterType[Optional[str]]], whitelist_guide_reporter_df: pd.DataFrame, contains_surrogate:bool = False, contains_barcode:bool = False, contains_umi:bool = False, protospacer_hamming_threshold_strict: Optional[int] = 7, surrogate_hamming_threshold_strict: Optional[int] = 2, barcode_hamming_threshold_strict: Optional[int] = 2, cores: int=1):
+def get_whitelist_reporter_counts_with_umi(observed_guide_reporter_umi_counts: DefaultDict[Tuple[str,Optional[str],Optional[str]], Union[int, CounterType[Optional[str]]]], whitelist_guide_reporter_df: pd.DataFrame, contains_surrogate:bool = False, contains_barcode:bool = False, contains_umi:bool = False, protospacer_hamming_threshold_strict: Optional[int] = 7, surrogate_hamming_threshold_strict: Optional[int] = 2, barcode_hamming_threshold_strict: Optional[int] = 2, cores: int=1):
     encoded_whitelist_protospacer_sequences_series = sequence_encoding.encode_guide_series(whitelist_guide_reporter_df["protospacer"])
     if contains_surrogate:
         encoded_whitelist_surrogate_sequences_series = sequence_encoding.encode_guide_series(whitelist_guide_reporter_df["surrogate"])
@@ -736,15 +736,15 @@ def get_whitelist_reporter_counts_with_umi(observed_guide_reporter_umi_counts: D
         QC
     '''
     print("Retrieving QC tables")
-    protospacer_match_num_non_error = len([observed_guide_reporter_umi_counts_inferred_value.protospacer_match.error != None for observed_guide_reporter_umi_counts_inferred_value in observed_guide_reporter_umi_counts_inferred.values])
     get_non_error_dict = lambda attribute_name : {observed_guide_reporter_key: observed_guide_reporter_umi_counts_inferred_value for observed_guide_reporter_key, observed_guide_reporter_umi_counts_inferred_value in observed_guide_reporter_umi_counts_inferred.items() if getattr(observed_guide_reporter_umi_counts_inferred_value["inferred_value"], attribute_name).error is not None}
-    get_umi_noncollapsed_counts = lambda counts_inferred_dict : sum([sum(counts_inferred_value["observed_value"]) for counts_inferred_value in counts_inferred_dict.values])
-    get_umi_collapsed_counts = lambda counts_inferred_dict : sum([len(counts_inferred_value["observed_value"]) for counts_inferred_value in counts_inferred_dict.values])
-    get_counts = lambda counts_inferred_dict : sum([counts_inferred_value["observed_value"] for counts_inferred_value in counts_inferred_dict.values])
+    get_umi_noncollapsed_counts = lambda counts_inferred_dict : sum([sum(counts_inferred_value["observed_value"].values()) for counts_inferred_value in counts_inferred_dict.values()]) # NOTE: for UMI, observed_value is a Counter, so need to use .values()
+    get_umi_collapsed_counts = lambda counts_inferred_dict : sum([len(counts_inferred_value["observed_value"].values()) for counts_inferred_value in counts_inferred_dict.values()]) # NOTE: for UMI, observed_value is a Counter, so need to use .values()
+    get_counts = lambda counts_inferred_dict : sum([counts_inferred_value["observed_value"] for counts_inferred_value in counts_inferred_dict.values()]) # NOTE: for UMI, observed_value is an int, so NO NEED to use .values()
     
 
-    def set_num_error_counts(single_inference_quality_control_result: SingleInferenceQualityControlResult, counts_inferred_dict: str):
+    def set_num_error_counts(single_inference_quality_control_result: SingleInferenceQualityControlResult, counts_inferred_dict: dict) -> SingleInferenceQualityControlResult:
         if contains_umi:
+            print(counts_inferred_dict)
             single_inference_quality_control_result.num_non_error_umi_noncollapsed_counts = get_umi_noncollapsed_counts(counts_inferred_dict)
             single_inference_quality_control_result.num_non_error_umi_collapsed_counts = get_umi_collapsed_counts(counts_inferred_dict)
 
@@ -756,16 +756,16 @@ def get_whitelist_reporter_counts_with_umi(observed_guide_reporter_umi_counts: D
         return single_inference_quality_control_result
     
 
-    def set_num_guide_count_error_types(single_inference_quality_control_result: SingleInferenceQualityControlResult, attribute_name: str):
-        guide_count_error_type_umi_noncollapsed_count = defaultdict(GuideCountErrorType, int)
-        guide_count_error_type_umi_collapsed_count = defaultdict(GuideCountErrorType, int)
-        guide_count_error_type_count = defaultdict(GuideCountErrorType, int)
+    def set_num_guide_count_error_types(single_inference_quality_control_result: SingleInferenceQualityControlResult, attribute_name: str) -> SingleInferenceQualityControlResult:
+        guide_count_error_type_umi_noncollapsed_count: DefaultDict[GuideCountErrorType, int] = defaultdict(int)
+        guide_count_error_type_umi_collapsed_count: DefaultDict[GuideCountErrorType, int] = defaultdict(int)
+        guide_count_error_type_count: DefaultDict[GuideCountErrorType, int] = defaultdict(int)
         for _, observed_guide_reporter_umi_counts_inferred_value in observed_guide_reporter_umi_counts_inferred.items():
-            error_result: GuideCountError = getattr(observed_guide_reporter_umi_counts_inferred_value["inferred_value"], attribute_name).error
+            error_result: Optional[GuideCountError] = getattr(observed_guide_reporter_umi_counts_inferred_value["inferred_value"], attribute_name).error
             if error_result is not None:
                 if contains_umi:
-                    guide_count_error_type_umi_noncollapsed_count[error_result.guide_count_error_type] += sum(observed_guide_reporter_umi_counts_inferred_value["observed_value"])
-                    guide_count_error_type_umi_collapsed_count[error_result.guide_count_error_type] += len(observed_guide_reporter_umi_counts_inferred_value["observed_value"])
+                    guide_count_error_type_umi_noncollapsed_count[error_result.guide_count_error_type] += sum(observed_guide_reporter_umi_counts_inferred_value["observed_value"].values())
+                    guide_count_error_type_umi_collapsed_count[error_result.guide_count_error_type] += len(observed_guide_reporter_umi_counts_inferred_value["observed_value"].values())
                 else:
                     guide_count_error_type_count[error_result.guide_count_error_type] += observed_guide_reporter_umi_counts_inferred_value["observed_value"]
         single_inference_quality_control_result.guide_count_error_type_umi_noncollapsed_count = guide_count_error_type_umi_noncollapsed_count
@@ -774,7 +774,7 @@ def get_whitelist_reporter_counts_with_umi(observed_guide_reporter_umi_counts: D
 
         return single_inference_quality_control_result
 
-    def set_match_set_single_inference_quality_control_results(attribute_name: str):
+    def set_match_set_single_inference_quality_control_results(attribute_name: str) -> MatchSetSingleInferenceQualityControlResult:
         single_inference_quality_control_result = MatchSetSingleInferenceQualityControlResult()
         single_inference_quality_control_result.non_error_dict = get_non_error_dict(attribute_name)
         
