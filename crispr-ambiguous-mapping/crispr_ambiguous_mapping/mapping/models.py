@@ -18,6 +18,7 @@ class GuideCountErrorType(Enum):
     NO_SURROGATE_MATCH_MISSING_INFO = "The surrogate was not provided"
     NO_BARCODE_MATCH_MISSING_INFO = "The barcode was not provided"
     NO_MATCH_OBSERVED_SURROGATE_SHORTER = "The observed surrogate is shorter than the inferred surrogate"
+    NULL_MATCH_RESULT = "Match result was null, likely since match result type is not supported given the inputs (i.e. a barcode_match result when barcode is not specified)"
 
 @dataclass
 class GuideCountError:
@@ -145,3 +146,33 @@ class QualityControlResult:
     protospacer_mismatch_surrogate_match_barcode_match: Optional[SurrogateProtospacerMismatchSingleInferenceQualityControlResult] = None
     protospacer_mismatch_surrogate_match: Optional[SurrogateProtospacerMismatchSingleInferenceQualityControlResult] = None
 
+
+@dataclass
+class WhitelistReporterCountsResult:
+    observed_guide_reporter_umi_counts_inferred: DefaultDict[Tuple[str,Optional[str],Optional[str]], dict]
+    quality_control_result: QualityControlResult
+
+
+@dataclass
+class MatchSetWhitelistReporterCounterSeriesResults:
+    ambiguous_ignored_umi_noncollapsed_counterseries : Optional[pd.Series] = None
+    ambiguous_ignored_umi_collapsed_counterseries : Optional[pd.Series] = None
+    ambiguous_ignored_counterseries : Optional[pd.Series] = None
+
+    ambiguous_accepted_umi_noncollapsed_counterseries : Optional[pd.Series] = None
+    ambiguous_accepted_umi_collapsed_counterseries : Optional[pd.Series] = None
+    ambiguous_accepted_counterseries : Optional[pd.Series] = None
+
+    ambiguous_spread_umi_noncollapsed_counterseries : Optional[pd.Series] = None
+    ambiguous_spread_umi_collapsed_counterseries : Optional[pd.Series] = None
+    ambiguous_spread_counterseries : Optional[pd.Series] = None
+
+
+@dataclass
+class AllMatchSetWhitelistReporterCounterSeriesResults:
+    protospacer_match: Optional[MatchSetWhitelistReporterCounterSeriesResults] = None
+    protospacer_match_surrogate_match_barcode_match: Optional[MatchSetWhitelistReporterCounterSeriesResults] = None
+    protospacer_match_surrogate_match: Optional[MatchSetWhitelistReporterCounterSeriesResults] = None
+    protospacer_match_barcode_match: Optional[MatchSetWhitelistReporterCounterSeriesResults] = None
+    #protospacer_mismatch_surrogate_match_barcode_match: Optional[SurrogateProtospacerMismatchSingleInferenceQualityControlResult] = None
+    #protospacer_mismatch_surrogate_match: Optional[SurrogateProtospacerMismatchSingleInferenceQualityControlResult] = None
