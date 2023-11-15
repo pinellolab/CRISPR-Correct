@@ -167,6 +167,57 @@ class MatchSetWhitelistReporterCounterSeriesResults:
     ambiguous_spread_umi_collapsed_counterseries : Optional[pd.Series] = None
     ambiguous_spread_counterseries : Optional[pd.Series] = None
 
+    # This ensures that any empty series are kept at None
+    def __setattr__(self, name, value):
+        if isinstance(value, pd.Series):
+            if value.sum() == 0: # If sum of pandas series is 0, just return None
+                super().__setattr__(name, None)
+            else:
+                super().__setattr__(name, value)
+        else:
+            # Set the attribute
+            super().__setattr__(name, value)
+
+@dataclass
+class SurrogateProtospacerMismatchSetWhitelistReporterCounterSeriesResults:
+    
+    # MATCH counters
+    ambiguous_ignored_umi_noncollapsed_match_counterseries : Optional[pd.Series]  = None
+    ambiguous_ignored_umi_collapsed_match_counterseries : Optional[pd.Series]  = None
+    ambiguous_ignored_match_counterseries : Optional[pd.Series] = None
+
+    ambiguous_accepted_umi_noncollapsed_match_counterseries : Optional[pd.Series] = None
+    ambiguous_accepted_umi_collapsed_match_counterseries : Optional[pd.Series] = None
+    ambiguous_accepted_match_counterseries : Optional[pd.Series] = None
+
+    ambiguous_spread_umi_noncollapsed_match_counterseries : Optional[pd.Series] = None
+    ambiguous_spread_umi_collapsed_match_counterseries : Optional[pd.Series] = None
+    ambiguous_spread_match_counterseries : Optional[pd.Series] = None
+
+    # MISMATCH counters (keys are PAIRS of indices, representing the protospacer and surrogate match separately), [str, Optional[str], Optional[str], str, Optional[str], Optional[str]], first three are Protospacer_Match, last three is Surrogate_Match
+    ambiguous_ignored_umi_noncollapsed_mismatch_counterseries : Optional[pd.Series] = None
+    ambiguous_ignored_umi_collapsed_mismatch_counterseries : Optional[pd.Series] = None
+    ambiguous_ignored_mismatch_counterseries : Optional[pd.Series] = None
+
+    ambiguous_accepted_umi_noncollapsed_mismatch_counterseries : Optional[pd.Series] = None
+    ambiguous_accepted_umi_collapsed_mismatch_counterseries : Optional[pd.Series] = None
+    ambiguous_accepted_mismatch_counterseries : Optional[pd.Series] = None
+
+    ambiguous_spread_umi_noncollapsed_mismatch_counterseries : Optional[pd.Series] = None
+    ambiguous_spread_umi_collapsed_mismatch_counterseries : Optional[pd.Series] = None
+    ambiguous_spread_mismatch_counterseries : Optional[pd.Series] = None
+
+    # This ensures that any empty series are kept at None
+    def __setattr__(self, name, value):
+        if isinstance(value, pd.Series):
+            if value.sum() == 0: # If sum of pandas series is 0, just return None
+                super().__setattr__(name, None)
+            else:
+                super().__setattr__(name, value)
+        else:
+            # Set the attribute
+            super().__setattr__(name, value)
+
 
 @dataclass
 class AllMatchSetWhitelistReporterCounterSeriesResults:
@@ -174,5 +225,12 @@ class AllMatchSetWhitelistReporterCounterSeriesResults:
     protospacer_match_surrogate_match_barcode_match: Optional[MatchSetWhitelistReporterCounterSeriesResults] = None
     protospacer_match_surrogate_match: Optional[MatchSetWhitelistReporterCounterSeriesResults] = None
     protospacer_match_barcode_match: Optional[MatchSetWhitelistReporterCounterSeriesResults] = None
-    #protospacer_mismatch_surrogate_match_barcode_match: Optional[SurrogateProtospacerMismatchSingleInferenceQualityControlResult] = None
-    #protospacer_mismatch_surrogate_match: Optional[SurrogateProtospacerMismatchSingleInferenceQualityControlResult] = None
+    protospacer_mismatch_surrogate_match_barcode_match: Optional[SurrogateProtospacerMismatchSetWhitelistReporterCounterSeriesResults] = None
+    protospacer_mismatch_surrogate_match: Optional[SurrogateProtospacerMismatchSetWhitelistReporterCounterSeriesResults] = None
+
+
+@dataclass
+class WhitelistReporterCountsResult:
+    all_match_set_whitelist_reporter_counter_series_results: AllMatchSetWhitelistReporterCounterSeriesResults
+    observed_guide_reporter_umi_counts_inferred: DefaultDict[Tuple[str,Optional[str],Optional[str]], dict]
+    quality_control_result: QualityControlResult
