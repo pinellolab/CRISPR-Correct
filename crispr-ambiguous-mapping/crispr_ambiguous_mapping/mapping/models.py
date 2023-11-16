@@ -23,6 +23,7 @@ class GuideCountErrorType(Enum):
 @dataclass
 class GuideCountError:
     guide_count_error_type: GuideCountErrorType
+    miscellaneous_info_dict: dict = None
 
 @dataclass
 class UnequalLengthGuideCountError(GuideCountError):
@@ -63,14 +64,18 @@ class BarcodeMissingInfoGuideCountError(MissingInfoGuideCountError):
 class HammingThresholdGuideCountError(GuideCountError):
     hamming_min: Optional[int] = None
     hamming_threshold: Optional[int] = None
+    original_df: Optional[pd.DataFrame] = None
+    hamming_min_match_df: Optional[pd.DataFrame] = None
 
 @dataclass
 class ProtospacerHammingThresholdGuideCountError(HammingThresholdGuideCountError):
     guide_count_error_type: GuideCountErrorType = GuideCountErrorType.NO_MATCH_PROTOSPACER_HAMMING_THRESHOLD
+    barcode_subsetted: Optional[bool] = None
 
 @dataclass
 class SurrogateHammingThresholdGuideCountError(HammingThresholdGuideCountError):
     guide_count_error_type: GuideCountErrorType = GuideCountErrorType.NO_MATCH_SURROGATE_HAMMING_THRESHOLD
+    barcode_subsetted: Optional[bool] = None
 
 @dataclass
 class BarcodeHammingThresholdGuideCountError(HammingThresholdGuideCountError):
