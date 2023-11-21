@@ -1,7 +1,9 @@
 from dataclasses import dataclass
 from typing import Union, List, Mapping, Tuple, Optional, Any, DefaultDict
+from typing import Counter as CounterType
 from enum import Enum
 from collections import Counter, defaultdict
+
 import pandas as pd
 
 class GuideCountErrorType(Enum):
@@ -81,6 +83,7 @@ class SurrogateHammingThresholdGuideCountError(HammingThresholdGuideCountError):
 class BarcodeHammingThresholdGuideCountError(HammingThresholdGuideCountError):
     guide_count_error_type: GuideCountErrorType = GuideCountErrorType.NO_MATCH_BARCODE_HAMMING_THRESHOLD
 
+
 @dataclass
 class SingleInferenceMatchResultValue:
     pass
@@ -118,6 +121,10 @@ class CompleteInferenceMatchResult:
     protospacer_mismatch_surrogate_match_barcode_match: Optional[SurrogateProtospacerMismatchSingleInferenceMatchResult] = None
     protospacer_mismatch_surrogate_match: Optional[SurrogateProtospacerMismatchSingleInferenceMatchResult] = None
 
+@dataclass
+class InferenceResult:
+    observed_value: Union[int, CounterType[Optional[str]]]
+    inferred_value: CompleteInferenceMatchResult
 
 @dataclass
 class SingleInferenceQualityControlResult:
