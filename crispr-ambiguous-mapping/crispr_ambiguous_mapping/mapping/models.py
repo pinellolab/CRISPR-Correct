@@ -28,21 +28,21 @@ class GuideCountError:
     miscellaneous_info_dict: dict = None
 
 @dataclass
-class UnequalLengthGuideCountError(GuideCountError):
+class InsufficientLengthGuideCountError(GuideCountError):
     # NOTE: Added default argument to prevent error of having non-default after defaults in child classes
     sequence_length: Optional[int]  = None
-    expected_length: Optional[int] = None
+    minimum_length: Optional[int] = None
 
 @dataclass
-class ProtospacerUnequalLengthGuideCountError(UnequalLengthGuideCountError):
+class ProtospacerInsufficientLengthGuideCountError(InsufficientLengthGuideCountError):
     guide_count_error_type: GuideCountErrorType = GuideCountErrorType.NO_PROTOSPACER_WITH_SAME_LENGTH
 
 @dataclass
-class SurrogateUnequalLengthGuideCountError(UnequalLengthGuideCountError):
+class SurrogateInsufficientLengthGuideCountError(InsufficientLengthGuideCountError):
     guide_count_error_type: GuideCountErrorType = GuideCountErrorType.NO_SURROGATE_WITH_SAME_LENGTH
 
 @dataclass
-class BarcodeUnequalLengthGuideCountError(UnequalLengthGuideCountError):
+class BarcodeInsufficientLengthGuideCountError(InsufficientLengthGuideCountError):
     guide_count_error_type: GuideCountErrorType = GuideCountErrorType.NO_BARCODE_WITH_SAME_LENGTH
 
 @dataclass

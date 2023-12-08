@@ -9,7 +9,8 @@ non_ambigious_encoding_dict = dict({
     "C": np.asarray([0,1,0,0]),
     "G": np.asarray([0,0,1,0]),
     "T": np.asarray([0,0,0,1]),
-    "U": np.asarray([0,0,0,1])
+    "U": np.asarray([0,0,0,1]),
+    "X": np.asarray([9999,9999,9999,9999]) # NOTE: This represents a padding token for sequences. Set to some high number, so that the calculated hamming distance is very high and won't be selected (which will happen if the observed sequence is greater than the whitelist sequence)
 })
 
 '''
@@ -26,6 +27,7 @@ full_encoding_dict = dict({
     "C": non_ambigious_encoding_dict["C"],
     "G": non_ambigious_encoding_dict["G"],
     "T": non_ambigious_encoding_dict["T"], 
+    "X": non_ambigious_encoding_dict["X"], # NOTE: This represents a padding token for sequences 
     "R": ambiguity_encoder(["A", "G"]),
     "Y": ambiguity_encoder(["C", "T"]),
     "S": ambiguity_encoder(["G", "C"]),
@@ -70,7 +72,7 @@ def retrieve_hamming_distance_whitelist(target_guide_encoded, whitelist_guide_en
     '''
     return ((target_guide_encoded*whitelist_guide_encoded[:, np.newaxis]).sum(axis=3)^1).sum(axis=2).flatten()
 
-
+# Deprecated
 def determine_hamming_distance_classic(seq1, seq2):
     if len(seq1) != len(seq2):
         raise ValueError(f"Sequences must have equal length. {seq1} and {seq2}")
