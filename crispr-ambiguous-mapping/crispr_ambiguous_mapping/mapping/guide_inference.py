@@ -273,10 +273,21 @@ def infer_whitelist_sequence(observed_guide_reporter_sequence_input: Tuple[str, 
     if contains_barcode:
         barcode_error_result = validate_observed_sequence(sequence_name="barcode", encoded_whitelist_sequence_series=encoded_whitelist_barcode_sequences_series, missing_info_error=BarcodeMissingInfoGuideCountError(sequence_value=observed_guide_reporter_sequence), insufficient_length_error=BarcodeInsufficientLengthGuideCountError(sequence_length=len(observed_guide_reporter_sequence["barcode"]), minimum_length=whitelist_guide_reporter_df["barcode"].apply(len).min()))
 
-    # CHANGE SHAPE OF ENCODING TO BE SAME LENGTH OF 
-    encoded_whitelist_protospacer_sequences_series = encoded_whitelist_protospacer_sequences_series[:, :len(observed_guide_reporter_sequence["protospacer"]), :]
-    encoded_whitelist_surrogate_sequences_series = encoded_whitelist_surrogate_sequences_series[:, :len(observed_guide_reporter_sequence["surrogate"]), :]
-    encoded_whitelist_barcode_sequences_series = encoded_whitelist_barcode_sequences_series[:, :len(observed_guide_reporter_sequence["barcode"]), :]
+    # CHANGE SHAPE OF ENCODINGS TO BE SAME LENGTH
+    if protospacer_error_result is None:
+        observed_guide_reporter_sequence["protospacer"] = observed_guide_reporter_sequence["protospacer"][:encoded_whitelist_protospacer_sequences_series.shape[1]]
+        encoded_whitelist_protospacer_sequences_series = encoded_whitelist_protospacer_sequences_series[:, :len(observed_guide_reporter_sequence["protospacer"]), :] # Change shape of whitelist library encodings
+    if contains_surrogate and (surrogate_error_result is None):
+        #print(len(observed_guide_reporter_sequence["surrogate"]))
+        #print(len(encoded_whitelist_surrogate_sequences_series.shape))
+        observed_guide_reporter_sequence["surrogate"] = observed_guide_reporter_sequence["surrogate"][:encoded_whitelist_protospacer_sequences_series.shape[1]]
+        encoded_whitelist_surrogate_sequences_series = encoded_whitelist_surrogate_sequences_series[:, :len(observed_guide_reporter_sequence["surrogate"]), :] # Change shape of whitelist library encodings
+        #print(len(observed_guide_reporter_sequence["surrogate"]))
+        #print(len(encoded_whitelist_surrogate_sequences_series.shape))
+        #print("Done")
+    if contains_barcode and (barcode_error_result is None):
+        observed_guide_reporter_sequence["barcode"] = observed_guide_reporter_sequence["barcode"][:encoded_whitelist_protospacer_sequences_series.shape[1]]
+        encoded_whitelist_barcode_sequences_series = encoded_whitelist_barcode_sequences_series[:, :len(observed_guide_reporter_sequence["barcode"]), :] # Change shape of whitelist library encodings
     
     # PERFORM MAPPPING ON BOTH THE PROTOSPACER-ONLY, FULL, AND SURROGATE MISMAPPED-PROTOSPACER.
     complete_match_result = CompleteInferenceMatchResult()
