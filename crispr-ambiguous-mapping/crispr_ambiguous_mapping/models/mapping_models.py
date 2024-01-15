@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import Union, List, Mapping, Tuple, Optional, Any, DefaultDict
+from typing import Union, List, Mapping, Tuple, Optional, Any, DefaultDict, Dict
 from typing import Counter as CounterType
 from enum import Enum
 from collections import Counter, defaultdict
@@ -230,6 +230,52 @@ class SurrogateProtospacerMismatchSetWhitelistReporterCounterSeriesResults:
             # Set the attribute
             super().__setattr__(name, value)
 
+@dataclass
+class MatchSetWhitelistReporterObservedSequenceCounterSeriesResults:
+    
+    # Storing as a dictionary 
+    ambiguous_ignored_umi_noncollapsed_alleleseries_dict : Optional[DefaultDict[Tuple[str, Optional[str], Optional[str]], pd.Series]] = None
+    ambiguous_ignored_umi_collapsed_alleleseries_dict : Optional[DefaultDict[Tuple[str, Optional[str], Optional[str]], pd.Series]] = None
+    ambiguous_ignored_alleleseries_dict : Optional[DefaultDict[Tuple[str, Optional[str], Optional[str]], pd.Series]] = None
+
+    ambiguous_accepted_umi_noncollapsed_alleleseries_dict : Optional[DefaultDict[Tuple[str, Optional[str], Optional[str]], pd.Series]] = None
+    ambiguous_accepted_umi_collapsed_alleleseries_dict : Optional[DefaultDict[Tuple[str, Optional[str], Optional[str]], pd.Series]] = None
+    ambiguous_accepted_alleleseries_dict : Optional[DefaultDict[Tuple[str, Optional[str], Optional[str]], pd.Series]] = None
+
+    ambiguous_spread_umi_noncollapsed_alleleseries_dict : Optional[DefaultDict[Tuple[str, Optional[str], Optional[str]], pd.Series]] = None
+    ambiguous_spread_umi_collapsed_alleleseries_dict : Optional[DefaultDict[Tuple[str, Optional[str], Optional[str]], pd.Series]] = None
+    ambiguous_spread_alleleseries_dict : Optional[DefaultDict[Tuple[str, Optional[str], Optional[str]], pd.Series]] = None
+        
+    # Storing as a dataframe
+    ambiguous_ignored_umi_noncollapsed_allele_df : pd.DataFrame = None
+    ambiguous_ignored_umi_collapsed_allele_df : pd.DataFrame = None
+    ambiguous_ignored_allele_df : pd.DataFrame = None
+
+    ambiguous_accepted_umi_noncollapsed_allele_df : pd.DataFrame = None
+    ambiguous_accepted_umi_collapsed_allele_df : pd.DataFrame = None
+    ambiguous_accepted_allele_df : pd.DataFrame = None
+
+    ambiguous_spread_umi_noncollapsed_allele_df : pd.DataFrame = None
+    ambiguous_spread_umi_collapsed_allele_df : pd.DataFrame = None
+    ambiguous_spread_allele_df : pd.DataFrame = None
+
+    # This ensures that any empty series are kept at None
+    def __setattr__(self, name, value):
+        if isinstance(value, dict):
+            if len(value) == 0: # If no items in dictionary, just return None
+                super().__setattr__(name, None)
+            else:
+                super().__setattr__(name, value)
+        elif isinstance(value, pd.DataFrame):
+            if value.empty(): # If no items in dataframe, just return None
+                super().__setattr__(name, None)
+            else:
+                super().__setattr__(name, value)
+        else:
+            # Set the attribute
+            super().__setattr__(name, value)
+
+
 
 @dataclass
 class AllMatchSetWhitelistReporterCounterSeriesResults:
@@ -240,9 +286,40 @@ class AllMatchSetWhitelistReporterCounterSeriesResults:
     protospacer_mismatch_surrogate_match_barcode_match: Optional[SurrogateProtospacerMismatchSetWhitelistReporterCounterSeriesResults] = None
     protospacer_mismatch_surrogate_match: Optional[SurrogateProtospacerMismatchSetWhitelistReporterCounterSeriesResults] = None
 
+@dataclass
+class CountInput:
+    whitelist_guide_reporter_df: pd.DataFrame
+    contains_surrogate:bool
+    contains_barcode:bool
+    contains_umi:bool
+    protospacer_hamming_threshold_strict: Optional[int]
+    surrogate_hamming_threshold_strict: Optional[int]
+    barcode_hamming_threshold_strict: Optional[int]
 
 @dataclass
 class WhitelistReporterCountsResult:
     all_match_set_whitelist_reporter_counter_series_results: AllMatchSetWhitelistReporterCounterSeriesResults
     observed_guide_reporter_umi_counts_inferred: DefaultDict[Tuple[str,Optional[str],Optional[str]], dict]
     quality_control_result: QualityControlResult
+    count_input: CountInput
+
+@dataclass
+class ObservedSequenceMutations:
+    linked_mutations_whitelist_reporter_dict: Dict[Tuple[str, Optional[str], Optional[str]], pd.DataFrame] = None
+    all_observed_protospacer_unlinked_mutations_df: pd.DataFrame = None
+    all_observed_surrogate_unlinked_mutations_df: Optional[pd.DataFrame] = None
+    all_observed_barcode_unlinked_mutations_df: Optional[pd.DataFrame] = None
+    
+@dataclass
+class MatchSetWhitelistReporterObservedSequenceMutationsResults:
+    ambiguous_ignored_umi_noncollapsed_mutations : Optional[ObservedSequenceMutations] = None
+    ambiguous_ignored_umi_collapsed_mutations : Optional[ObservedSequenceMutations] = None
+    ambiguous_ignored_mutations : Optional[ObservedSequenceMutations] = None
+
+    ambiguous_accepted_umi_noncollapsed_mutations : Optional[ObservedSequenceMutations] = None
+    ambiguous_accepted_umi_collapsed_mutations : Optional[ObservedSequenceMutations] = None
+    ambiguous_accepted_mutations : Optional[ObservedSequenceMutations] = None
+
+    ambiguous_spread_umi_noncollapsed_mutations : Optional[ObservedSequenceMutations] = None
+    ambiguous_spread_umi_collapsed_mutations : Optional[ObservedSequenceMutations] = None
+    ambiguous_spread_mutations : Optional[ObservedSequenceMutations] = None

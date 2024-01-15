@@ -27,6 +27,7 @@ from concurrent.futures import ProcessPoolExecutor
 from . import sequence_encoding
 from . import guide_inference
 from .models import *
+from ..postprocessing.crispr_editing_processing import check_match_result_non_error, get_non_error_dict
 
 '''
     Take in input FASTQ filename, and a set of whitelisted guide sequences
@@ -280,11 +281,6 @@ def get_whitelist_reporter_counts_with_umi(observed_guide_reporter_umi_counts: D
     #
     #   GET THE WHITELIST COUNT PANDAS SERIES
     #
-    
-    # Needed for getting observed sequences that had no errors for both counting and for QC
-    check_match_result_non_error = lambda match_result : False if match_result is None else match_result.error is None # If match_result is None, treat as error. If match_result is not None, but error is None, then non_error
-    get_non_error_dict = lambda attribute_name : {observed_guide_reporter_key: observed_guide_reporter_umi_counts_inferred_value for observed_guide_reporter_key, observed_guide_reporter_umi_counts_inferred_value in observed_guide_reporter_umi_counts_inferred.items() if check_match_result_non_error(getattr(observed_guide_reporter_umi_counts_inferred_value.inferred_value, attribute_name))}
-
     # HELPER FUNCTION GETS COUNTS FOR THE THE MATCHES - defined in-function to reduce arguments being passed (NOTE: There is some duplicate code with mismatch counts function - keep in mind if making modifications)
     @typechecked
     def get_matchset_counterseries(attribute_name: str) -> MatchSetWhitelistReporterCounterSeriesResults: 
@@ -621,5 +617,13 @@ def get_whitelist_reporter_counts_with_umi(observed_guide_reporter_umi_counts: D
         quality_control_result.protospacer_match_surrogate_match = set_match_set_single_inference_quality_control_results("protospacer_match_surrogate_match")
         quality_control_result.protospacer_mismatch_surrogate_match = set_match_set_single_inference_quality_control_results("protospacer_mismatch_surrogate_match")
     
+    
+    count_input = CountInput(whitelist_guide_reporter_df=whitelist_guide_reporter_df,
+            contains_surrogate=contains_surrogate,
+            contains_barcode=contains_barcode,
+            contains_umi=contains_umi,
+            protospacer_hamming_threshold_strict=protospacer_hamming_threshold_strict,
+            surrogate_hamming_threshold_strict=surrogate_hamming_threshold_strict,
+            barcode_hamming_threshold_strict=barcode_hamming_threshold_strict)
     
     return WhitelistReporterCountsResult(all_match_set_whitelist_reporter_counter_series_results=all_match_set_whitelist_reporter_counter_series_results, observed_guide_reporter_umi_counts_inferred=observed_guide_reporter_umi_counts_inferred, quality_control_result=quality_control_result)
