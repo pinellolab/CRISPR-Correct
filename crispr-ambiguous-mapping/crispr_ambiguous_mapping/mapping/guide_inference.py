@@ -25,7 +25,7 @@ from typing import Counter as CounterType
 from concurrent.futures import ProcessPoolExecutor
 
 from . import sequence_encoding
-from .models import *
+from ..models.mapping_models import *
 
 '''
     Given an observed, potentially self-edited guide (in 'row["observed_sequence"]'), try and find the true guide sequence from the whitelist ("guide_sequences_series") based on hamming distance

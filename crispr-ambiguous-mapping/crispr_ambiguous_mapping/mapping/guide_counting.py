@@ -26,7 +26,7 @@ from concurrent.futures import ProcessPoolExecutor
 
 from . import sequence_encoding
 from . import guide_inference
-from .models import *
+from ..models.mapping_models import *
 from ..postprocessing.crispr_editing_processing import check_match_result_non_error, get_non_error_dict
 
 '''

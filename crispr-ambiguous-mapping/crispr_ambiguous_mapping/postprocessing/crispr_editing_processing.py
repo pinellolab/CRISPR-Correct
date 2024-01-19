@@ -93,7 +93,7 @@ def get_matchset_alleleseries(observed_guide_reporter_umi_counts_inferred: Defau
 
         if alleledict_counterseries is not None:
             observed_reporter_df_counts_list = []
-            for whitelist_reporter_tuple, observed_reporter_series_counts in match_set_whitelist_reporter_observed_sequence_counter_series_results.ambiguous_accepted_umi_collapsed_alleleseries.items():
+            for whitelist_reporter_tuple, observed_reporter_series_counts in alleledict_counterseries.items():
                 observed_reporter_df_counts = pd.DataFrame(observed_reporter_series_counts)
                 observed_reporter_df_counts.columns = ["counts"]
                 observed_reporter_df_counts_index = observed_reporter_df_counts.index.to_frame()
@@ -109,32 +109,32 @@ def get_matchset_alleleseries(observed_guide_reporter_umi_counts_inferred: Defau
     #   CONVERT THE COUNT DICTS INTO PANDAS SERIES, since this is a more ideal structure.
     #
     match_set_whitelist_reporter_observed_sequence_counter_series_results = MatchSetWhitelistReporterObservedSequenceCounterSeriesResults()
-    match_set_whitelist_reporter_observed_sequence_counter_series_results.ambiguous_ignored_umi_noncollapsed_alleleseries = create_dict_counterseries(ambiguous_ignored_umi_noncollapsed_alleledict)
-    match_set_whitelist_reporter_observed_sequence_counter_series_results.ambiguous_ignored_umi_collapsed_alleleseries = create_dict_counterseries(ambiguous_ignored_umi_collapsed_alleledict)
-    match_set_whitelist_reporter_observed_sequence_counter_series_results.ambiguous_ignored_alleleseries = create_dict_counterseries(ambiguous_ignored_alleledict)
+    match_set_whitelist_reporter_observed_sequence_counter_series_results.ambiguous_ignored_umi_noncollapsed_alleleseries_dict = create_dict_counterseries(ambiguous_ignored_umi_noncollapsed_alleledict)
+    match_set_whitelist_reporter_observed_sequence_counter_series_results.ambiguous_ignored_umi_collapsed_alleleseries_dict = create_dict_counterseries(ambiguous_ignored_umi_collapsed_alleledict)
+    match_set_whitelist_reporter_observed_sequence_counter_series_results.ambiguous_ignored_alleleseries_dict = create_dict_counterseries(ambiguous_ignored_alleledict)
 
-    match_set_whitelist_reporter_observed_sequence_counter_series_results.ambiguous_accepted_umi_noncollapsed_alleleseries = create_dict_counterseries(ambiguous_accepted_umi_noncollapsed_alleledict)
-    match_set_whitelist_reporter_observed_sequence_counter_series_results.ambiguous_accepted_umi_collapsed_alleleseries = create_dict_counterseries(ambiguous_accepted_umi_collapsed_alleledict)
-    match_set_whitelist_reporter_observed_sequence_counter_series_results.ambiguous_accepted_alleleseries = create_dict_counterseries(ambiguous_accepted_alleledict)
+    match_set_whitelist_reporter_observed_sequence_counter_series_results.ambiguous_accepted_umi_noncollapsed_alleleseries_dict = create_dict_counterseries(ambiguous_accepted_umi_noncollapsed_alleledict)
+    match_set_whitelist_reporter_observed_sequence_counter_series_results.ambiguous_accepted_umi_collapsed_alleleseries_dict = create_dict_counterseries(ambiguous_accepted_umi_collapsed_alleledict)
+    match_set_whitelist_reporter_observed_sequence_counter_series_results.ambiguous_accepted_alleleseries_dict = create_dict_counterseries(ambiguous_accepted_alleledict)
 
-    match_set_whitelist_reporter_observed_sequence_counter_series_results.ambiguous_spread_umi_noncollapsed_alleleseries = create_dict_counterseries(ambiguous_spread_umi_noncollapsed_alleledict)
-    match_set_whitelist_reporter_observed_sequence_counter_series_results.ambiguous_spread_umi_collapsed_alleleseries = create_dict_counterseries(ambiguous_spread_umi_collapsed_alleledict)
-    match_set_whitelist_reporter_observed_sequence_counter_series_results.ambiguous_spread_alleleseries = create_dict_counterseries(ambiguous_spread_alleledict)
+    match_set_whitelist_reporter_observed_sequence_counter_series_results.ambiguous_spread_umi_noncollapsed_alleleseries_dict = create_dict_counterseries(ambiguous_spread_umi_noncollapsed_alleledict)
+    match_set_whitelist_reporter_observed_sequence_counter_series_results.ambiguous_spread_umi_collapsed_alleleseries_dict = create_dict_counterseries(ambiguous_spread_umi_collapsed_alleledict)
+    match_set_whitelist_reporter_observed_sequence_counter_series_results.ambiguous_spread_alleleseries_dict = create_dict_counterseries(ambiguous_spread_alleledict)
 
     #
     #    Create the dataframes based on the countdicts
     #
-    match_set_whitelist_reporter_observed_sequence_counter_series_results.ambiguous_ignored_umi_noncollapsed_allele_df = create_df_from_dict_counterseries(match_set_whitelist_reporter_observed_sequence_counter_series_results.ambiguous_ignored_umi_noncollapsed_alleleseries, contains_surrogate=contains_surrogate, contains_barcode=contains_barcode)
-    match_set_whitelist_reporter_observed_sequence_counter_series_results.ambiguous_ignored_umi_collapsed_allele_df = create_df_from_dict_counterseries(match_set_whitelist_reporter_observed_sequence_counter_series_results.ambiguous_ignored_umi_collapsed_alleleseries, contains_surrogate=contains_surrogate, contains_barcode=contains_barcode)
-    match_set_whitelist_reporter_observed_sequence_counter_series_results.ambiguous_ignored_allele_df = create_df_from_dict_counterseries(match_set_whitelist_reporter_observed_sequence_counter_series_results.ambiguous_ignored_alleleseries, contains_surrogate=contains_surrogate, contains_barcode=contains_barcode)
+    match_set_whitelist_reporter_observed_sequence_counter_series_results.ambiguous_ignored_umi_noncollapsed_allele_df = create_df_from_dict_counterseries(match_set_whitelist_reporter_observed_sequence_counter_series_results.ambiguous_ignored_umi_noncollapsed_alleleseries_dict, contains_surrogate=contains_surrogate, contains_barcode=contains_barcode)
+    match_set_whitelist_reporter_observed_sequence_counter_series_results.ambiguous_ignored_umi_collapsed_allele_df = create_df_from_dict_counterseries(match_set_whitelist_reporter_observed_sequence_counter_series_results.ambiguous_ignored_umi_collapsed_alleleseries_dict, contains_surrogate=contains_surrogate, contains_barcode=contains_barcode)
+    match_set_whitelist_reporter_observed_sequence_counter_series_results.ambiguous_ignored_allele_df = create_df_from_dict_counterseries(match_set_whitelist_reporter_observed_sequence_counter_series_results.ambiguous_ignored_alleleseries_dict, contains_surrogate=contains_surrogate, contains_barcode=contains_barcode)
 
-    match_set_whitelist_reporter_observed_sequence_counter_series_results.ambiguous_accepted_umi_noncollapsed_allele_df = create_df_from_dict_counterseries(match_set_whitelist_reporter_observed_sequence_counter_series_results.ambiguous_accepted_umi_noncollapsed_alleleseries, contains_surrogate=contains_surrogate, contains_barcode=contains_barcode)
-    match_set_whitelist_reporter_observed_sequence_counter_series_results.ambiguous_accepted_umi_collapsed_allele_df = create_df_from_dict_counterseries(match_set_whitelist_reporter_observed_sequence_counter_series_results.ambiguous_accepted_umi_collapsed_alleleseries, contains_surrogate=contains_surrogate, contains_barcode=contains_barcode)
-    match_set_whitelist_reporter_observed_sequence_counter_series_results.ambiguous_accepted_allele_df = create_df_from_dict_counterseries(match_set_whitelist_reporter_observed_sequence_counter_series_results.ambiguous_accepted_alleleseries, contains_surrogate=contains_surrogate, contains_barcode=contains_barcode)
+    match_set_whitelist_reporter_observed_sequence_counter_series_results.ambiguous_accepted_umi_noncollapsed_allele_df = create_df_from_dict_counterseries(match_set_whitelist_reporter_observed_sequence_counter_series_results.ambiguous_accepted_umi_noncollapsed_alleleseries_dict, contains_surrogate=contains_surrogate, contains_barcode=contains_barcode)
+    match_set_whitelist_reporter_observed_sequence_counter_series_results.ambiguous_accepted_umi_collapsed_allele_df = create_df_from_dict_counterseries(match_set_whitelist_reporter_observed_sequence_counter_series_results.ambiguous_accepted_umi_collapsed_alleleseries_dict, contains_surrogate=contains_surrogate, contains_barcode=contains_barcode)
+    match_set_whitelist_reporter_observed_sequence_counter_series_results.ambiguous_accepted_allele_df = create_df_from_dict_counterseries(match_set_whitelist_reporter_observed_sequence_counter_series_results.ambiguous_accepted_alleleseries_dict, contains_surrogate=contains_surrogate, contains_barcode=contains_barcode)
 
-    match_set_whitelist_reporter_observed_sequence_counter_series_results.ambiguous_spread_umi_noncollapsed_allele_df = create_df_from_dict_counterseries(match_set_whitelist_reporter_observed_sequence_counter_series_results.ambiguous_spread_umi_noncollapsed_alleleseries, contains_surrogate=contains_surrogate, contains_barcode=contains_barcode)
-    match_set_whitelist_reporter_observed_sequence_counter_series_results.ambiguous_spread_umi_collapsed_allele_df = create_df_from_dict_counterseries(match_set_whitelist_reporter_observed_sequence_counter_series_results.ambiguous_spread_umi_collapsed_alleleseries, contains_surrogate=contains_surrogate, contains_barcode=contains_barcode)
-    match_set_whitelist_reporter_observed_sequence_counter_series_results.ambiguous_spread_allele_df = create_df_from_dict_counterseries(match_set_whitelist_reporter_observed_sequence_counter_series_results.ambiguous_spread_alleleseries, contains_surrogate=contains_surrogate, contains_barcode=contains_barcode)
+    match_set_whitelist_reporter_observed_sequence_counter_series_results.ambiguous_spread_umi_noncollapsed_allele_df = create_df_from_dict_counterseries(match_set_whitelist_reporter_observed_sequence_counter_series_results.ambiguous_spread_umi_noncollapsed_alleleseries_dict, contains_surrogate=contains_surrogate, contains_barcode=contains_barcode)
+    match_set_whitelist_reporter_observed_sequence_counter_series_results.ambiguous_spread_umi_collapsed_allele_df = create_df_from_dict_counterseries(match_set_whitelist_reporter_observed_sequence_counter_series_results.ambiguous_spread_umi_collapsed_alleleseries_dict, contains_surrogate=contains_surrogate, contains_barcode=contains_barcode)
+    match_set_whitelist_reporter_observed_sequence_counter_series_results.ambiguous_spread_allele_df = create_df_from_dict_counterseries(match_set_whitelist_reporter_observed_sequence_counter_series_results.ambiguous_spread_alleleseries_dict, contains_surrogate=contains_surrogate, contains_barcode=contains_barcode)
         
     return match_set_whitelist_reporter_observed_sequence_counter_series_results
 
@@ -152,6 +152,7 @@ def get_matchset_alleleseries(observed_guide_reporter_umi_counts_inferred: Defau
 
 
 from copy import deepcopy
+import numpy as np
 # TODO: Move to package
 
 def pad_series(series, possible_max = 0):
@@ -364,4 +365,40 @@ def get_mutation_profile(match_set_whitelist_reporter_observed_sequence_counter_
     mutations_results.ambiguous_spread_mutations = generate_mutations_results(match_set_whitelist_reporter_observed_sequence_counter_series_results.ambiguous_spread_alleleseries_dict, whitelist_reporter_df, contains_surrogate, contains_barcode)
     
     return mutations_results
+
+ 
+def tally_linked_mutation_count_per_sequence(mutations_results: MatchSetWhitelistReporterObservedSequenceMutationProfiles, contains_surrogate, contains_barcode) -> LinkedMutationCounters:
+    protospacer_total_mutation_counter = Counter()
+
+    surrogate_total_mutation_counter = None
+    barcode_total_mutation_counter = None
+    if contains_surrogate:
+        surrogate_total_mutation_counter = Counter()
+    if contains_barcode:
+        barcode_total_mutation_counter = Counter()
+
+    # TODO: THIS IS HARDCODED TO ambiguous_accepted_umi_noncollapsed
+    for linked_mutations_whitelist_reporter_df in mutations_results.ambiguous_accepted_umi_noncollapsed_mutations.linked_mutations_whitelist_reporter_dict.values():
+        accetable_SNP_columns = (linked_mutations_whitelist_reporter_df.columns.get_level_values("SequenceType") != "count") & (linked_mutations_whitelist_reporter_df.columns.get_level_values("Ref") != "X") & (linked_mutations_whitelist_reporter_df.columns.get_level_values("Alt") != "X")
+
+
+        protospacer_columns = (linked_mutations_whitelist_reporter_df.columns.get_level_values("SequenceType") == "protospacer")
+        protospacer_mutation_count_per_allele_series = linked_mutations_whitelist_reporter_df.loc[:, protospacer_columns & accetable_SNP_columns].sum(axis=1)
+        for allele_index, mutation_count in enumerate(protospacer_mutation_count_per_allele_series):
+            protospacer_total_mutation_counter[mutation_count] += linked_mutations_whitelist_reporter_df["count"][allele_index]
+
+        if contains_surrogate:
+            surrogate_columns = (linked_mutations_whitelist_reporter_df.columns.get_level_values("SequenceType") == "surrogate")
+            surrogate_mutation_count_per_allele_series = linked_mutations_whitelist_reporter_df.loc[:, surrogate_columns & accetable_SNP_columns].sum(axis=1)
+            for allele_index, mutation_count in enumerate(surrogate_mutation_count_per_allele_series):
+                surrogate_total_mutation_counter[mutation_count] += linked_mutations_whitelist_reporter_df["count"][allele_index]
+
+        if contains_barcode:
+            barcode_columns = (linked_mutations_whitelist_reporter_df.columns.get_level_values("SequenceType") == "barcode")
+            barcode_mutation_count_per_allele_series = linked_mutations_whitelist_reporter_df.loc[:, barcode_columns & accetable_SNP_columns].sum(axis=1)
+            for allele_index, mutation_count in enumerate(barcode_mutation_count_per_allele_series):
+                barcode_total_mutation_counter[mutation_count] += linked_mutations_whitelist_reporter_df["count"][allele_index]
     
+    return LinkedMutationCounters(protospacer_total_mutation_counter=protospacer_total_mutation_counter,
+                                surrogate_total_mutation_counter=surrogate_total_mutation_counter,
+                                barcode_total_mutation_counter=barcode_total_mutation_counter)

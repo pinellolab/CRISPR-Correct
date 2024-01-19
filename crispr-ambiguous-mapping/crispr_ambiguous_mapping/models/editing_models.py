@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from typing import Counter as CounterType
 from typing import Tuple, Optional, DefaultDict, Dict
 import pandas as pd
 
@@ -39,7 +40,7 @@ class MatchSetWhitelistReporterObservedSequenceCounterSeriesResults:
             else:
                 super().__setattr__(name, value)
         elif isinstance(value, pd.DataFrame):
-            if value.empty(): # If no items in dataframe, just return None
+            if value.empty: # If no items in dataframe, just return None
                 super().__setattr__(name, None)
             else:
                 super().__setattr__(name, value)
@@ -67,4 +68,10 @@ class MatchSetWhitelistReporterObservedSequenceMutationProfiles:
     ambiguous_spread_umi_noncollapsed_mutations : Optional[ObservedSequenceMutationProfile] = None
     ambiguous_spread_umi_collapsed_mutations : Optional[ObservedSequenceMutationProfile] = None
     ambiguous_spread_mutations : Optional[ObservedSequenceMutationProfile] = None
+
+@dataclass
+class LinkedMutationCounters:
+    protospacer_total_mutation_counter: CounterType
+    surrogate_total_mutation_counter: Optional[CounterType]
+    barcode_total_mutation_counter: Optional[CounterType]
     
