@@ -21,36 +21,12 @@ from typing import Counter as CounterType
 from concurrent.futures import ProcessPoolExecutor
 from dataclasses import dataclass
 
-from . import sequence_encoding
-from . import guide_counting
-from . import guide_raw_fastq_parsing
-from . import reporter_tsv_parsing
-from . import reporter_umitools_fastq_parsing
-from . import sequence_encoding
-
-###
-### MAIN FUNCTIONS
-###
-'''
-    Take in input FASTQ filename, and a set of whitelisted guide sequences
-'''
-# DEPRECATED use the all-in-one UMI-tools package
-@typechecked
-def get_whitelist_guide_counts_from_raw_fastq(whitelist_guide_sequences_series: pd.Series, fastq_fn: str, hamming_threshold_strict: int = 3, hamming_threshold_dynamic: bool = False, parse_left_flank: bool = True, parse_flank_sequence: Union[None, str] = None, cores: int=1):
-    # Retrieve all observed guide sequences
-    print("Retrieving FASTQ guide sequences and counting: " + fastq_fn)
-    observed_guide_sequences_counts: CounterType[str] = guide_raw_fastq_parsing.get_raw_fastq_observed_sequence_counts(fastq_fn, parse_left_flank=parse_left_flank, parse_flank_sequence=parse_flank_sequence, cores=cores)
-    
-    return guide_counting.get_whitelist_guide_counts(observed_guide_sequences_counts, whitelist_guide_sequences_series, hamming_threshold_strict, hamming_threshold_dynamic, cores)
-
-'''
-    Take in input FASTQ filename, and a set of whitelisted guide sequences
-'''
-@typechecked
-def get_whitelist_reporter_counts_from_reporter_tsv(whitelist_guide_reporter_df: pd.DataFrame, reporter_tsv_fn: str, surrogate_hamming_threshold_strict: int = 10, barcode_hamming_threshold_strict: int = 2, hamming_threshold_strict: int = 7, hamming_threshold_dynamic: bool = False, cores: int=1):
-    observed_guide_reporter_counts: Union[CounterType[Tuple[str,str,str]], CounterType[str]] = reporter_tsv_parsing.get_reporter_tsv_observed_sequence_counts(reporter_tsv_fn, include_surrogate = True, cores=cores)
-
-    return guide_counting.get_whitelist_reporter_counts(observed_guide_reporters_counts=observed_guide_reporter_counts, whitelist_guide_reporter_df=whitelist_guide_reporter_df, surrogate_hamming_threshold_strict=surrogate_hamming_threshold_strict, barcode_hamming_threshold_strict=barcode_hamming_threshold_strict, hamming_threshold_strict=hamming_threshold_strict, hamming_threshold_dynamic=hamming_threshold_dynamic, cores=cores)
+from ..processing import crispr_sequence_encoding
+from ..processing import crispr_guide_counting
+from ..processing import crispr_sequence_encoding
+from ..parsing import guide_raw_fastq_parsing
+from ..parsing import reporter_tsv_parsing
+from ..parsing import reporter_umitools_fastq_parsing
 
 
 @typechecked
@@ -64,7 +40,7 @@ def get_whitelist_reporter_counts_from_umitools_output(whitelist_guide_reporter_
     # Map the observed sequences to the true whitelist sequence
     #
     get_whitelist_reporter_counts_with_umi_PARTIAL = partial(
-        guide_counting.get_whitelist_reporter_counts_with_umi,
+        crispr_guide_counting.get_whitelist_reporter_counts_with_umi,
         observed_guide_reporter_umi_counts=observed_guide_reporter_umi_counts,
         whitelist_guide_reporter_df=whitelist_guide_reporter_df,
         protospacer_hamming_threshold_strict=protospacer_hamming_threshold_strict,
@@ -72,6 +48,7 @@ def get_whitelist_reporter_counts_from_umitools_output(whitelist_guide_reporter_
         barcode_hamming_threshold_strict=barcode_hamming_threshold_strict,
         cores=cores
     )
+    
     if fastq_r2_fn is None: # ONLY R1
         if barcode_pattern_regex is None: # ONLY R1; NO BARCODE
             if umi_pattern_regex is None: # ONLY R1; NO BARCODE; NO UMI

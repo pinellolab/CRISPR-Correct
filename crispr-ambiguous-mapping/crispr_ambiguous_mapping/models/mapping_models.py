@@ -3,7 +3,6 @@ from typing import Union, List, Mapping, Tuple, Optional, Any, DefaultDict, Dict
 from typing import Counter as CounterType
 from enum import Enum
 from collections import Counter, defaultdict
-
 import pandas as pd
 
 class GuideCountErrorType(Enum):
@@ -61,7 +60,6 @@ class SurrogateMissingInfoGuideCountError(MissingInfoGuideCountError):
 class BarcodeMissingInfoGuideCountError(MissingInfoGuideCountError):
     guide_count_error_type: GuideCountErrorType = GuideCountErrorType.NO_BARCODE_MATCH_MISSING_INFO
 
-
 @dataclass
 class HammingThresholdGuideCountError(GuideCountError):
     hamming_min: Optional[int] = None
@@ -82,7 +80,6 @@ class SurrogateHammingThresholdGuideCountError(HammingThresholdGuideCountError):
 @dataclass
 class BarcodeHammingThresholdGuideCountError(HammingThresholdGuideCountError):
     guide_count_error_type: GuideCountErrorType = GuideCountErrorType.NO_MATCH_BARCODE_HAMMING_THRESHOLD
-
 
 @dataclass
 class SingleInferenceMatchResultValue:

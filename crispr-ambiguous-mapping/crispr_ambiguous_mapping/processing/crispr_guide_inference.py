@@ -24,7 +24,7 @@ from typing import Union, List, Mapping, Tuple, Optional, Any, DefaultDict
 from typing import Counter as CounterType
 from concurrent.futures import ProcessPoolExecutor
 
-from . import sequence_encoding
+from . import crispr_sequence_encoding
 from ..models.mapping_models import *
 
 '''

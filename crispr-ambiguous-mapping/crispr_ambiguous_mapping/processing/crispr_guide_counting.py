@@ -24,172 +24,31 @@ from typing import Union, List, Mapping, Tuple, Optional, Any, DefaultDict
 from typing import Counter as CounterType
 from concurrent.futures import ProcessPoolExecutor
 
-from . import sequence_encoding
-from . import guide_inference
+from . import crispr_sequence_encoding
+from . import crispr_guide_inference
 from ..models.mapping_models import *
-from ..postprocessing.crispr_editing_processing import check_match_result_non_error, get_non_error_dict
-
-'''
-    Take in input FASTQ filename, and a set of whitelisted guide sequences
-'''
-@typechecked
-def get_whitelist_guide_counts(observed_guide_sequences_counts: Counter, whitelist_guide_sequences_series: pd.Series, hamming_threshold_strict: int = 3, hamming_threshold_dynamic: bool = False, cores: int=1):
-
-    whitelist_guide_sequences_series.index = whitelist_guide_sequences_series.values
-    # Create observed guide DF to contain all information
-    # The "observed sequence" column represents all *unique* observed sequences that may have self-edits/errors. The "observed counts" column represents the count of each observed count.
-    observed_guides_df = pd.DataFrame({"observed_sequence":[str(sequence) for sequence in observed_guide_sequences_counts.keys()], "observed_counts":observed_guide_sequences_counts.values()})
- 
-    # Get the hamming distance threshold. THe hamming distance must be below this threshold to assign an observed guide to a whitelist guide.
-    encoded_whitelist_guide_sequences_series = sequence_encoding.encode_guide_series(whitelist_guide_sequences_series)
-    if hamming_threshold_dynamic:
-        hamming_threshold = int(guide_inference.determine_hamming_threshold(whitelist_guide_sequences_series, encoded_whitelist_guide_sequences_series, sample_count = 100, quantile = 0.05))
-        print("Hamming threshold is " + str(hamming_threshold))
-    else:
-        hamming_threshold = hamming_threshold_strict
-        
-    # Infer whitelist guides from observed guides
-    print("Inferring the true guides from observed guides")
-
-    infer_true_guides_p = partial(guide_inference.infer_true_guides,
-            whitelist_guide_sequences_series=whitelist_guide_sequences_series,
-            encoded_whitelist_guide_sequences_series=encoded_whitelist_guide_sequences_series,
-            hamming_threshold=hamming_threshold, verbose_result=False)
-
-    inferred_true_guide_sequences = None
-    
-    if cores > 1:
-        with Pool(cores) as pool:
-            print("Inferencing parallel")
-            inferred_true_guide_sequences = pool.map(
-            infer_true_guides_p,
-            observed_guides_df["observed_sequence"]
-            )
-    else:
-        print("Inferencing sequentially")
-        inferred_true_guide_sequences = [infer_true_guides_p(observed_sequence) for observed_sequence in observed_guides_df["observed_sequence"]]    
-    
-    print("Completed inference")
-
-    observed_guides_df["inferred_guides"] = inferred_true_guide_sequences
-    
-    '''
-        QC
-    '''
-    # QC: Determine the number of guides passed by determining that the result is not an error
-    observed_guides_df_passed_inference = observed_guides_df[observed_guides_df["inferred_guides"].apply(lambda guide : type(guide) != GuideCountError)]
-    # QC: Calculate number of guides that were unassigned
-    observed_guides_df_no_match = observed_guides_df[observed_guides_df["inferred_guides"].apply(lambda guide : guide == GuideCountError.NO_MATCH)]
-    # QC: Calculate number of guides with multiple inferred guides
-    observed_guides_df_multiple_match = observed_guides_df[observed_guides_df["inferred_guides"].apply(lambda guide : guide == GuideCountError.MULTIPLE_MATCH)]
-    # QC: Calculate percent mapped
-    percent_mapped = observed_guides_df_passed_inference["observed_counts"].sum()/observed_guides_df["observed_counts"].sum()
-    
-    # Retrieve the observed sequences that were mapped and set the inferred guides
-    inferred_guide_sequence_counter = Counter()
-    for _, row in observed_guides_df_passed_inference.iterrows():
-        inferred_guide_sequence_counter[row["inferred_guides"][0]] += row["observed_counts"]
-    
-    whitelist_guide_sequences_series_counts = whitelist_guide_sequences_series.apply(lambda guide: inferred_guide_sequence_counter[guide])
-    whitelist_guide_sequences_series_counts.index = whitelist_guide_sequences_series
-    
-    multi_index = pd.MultiIndex.from_arrays([whitelist_guide_sequences_series], names=['protospacer'])
-    whitelist_guide_sequences_series_counts.index = multi_index
-
-    qc_dict = {"guide_sequences_unassigned_counts":observed_guides_df_no_match["observed_counts"].sum(), "guide_sequences_multiple_counts": observed_guides_df_multiple_match["observed_counts"].sum(), "total_guide_counts": observed_guides_df["observed_counts"].sum(), "percent_mapped": percent_mapped}
-    
-    return whitelist_guide_sequences_series_counts, observed_guides_df, qc_dict
-
-@typechecked
-def get_whitelist_reporter_counts(observed_guide_reporters_counts: Counter, whitelist_guide_reporter_df: pd.DataFrame, surrogate_hamming_threshold_strict: int = 2, barcode_hamming_threshold_strict: int = 2, hamming_threshold_strict: int = 7, hamming_threshold_dynamic: bool = False, cores: int=1):
-
-    whitelist_guide_reporter_df.index = whitelist_guide_reporter_df["protospacer"]
-    
-    # Create observed guide DF to contain all information
-    # The "observed sequence" column represents all *unique* observed sequences that may have self-edits/errors. The "observed counts" column represents the count of each observed count.
-    observed_guides_df = pd.DataFrame({"observed_sequence":observed_guide_reporters_counts.keys(), "observed_counts":observed_guide_reporters_counts.values()})
- 
-    # Get the hamming distance threshold. THe hamming distance must be below this threshold to assign an observed guide to a whitelist guide.
-    encoded_whitelist_guide_sequences_series = sequence_encoding.encode_guide_series(whitelist_guide_reporter_df["protospacer"])
-    encoded_whitelist_barcodes_series = sequence_encoding.encode_guide_series(whitelist_guide_reporter_df["barcode"])
-    
-    if hamming_threshold_dynamic:
-        hamming_threshold = guide_inference.determine_hamming_threshold(whitelist_guide_reporter_df["protospacer"], encoded_whitelist_guide_sequences_series, sample_count = 100, quantile = 0.05)
-        print("Hamming threshold is " + str(hamming_threshold))
-    else:
-        hamming_threshold = hamming_threshold_strict
-        
-    # Infer whitelist guides from observed guides
-    print("Inferring the true guides from observed guides")
-
-    infer_true_reporters_p = partial(guide_inference.infer_true_reporters,
-            whitelist_guide_reporter_df=whitelist_guide_reporter_df,
-            encoded_whitelist_guide_sequences_series=encoded_whitelist_guide_sequences_series,
-            encoded_whitelist_barcodes_series=encoded_whitelist_barcodes_series,
-            hamming_threshold=hamming_threshold, barcode_hamming_threshold=barcode_hamming_threshold_strict, surrogate_hamming_threshold=surrogate_hamming_threshold_strict, verbose_result=False)
-
-    inferred_true_reporter_sequences = None
-    if cores > 1:
-        with Pool(cores) as pool:
-            inferred_true_reporter_sequences = pool.map(
-            infer_true_reporters_p,
-            observed_guides_df["observed_sequence"]
-           )
-    else:
-        inferred_true_reporter_sequences = [infer_true_reporters_p(obs_reporter) for obs_reporter in observed_guides_df["observed_sequence"]]
-    
-    print("Completed inference")
-
-    observed_guides_df["inferred_guides"] = inferred_true_reporter_sequences
-    
-    '''
-        QC
-    '''
-    print("Retrieving QC tables")
-    # QC: Determine the number of guides passed by determining that the result is not an error
-    observed_guides_df_passed_inference = observed_guides_df[observed_guides_df["inferred_guides"].apply(lambda guide : type(guide) != GuideCountError)]
-    # QC: Calculate number of guides that were unassigned
-    observed_guides_df_no_match = observed_guides_df[observed_guides_df["inferred_guides"].apply(lambda guide : guide == GuideCountError.NO_MATCH)]
-    # QC: Calculate number of guides with multiple inferred guides
-    observed_guides_df_multiple_match = observed_guides_df[observed_guides_df["inferred_guides"].apply(lambda guide : guide == GuideCountError.MULTIPLE_MATCH)]
-    # QC: Calculate percent mapped
-    percent_mapped = observed_guides_df_passed_inference["observed_counts"].sum()/observed_guides_df["observed_counts"].sum()
-    
-    print("Get whitelist reporter counts")
-    # Retrieve the observed sequences that were mapped and set the inferred guides
-    inferred_guide_sequence_counter = observed_guides_df_passed_inference.groupby("inferred_guides")["observed_counts"].sum()
-
-    whitelist_guide_reporter_counts = whitelist_guide_reporter_df.apply(lambda reporter: inferred_guide_sequence_counter.get(tuple(reporter), 0), axis=1)
-    
-    
-    multi_index = pd.MultiIndex.from_arrays([whitelist_guide_reporter_df['protospacer'], whitelist_guide_reporter_df['surrogate'], whitelist_guide_reporter_df['barcode']], names=['protospacer', 'surrogate', 'barcode'])
-    whitelist_guide_reporter_counts.index = multi_index
-    
-
-    qc_dict = {"guide_sequences_unassigned_counts":observed_guides_df_no_match["observed_counts"].sum(), "guide_sequences_multiple_counts": observed_guides_df_multiple_match["observed_counts"].sum(), "total_guide_counts": observed_guides_df["observed_counts"].sum(), "percent_mapped": percent_mapped}
-    
-    return whitelist_guide_reporter_counts, observed_guides_df, qc_dict
-
+from ..models.editing_models import *
+from crispr_editing_processing import check_match_result_non_error, get_non_error_dict
 
 
 # TODO: There will probably be some type errors with the DefaultDict when testing on non UMI (since it requires CounterType), so make sure to test with different variations of inputs
 @typechecked
 def get_whitelist_reporter_counts_with_umi(observed_guide_reporter_umi_counts: DefaultDict[Tuple[str,Optional[str],Optional[str]], Union[int, CounterType[Optional[str]]]], whitelist_guide_reporter_df: pd.DataFrame, contains_surrogate:bool = False, contains_barcode:bool = False, contains_umi:bool = False, protospacer_hamming_threshold_strict: Optional[int] = 7, surrogate_hamming_threshold_strict: Optional[int] = 2, barcode_hamming_threshold_strict: Optional[int] = 2, cores: int=1):
+    
+    # Temporary bug fix. Pad sequences so they are all of same length - encoding numpy matrices requires consistent shape. Still pass the original guide table for selecting the matches.     
     def pad_series(series):
         max_surrogate_len = series.apply(len).max()
         return series.apply(lambda item: item.ljust(max_surrogate_len, 'X'))
-
-    # Temporary bug fix. Pad sequences so they are all of same length - encoding numpy matrices requires consistent shape. Still pass the original guide table for selecting the matches. 
     padded_whitelist_guide_reporter_df = whitelist_guide_reporter_df.apply(pad_series, axis=0)
     
     #
     # ENCODE THE WHITELISTED SEQUENCES INTO NUMPY MATRICES - THIS IS REQUIRED FOR HAMMING-BASED MAPPING
     #
-    encoded_whitelist_protospacer_sequences_series = sequence_encoding.encode_guide_series(padded_whitelist_guide_reporter_df["protospacer"])
+    encoded_whitelist_protospacer_sequences_series = crispr_sequence_encoding.encode_guide_series(padded_whitelist_guide_reporter_df["protospacer"])
     if contains_surrogate:
-        encoded_whitelist_surrogate_sequences_series = sequence_encoding.encode_guide_series(padded_whitelist_guide_reporter_df["surrogate"])
+        encoded_whitelist_surrogate_sequences_series = crispr_sequence_encoding.encode_guide_series(padded_whitelist_guide_reporter_df["surrogate"])
     if contains_barcode:
-        encoded_whitelist_barcode_sequences_series = sequence_encoding.encode_guide_series(padded_whitelist_guide_reporter_df["barcode"])
+        encoded_whitelist_barcode_sequences_series = crispr_sequence_encoding.encode_guide_series(padded_whitelist_guide_reporter_df["barcode"])
 
     
 
@@ -202,7 +61,7 @@ def get_whitelist_reporter_counts_with_umi(observed_guide_reporter_umi_counts: D
     if protospacer_hamming_threshold_strict is None:
         protospacer_hamming_threshold_dynamic = True
         # TODO: Pass in arguments to set this hamming threshold. 
-        protospacer_hamming_threshold: int = guide_inference.determine_hamming_threshold(whitelist_guide_reporter_df["protospacer"], encoded_whitelist_protospacer_sequences_series, sample_count = 100, quantile = 0.05)
+        protospacer_hamming_threshold: int = crispr_guide_inference.determine_hamming_threshold(whitelist_guide_reporter_df["protospacer"], encoded_whitelist_protospacer_sequences_series, sample_count = 100, quantile = 0.05)
     else:
         protospacer_hamming_threshold: int = protospacer_hamming_threshold_strict
     print("Protospacer hamming threshold is " + str(protospacer_hamming_threshold))
@@ -215,7 +74,7 @@ def get_whitelist_reporter_counts_with_umi(observed_guide_reporter_umi_counts: D
         if surrogate_hamming_threshold_strict is None:
             surrogate_hamming_threshold_dynamic = True
             # TODO: Pass in arguments to set this hamming threshold. 
-            surrogate_hamming_threshold: int = guide_inference.determine_hamming_threshold(whitelist_guide_reporter_df["surrogate"], encoded_whitelist_surrogate_sequences_series, sample_count = 100, quantile = 0.05)
+            surrogate_hamming_threshold: int = crispr_guide_inference.determine_hamming_threshold(whitelist_guide_reporter_df["surrogate"], encoded_whitelist_surrogate_sequences_series, sample_count = 100, quantile = 0.05)
             
         else:
             surrogate_hamming_threshold: int = surrogate_hamming_threshold_strict
@@ -228,7 +87,7 @@ def get_whitelist_reporter_counts_with_umi(observed_guide_reporter_umi_counts: D
         barcode_hamming_threshold_dynamic = False
         if barcode_hamming_threshold_strict is  None:
             barcode_hamming_threshold_dynamic = True
-            barcode_hamming_threshold: int = guide_inference.determine_hamming_threshold(whitelist_guide_reporter_df["barcode"], encoded_whitelist_barcode_sequences_series, sample_count = 100, quantile = 0.05)
+            barcode_hamming_threshold: int = crispr_guide_inference.determine_hamming_threshold(whitelist_guide_reporter_df["barcode"], encoded_whitelist_barcode_sequences_series, sample_count = 100, quantile = 0.05)
         else:
             barcode_hamming_threshold: int = barcode_hamming_threshold_strict
         print("Barcode hamming threshold is " + str(barcode_hamming_threshold))
@@ -240,7 +99,7 @@ def get_whitelist_reporter_counts_with_umi(observed_guide_reporter_umi_counts: D
     #
     print("Inferring the true guides from observed guides")
 
-    infer_whitelist_sequence_p = partial(guide_inference.infer_whitelist_sequence,
+    infer_whitelist_sequence_p = partial(crispr_guide_inference.infer_whitelist_sequence,
             whitelist_guide_reporter_df=whitelist_guide_reporter_df,
             contains_surrogate=contains_surrogate,
             contains_barcode=contains_barcode,
