@@ -5,6 +5,8 @@ from typing import Counter as CounterType
 from functools import partial
 from collections import Counter
 
+# DEPRECATED CLASS
+
 '''
     Strategies to parse read
 '''

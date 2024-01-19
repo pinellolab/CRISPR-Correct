@@ -24,8 +24,6 @@ from dataclasses import dataclass
 from ..processing import crispr_sequence_encoding
 from ..processing import crispr_guide_counting
 from ..processing import crispr_sequence_encoding
-from ..parsing import guide_raw_fastq_parsing
-from ..parsing import reporter_tsv_parsing
 from ..parsing import reporter_umitools_fastq_parsing
 
 

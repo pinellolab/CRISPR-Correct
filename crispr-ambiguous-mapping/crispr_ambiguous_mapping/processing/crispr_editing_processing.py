@@ -1,10 +1,13 @@
 from collections import Counter, defaultdict
 from dataclasses import dataclass
-from typing import Optional, DefaultDict, Union, Tuple
+from typing import Optional, DefaultDict, Union, Tuple, List
 import pandas as pd
 from typing import Counter as CounterType
-from ..models.mapping_models import *
-from ..models.editing_models import *
+from ..models.mapping_models import CompleteInferenceMatchResult, MatchSetSingleInferenceMatchResult
+from ..models.editing_models import (MatchSetWhitelistReporterObservedSequenceCounterSeriesResults, 
+                                     MatchSetWhitelistReporterObservedSequenceMutationProfiles, 
+                                     LinkedMutationCounters, 
+                                     ObservedSequenceMutationProfile)
 
 # Function that has conditional on whether a match result is not an errror
 def check_match_result_non_error(match_result):
