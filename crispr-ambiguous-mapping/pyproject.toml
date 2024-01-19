@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "crispr-ambiguous-mapping"
-version = "0.0.129"
+version = "0.0.130"
 description = ""
 authors = ["Basheer Becerra <bbecerr@outlook.com>"]
 readme = "README.md"
@@ -15,6 +15,7 @@ biopython = "^1.81"
 pandarallel = "^1.6.4"
 typeguard = "^3.0.2"
 pandas = "^1.5.3"
+seaborn = "^0.11.2"
 
 
 [build-system]
