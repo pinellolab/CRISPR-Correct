@@ -7,6 +7,8 @@ from functools import partial
 from typing import Union, Tuple
 from typing import Counter as CounterType
 
+# DEPRRECATED CLASS
+
 def gen_chunks(reader, chunksize=1000):
     """
     Chunk generator. Take a CSV `reader` and yield
