@@ -63,7 +63,6 @@ def perform_counts_quality_control(observed_guide_reporter_umi_counts_inferred: 
         quality_control_result.protospacer_match_barcode_match = set_match_set_single_inference_quality_control_results("protospacer_match_barcode_match")
         if contains_surrogate:
             quality_control_result.protospacer_match_surrogate_match_barcode_match = set_match_set_single_inference_quality_control_results("protospacer_match_surrogate_match_barcode_match")
-            protospacer_mismatch_surrogate_match_barcode_match_nonerror_dict = get_non_error_dict("protospacer_mismatch_surrogate_match_barcode_match")
             quality_control_result.protospacer_mismatch_surrogate_match_barcode_match = set_match_set_single_inference_quality_control_results("protospacer_mismatch_surrogate_match_barcode_match")
     if contains_surrogate:
         quality_control_result.protospacer_match_surrogate_match = set_match_set_single_inference_quality_control_results("protospacer_match_surrogate_match")
