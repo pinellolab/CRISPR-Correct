@@ -14,7 +14,7 @@ def save_or_load_pickle(directory, label, py_object = None, date_string = None):
     
     filename = directory + label + "_" + date_string + '.pickle'
     print(filename)
-    if py_object == None:
+    if py_object is None:
         with open(filename, 'rb') as handle:
             py_object = pickle.load(handle)
             return py_object
