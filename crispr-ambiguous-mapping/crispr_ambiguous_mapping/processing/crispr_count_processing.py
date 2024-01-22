@@ -101,7 +101,7 @@ def get_matchset_counterseries(observed_guide_reporter_umi_counts_inferred: Defa
 # HELPER FUNCTION GETS COUNTS FOR THE THE MISMATCHES - defined in-function to reduce arguments being passed (NOTE: There is some duplicate code with match counts function - keep in mind if making modifications)
 #
 @typechecked
-def get_mismatchset_counterseries(observed_guide_reporter_umi_counts_inferred: DefaultDict[Tuple[str,Optional[str],Optional[str]], dict], attribute_name: str, whitelist_guide_reporter_df: pd.DataFrame, contains_umi: bool) -> SurrogateProtospacerMismatchSetWhitelistReporterCounterSeriesResults:
+def get_mismatchset_counterseries(observed_guide_reporter_umi_counts_inferred: DefaultDict[Tuple[str,Optional[str],Optional[str]], dict], whitelist_guide_reporter_df: pd.DataFrame, contains_umi: bool, attribute_name: str) -> SurrogateProtospacerMismatchSetWhitelistReporterCounterSeriesResults:
     #
     #   DEFINE THE DEFAULTDICTS FOR COUNTING
     #
