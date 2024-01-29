@@ -6,20 +6,23 @@ import pandas as pd
 from typing import List, Tuple, Optional
 
 def plot_mutation_count_histogram(mutation_counter, title="Bar Plot of Counts Sorted by Index", filename: Optional[str] = None):
-    sorted_mutation_counter = sorted(mutation_counter.items())
-
-    # Extract keys (indexes) and values from the sorted Counter
-    indexes, counts = zip(*sorted_mutation_counter)
-
-    # Create a bar plot
     fig, ax = plt.subplots(1, figsize=(5, 5))
-    ax.bar(indexes, counts, color='blue')
 
-    # Add labels and title
-    ax.set_xlabel('Mutations Per Allele')
-    ax.set_ylabel('Read Count')
+    if sum(mutation_counter) > 0: # If there exists mutation counts
+        sorted_mutation_counter = sorted(mutation_counter.items())
+
+        # Extract keys (indexes) and values from the sorted Counter
+        indexes, counts = zip(*sorted_mutation_counter)
+
+        # Create a bar plot
+        
+        ax.bar(indexes, counts, color='blue')
+
+        # Add labels and title
+        ax.set_xlabel('Mutations Per Allele')
+        ax.set_ylabel('Read Count')
+    
     fig.suptitle(title)
-
     if filename is None:
         plt.show()
     else:
