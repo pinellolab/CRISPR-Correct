@@ -384,7 +384,7 @@ def tally_linked_mutation_count_per_sequence(mutations_results: MatchSetWhitelis
         
     mutation_results_typed = getattr(mutations_results, count_attribute_name)
     if mutation_results_typed is not None:
-        for linked_mutations_whitelist_reporter_df in mutations_results.ambiguous_accepted_umi_noncollapsed_mutations.linked_mutations_whitelist_reporter_dict.values():
+        for linked_mutations_whitelist_reporter_df in mutation_results_typed.linked_mutations_whitelist_reporter_dict.values():
             accetable_SNP_columns = (linked_mutations_whitelist_reporter_df.columns.get_level_values("SequenceType") != "count") & (linked_mutations_whitelist_reporter_df.columns.get_level_values("Ref") != "X") & (linked_mutations_whitelist_reporter_df.columns.get_level_values("Alt") != "X")
 
 
