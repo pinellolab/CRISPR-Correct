@@ -62,9 +62,9 @@ def perform_sequence_count(sequence_counter, r1_protospacer_fastq_filehandler, r
 
 @typechecked
 def get_umitools_observed_sequence_counts(r1_protospacer_fastq_file: str, r2_surrogate_fastq_file: Optional[str] = None, barcode_pattern_regex: Optional[str] = None, umi_pattern_regex: Optional[str] = None, revcomp_protospacer: bool = False, revcomp_surrogate: bool = True, revcomp_barcode: bool = True) -> Union[CounterType[str], DefaultDict[str, CounterType[str]], CounterType[Tuple[str, str]], DefaultDict[Tuple[str, str], CounterType[str]], CounterType[Tuple[str, str, str]], DefaultDict[Tuple[str, str, str], CounterType[str]]]:
-    barcode_pattern_regex = None if barcode_pattern_regex.strip() == "" else barcode_pattern_regex
-    umi_pattern_regex = None if umi_pattern_regex.strip() == "" else umi_pattern_regex
-    
+    barcode_pattern_regex = None if ((barcode_pattern_regex is not None) and  (barcode_pattern_regex.strip() == "")) else barcode_pattern_regex
+    umi_pattern_regex = None if ((umi_pattern_regex is not None) and (umi_pattern_regex.strip() == "")) else umi_pattern_regex
+
     print(f"Barcode pattern: {barcode_pattern_regex}")
     print(f"UMI pattern: {umi_pattern_regex}")
 
@@ -136,7 +136,6 @@ def get_umitools_observed_sequence_counts(r1_protospacer_fastq_file: str, r2_sur
                         protospacer=revcomp(r1_sequence_read.strip(), revcomp_protospacer)
                         surrogate=revcomp(r2_sequence_read.strip(), revcomp_surrogate)
                         barcode = revcomp(re.search(barcode_pattern_regex, r1_header_read).group(1).strip(), revcomp_barcode)
-                        umi = re.search(umi_pattern_regex, r1_header_read).group(1).strip()
                         sequence_counter[(protospacer, surrogate, barcode)] += 1
                 else: # YES R2; YES BARCODE; YES UMI
                     sequence_counter: DefaultDict[Tuple[str, str, str], CounterType[str]] = defaultdict(Counter)
