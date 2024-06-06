@@ -15,4 +15,4 @@ ENV PATH="${VENV}/bin:$PATH"
 
 # Install from PyPI
 RUN pip install --upgrade pip
-RUN pip install crispr-ambiguous-mapping==0.0.145
+RUN pip install crispr-ambiguous-mapping==0.0.146
