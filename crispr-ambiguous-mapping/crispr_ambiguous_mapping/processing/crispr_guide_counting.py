@@ -27,12 +27,19 @@ from .crispr_count_processing import get_counterseries_all_results
 from ..quality_control.crispr_mapping_quality_control import perform_counts_quality_control
 from ..models.mapping_models import *
 from ..models.editing_models import *
-
+from ..models.types import *
 
 
 # TODO: There will probably be some type errors with the DefaultDict when testing on non UMI (since it requires CounterType), so make sure to test with different variations of inputs
 @typechecked
-def get_whitelist_reporter_counts_with_umi(observed_guide_reporter_umi_counts: DefaultDict[Tuple[str,Optional[str],Optional[str]], Union[int, CounterType[Optional[str]]]], whitelist_guide_reporter_df: pd.DataFrame, contains_surrogate:bool = False, contains_barcode:bool = False, contains_umi:bool = False, protospacer_hamming_threshold_strict: Optional[int] = 7, surrogate_hamming_threshold_strict: Optional[int] = 2, barcode_hamming_threshold_strict: Optional[int] = 2, cores: int=1):
+def get_whitelist_reporter_counts_with_umi(observed_guide_reporter_umi_counts: GeneralGuideCountType, 
+                                           whitelist_guide_reporter_df: pd.DataFrame, 
+                                           contains_surrogate:bool = False, 
+                                           contains_barcode:bool = False, 
+                                           contains_umi:bool = False, 
+                                           protospacer_hamming_threshold_strict: Optional[int] = 7, 
+                                           surrogate_hamming_threshold_strict: Optional[int] = 2, 
+                                           barcode_hamming_threshold_strict: Optional[int] = 2, cores: int=1):
     
     # Temporary bug fix. Pad sequences so they are all of same length - encoding numpy matrices requires consistent shape. Still pass the original guide table for selecting the matches.     
     def pad_series(series):

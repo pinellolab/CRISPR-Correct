@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "crispr-ambiguous-mapping"
-version = "0.0.147"
+version = "0.0.148"
 description = ""
 authors = ["Basheer Becerra <bbecerr@outlook.com>"]
 readme = "README.md"
