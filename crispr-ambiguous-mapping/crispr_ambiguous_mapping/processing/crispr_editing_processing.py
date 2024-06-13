@@ -3,6 +3,7 @@ from dataclasses import dataclass
 from typing import Optional, DefaultDict, Union, Tuple, List
 import pandas as pd
 from typing import Counter as CounterType
+from ..models.types import * 
 from ..models.mapping_models import CompleteInferenceMatchResult, MatchSetSingleInferenceMatchResult
 from ..models.editing_models import (MatchSetWhitelistReporterObservedSequenceCounterSeriesResults, 
                                      MatchSetWhitelistReporterObservedSequenceMutationProfiles, 
@@ -14,7 +15,7 @@ def check_match_result_non_error(match_result):
     return False if match_result is None else match_result.error is None # If match_result is None, treat as error. If match_result is not None, but error is None, then non_error
 
 # Filter dict with observed sequence inference results for only those that do not contain any mapping errors
-def get_non_error_dict(observed_guide_reporter_umi_counts_inferred, attribute_name) -> MatchSetWhitelistReporterObservedSequenceCounterSeriesResults:
+def get_non_error_dict(observed_guide_reporter_umi_counts_inferred: GeneralMappingInferenceDict, attribute_name: str) -> MatchSetWhitelistReporterObservedSequenceCounterSeriesResults:
     return {observed_guide_reporter_key: observed_guide_reporter_umi_counts_inferred_value for observed_guide_reporter_key, observed_guide_reporter_umi_counts_inferred_value in observed_guide_reporter_umi_counts_inferred.items() if check_match_result_non_error(getattr(observed_guide_reporter_umi_counts_inferred_value.inferred_value, attribute_name))}
 
 #
@@ -22,30 +23,31 @@ def get_non_error_dict(observed_guide_reporter_umi_counts_inferred, attribute_na
 # another datastructure that contains the observed alleles (protospacer/surrogate/barcode) for each whitelist reporter in either a dictionary or dataframe format.
 # This is the foundational datastructure used for analyzing the mutations for each whitelist reporter.
 #
-def get_matchset_alleleseries(observed_guide_reporter_umi_counts_inferred: DefaultDict[Tuple[str,Optional[str],Optional[str]], dict], attribute_name: str, contains_surrogate: bool, contains_barcode: bool, contains_umi: bool): 
+def get_matchset_alleleseries(observed_guide_reporter_umi_counts_inferred: GeneralMappingInferenceDict, attribute_name: str, contains_surrogate: bool, contains_barcode: bool, contains_umi: bool): 
     #
     #   DEFINE THE DEFAULTDICTS FOR COUNTING
     #
-    ambiguous_ignored_umi_noncollapsed_alleledict : DefaultDict[Tuple[str, Optional[str], Optional[str]], DefaultDict[Tuple[str, Optional[str], Optional[str]], int]]  = defaultdict(lambda: defaultdict(int))
-    ambiguous_ignored_umi_collapsed_alleledict : DefaultDict[Tuple[str, Optional[str], Optional[str]], DefaultDict[Tuple[str, Optional[str], Optional[str]], int]]  = defaultdict(lambda: defaultdict(int))
-    ambiguous_ignored_alleledict : DefaultDict[Tuple[str, Optional[str], Optional[str]], DefaultDict[Tuple[str, Optional[str], Optional[str]], int]]  = defaultdict(lambda: defaultdict(int))
+    ambiguous_ignored_umi_noncollapsed_alleledict : GeneralAlleleDict  = defaultdict(lambda: defaultdict(int))
+    ambiguous_ignored_umi_collapsed_alleledict : GeneralAlleleDict  = defaultdict(lambda: defaultdict(int))
+    ambiguous_ignored_alleledict : GeneralAlleleDict  = defaultdict(lambda: defaultdict(int))
 
-    ambiguous_accepted_umi_noncollapsed_alleledict : DefaultDict[Tuple[str, Optional[str], Optional[str]], DefaultDict[Tuple[str, Optional[str], Optional[str]], int]]  = defaultdict(lambda: defaultdict(int))
-    ambiguous_accepted_umi_collapsed_alleledict : DefaultDict[Tuple[str, Optional[str], Optional[str]], DefaultDict[Tuple[str, Optional[str], Optional[str]], int]]  = defaultdict(lambda: defaultdict(int))
-    ambiguous_accepted_alleledict : DefaultDict[Tuple[str, Optional[str], Optional[str]], DefaultDict[Tuple[str, Optional[str], Optional[str]], int]]  = defaultdict(lambda: defaultdict(int))
+    ambiguous_accepted_umi_noncollapsed_alleledict : GeneralAlleleDict = defaultdict(lambda: defaultdict(int))
+    ambiguous_accepted_umi_collapsed_alleledict : GeneralAlleleDict = defaultdict(lambda: defaultdict(int))
+    ambiguous_accepted_alleledict : GeneralAlleleDict = defaultdict(lambda: defaultdict(int))
 
-    ambiguous_spread_umi_noncollapsed_alleledict : DefaultDict[Tuple[str, Optional[str], Optional[str]], DefaultDict[Tuple[str, Optional[str], Optional[str]], float]]  = defaultdict(lambda: defaultdict(int))
-    ambiguous_spread_umi_collapsed_alleledict : DefaultDict[Tuple[str, Optional[str], Optional[str]], DefaultDict[Tuple[str, Optional[str], Optional[str]], float]]  = defaultdict(lambda: defaultdict(int))
-    ambiguous_spread_alleledict : DefaultDict[Tuple[str, Optional[str], Optional[str]], DefaultDict[Tuple[str, Optional[str], Optional[str]], float]]  = defaultdict(lambda: defaultdict(int))
+    ambiguous_spread_umi_noncollapsed_alleledict : GeneralAlleleDict = defaultdict(lambda: defaultdict(int))
+    ambiguous_spread_umi_collapsed_alleledict : GeneralAlleleDict = defaultdict(lambda: defaultdict(int))
+    ambiguous_spread_alleledict : GeneralAlleleDict = defaultdict(lambda: defaultdict(int))
 
     #
     # ITERATE THROUGH THE NON-ERROR INFERRED RESULTS AND FILL THE COUNTS
     #
+    inferred_value_results: InferenceResult
     for observed_sequence, inferred_value_results in get_non_error_dict(observed_guide_reporter_umi_counts_inferred, attribute_name).items():
         #
         #   Get the relevant attributes
         #
-        observed_value_counts: Union[CounterType[Optional[str]], int] = inferred_value_results.observed_value
+        observed_value_counts: Union[int, CounterType[Optional[str]]] = inferred_value_results.observed_value
         inferred_value_result: CompleteInferenceMatchResult =  inferred_value_results.inferred_value 
             
         match_set_single_inference_match_result : Optional[MatchSetSingleInferenceMatchResult] = getattr(inferred_value_result, attribute_name)
@@ -83,9 +85,10 @@ def get_matchset_alleleseries(observed_guide_reporter_umi_counts_inferred: Defau
 
                         
     # Helper function that converts defaultdict to series
-    create_dict_counterseries = lambda alleledict : {whitelist_sequence_key: pd.Series(observed_sequence_counterdict) for whitelist_sequence_key, observed_sequence_counterdict in alleledict.items()}
+    def create_dict_counterseries(alleledict: GeneralAlleleDict) -> GeneralAlleleCountSeriesDict: 
+        return {whitelist_sequence_key: pd.Series(observed_sequence_counterdict) for whitelist_sequence_key, observed_sequence_counterdict in alleledict.items()}
     
-    def create_df_from_dict_counterseries(alleledict_counterseries, contains_surrogate: bool, contains_barcode: bool):
+    def create_df_from_dict_counterseries(alleledict_counterseries: GeneralAlleleCountSeriesDict, contains_surrogate: bool, contains_barcode: bool):
         whitelist_reporter_columns = ["protospacer"] # For dynamically creating immutable tuple from reporter sequences based on if provided
                 
         if contains_surrogate:
@@ -235,7 +238,7 @@ def determine_mutations_in_sequence(true_sequence, observed_sequence):
 def get_mutation_profile(match_set_whitelist_reporter_observed_sequence_counter_series_results: MatchSetWhitelistReporterObservedSequenceCounterSeriesResults, whitelist_reporter_df: pd.DataFrame, contains_surrogate: bool, contains_barcode: bool) -> MatchSetWhitelistReporterObservedSequenceMutationProfiles: 
     
     # Function to generate unlinked mutations for particular count type
-    def generate_mutations_results(alleleseries: Optional[DefaultDict[Tuple[str, Optional[str], Optional[str]], pd.Series]], whitelist_reporter_df: pd.DataFrame, contains_surrogate: bool, contains_barcode: bool) -> Optional[ObservedSequenceMutationProfile]:
+    def generate_mutations_results(alleleseries: Optional[GeneralAlleleCountSeriesDict], whitelist_reporter_df: pd.DataFrame, contains_surrogate: bool, contains_barcode: bool) -> Optional[ObservedSequenceMutationProfile]:
         if alleleseries is not None:
             
             linked_mutations_whitelist_reporter_dict = {}
@@ -370,11 +373,11 @@ def get_mutation_profile(match_set_whitelist_reporter_observed_sequence_counter_
     return mutations_results
 
  
-def tally_linked_mutation_count_per_sequence(mutations_results: MatchSetWhitelistReporterObservedSequenceMutationProfiles, contains_surrogate, contains_barcode, count_attribute_name="ambiguous_accepted_umi_noncollapsed_mutations") -> LinkedMutationCounters:
-    protospacer_total_mutation_counter = Counter()
+def tally_linked_mutation_count_per_sequence(mutations_results: MatchSetWhitelistReporterObservedSequenceMutationProfiles, contains_surrogate: bool, contains_barcode: bool, count_attribute_name: str="ambiguous_accepted_umi_noncollapsed_mutations") -> LinkedMutationCounters:
+    protospacer_total_mutation_counter: CounterType = Counter()
 
-    surrogate_total_mutation_counter = None
-    barcode_total_mutation_counter = None
+    surrogate_total_mutation_counter: Optional[CounterType] = None
+    barcode_total_mutation_counter: Optional[CounterType] = None
     if contains_surrogate:
         surrogate_total_mutation_counter = Counter()
     if contains_barcode:

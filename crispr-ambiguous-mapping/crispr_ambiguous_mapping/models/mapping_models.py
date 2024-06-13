@@ -7,7 +7,7 @@ import pandas as pd
 
 from .error_models import GuideCountError
 from .quality_control_models import QualityControlResult
-
+from .types import * 
 
 @dataclass
 class SingleInferenceMatchResultValue:
@@ -145,6 +145,6 @@ class CountInput:
 @dataclass
 class WhitelistReporterCountsResult:
     all_match_set_whitelist_reporter_counter_series_results: AllMatchSetWhitelistReporterCounterSeriesResults
-    observed_guide_reporter_umi_counts_inferred: DefaultDict[Tuple[str,Optional[str],Optional[str]], dict]
+    observed_guide_reporter_umi_counts_inferred: GeneralMappingInferenceDict
     quality_control_result: QualityControlResult
     count_input: CountInput

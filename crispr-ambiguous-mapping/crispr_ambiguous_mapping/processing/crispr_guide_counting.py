@@ -39,7 +39,7 @@ def get_whitelist_reporter_counts_with_umi(observed_guide_reporter_umi_counts: G
                                            contains_umi:bool = False, 
                                            protospacer_hamming_threshold_strict: Optional[int] = 7, 
                                            surrogate_hamming_threshold_strict: Optional[int] = 2, 
-                                           barcode_hamming_threshold_strict: Optional[int] = 2, cores: int=1):
+                                           barcode_hamming_threshold_strict: Optional[int] = 2, cores: int=1) -> WhitelistReporterCountsResult:
     
     # Temporary bug fix. Pad sequences so they are all of same length - encoding numpy matrices requires consistent shape. Still pass the original guide table for selecting the matches.     
     def pad_series(series):
@@ -138,7 +138,7 @@ def get_whitelist_reporter_counts_with_umi(observed_guide_reporter_umi_counts: G
 
     print(f"Mapping inference results of length {len(inferred_true_reporter_sequences)} to the result object")
     # Some organization: Map the inferred result of each observed sequence to a dict with the inferred result and correspoding count
-    observed_guide_reporter_umi_counts_inferred: DefaultDict[Tuple[str,Optional[str],Optional[str]], dict] = defaultdict(dict)
+    observed_guide_reporter_umi_counts_inferred: GeneralMappingInferenceDict = defaultdict(dict)
     for observed_guide_reporter_key_index, observed_guide_reporter_key in enumerate(observed_guide_reporter_list):
         observed_guide_reporter_umi_counts_inferred[observed_guide_reporter_key] = InferenceResult(
             observed_value=observed_guide_reporter_umi_counts[observed_guide_reporter_key],

@@ -25,10 +25,22 @@ from ..processing import crispr_sequence_encoding
 from ..processing import crispr_guide_counting
 from ..processing import crispr_sequence_encoding
 from ..parsing import reporter_umitools_fastq_parsing
+from ..models.mapping_models import WhitelistReporterCountsResult
 
 
 @typechecked
-def get_whitelist_reporter_counts_from_umitools_output(whitelist_guide_reporter_df: pd.DataFrame, fastq_r1_fn: str, fastq_r2_fn: str, barcode_pattern_regex: Optional[str] = None, umi_pattern_regex: Optional[str] = None, revcomp_protospacer: bool = False, revcomp_surrogate: bool = True, revcomp_barcode: bool = True, surrogate_hamming_threshold_strict: Optional[int] = 10, barcode_hamming_threshold_strict: Optional[int] = 2, protospacer_hamming_threshold_strict: Optional[int] = 7, cores: int=1):
+def get_whitelist_reporter_counts_from_umitools_output(whitelist_guide_reporter_df: pd.DataFrame, 
+                                                       fastq_r1_fn: str, 
+                                                       fastq_r2_fn: str, 
+                                                       barcode_pattern_regex: Optional[str] = None, 
+                                                       umi_pattern_regex: Optional[str] = None, 
+                                                       revcomp_protospacer: bool = False, 
+                                                       revcomp_surrogate: bool = True, 
+                                                       revcomp_barcode: bool = True, 
+                                                       surrogate_hamming_threshold_strict: Optional[int] = 10, 
+                                                       barcode_hamming_threshold_strict: Optional[int] = 2, 
+                                                       protospacer_hamming_threshold_strict: Optional[int] = 7, 
+                                                       cores: int=1) -> WhitelistReporterCountsResult:
     #
     # Get counts of observed FASTQ sequences
     #

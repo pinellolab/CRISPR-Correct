@@ -1,6 +1,9 @@
 from typeguard import typechecked
 from typing import Union, List, Mapping, Tuple, Optional, Any, DefaultDict
 from typing import Counter as CounterType
+from ..models.types import *
+
+
 from collections import Counter
 from collections import defaultdict
 from ..models.mapping_models import MatchSetWhitelistReporterCounterSeriesResults, CompleteInferenceMatchResult, MatchSetSingleInferenceMatchResult, SurrogateProtospacerMismatchSetWhitelistReporterCounterSeriesResults, SurrogateProtospacerMismatchSingleInferenceMatchResult, AllMatchSetWhitelistReporterCounterSeriesResults
@@ -14,30 +17,31 @@ import pandas as pd
 #
 # HELPER FUNCTION GETS COUNTS FOR THE THE MATCHES - defined in-function to reduce arguments being passed (NOTE: There is some duplicate code with mismatch counts function - keep in mind if making modifications)
 @typechecked
-def get_matchset_counterseries(observed_guide_reporter_umi_counts_inferred: DefaultDict[Tuple[str,Optional[str],Optional[str]], dict], whitelist_guide_reporter_df: pd.DataFrame, contains_umi: bool, attribute_name: str) -> MatchSetWhitelistReporterCounterSeriesResults: 
+def get_matchset_counterseries(observed_guide_reporter_umi_counts_inferred: GeneralMappingInferenceDict, whitelist_guide_reporter_df: pd.DataFrame, contains_umi: bool, attribute_name: str) -> MatchSetWhitelistReporterCounterSeriesResults: 
     #
     #   DEFINE THE DEFAULTDICTS FOR COUNTING
     #
-    ambiguous_ignored_umi_noncollapsed_counterdict : DefaultDict[Tuple[str, Optional[str], Optional[str]], int]  = defaultdict(int)
-    ambiguous_ignored_umi_collapsed_counterdict : DefaultDict[Tuple[str, Optional[str], Optional[str]], int]  = defaultdict(int)
-    ambiguous_ignored_counterdict : DefaultDict[Tuple[str, Optional[str], Optional[str]], int]  = defaultdict(int)
+    ambiguous_ignored_umi_noncollapsed_counterdict : GeneralMatchCountDict = defaultdict(int)
+    ambiguous_ignored_umi_collapsed_counterdict : GeneralMatchCountDict  = defaultdict(int)
+    ambiguous_ignored_counterdict : GeneralMatchCountDict  = defaultdict(int)
 
-    ambiguous_accepted_umi_noncollapsed_counterdict : DefaultDict[Tuple[str, Optional[str], Optional[str]], int]  = defaultdict(int)
-    ambiguous_accepted_umi_collapsed_counterdict : DefaultDict[Tuple[str, Optional[str], Optional[str]], int]  = defaultdict(int)
-    ambiguous_accepted_counterdict : DefaultDict[Tuple[str, Optional[str], Optional[str]], int]  = defaultdict(int)
+    ambiguous_accepted_umi_noncollapsed_counterdict : GeneralMatchCountDict  = defaultdict(int)
+    ambiguous_accepted_umi_collapsed_counterdict : GeneralMatchCountDict  = defaultdict(int)
+    ambiguous_accepted_counterdict : GeneralMatchCountDict  = defaultdict(int)
 
-    ambiguous_spread_umi_noncollapsed_counterdict : DefaultDict[Tuple[str, Optional[str], Optional[str]], float]  = defaultdict(float)
-    ambiguous_spread_umi_collapsed_counterdict : DefaultDict[Tuple[str, Optional[str], Optional[str]], float]  = defaultdict(float)
-    ambiguous_spread_counterdict : DefaultDict[Tuple[str, Optional[str], Optional[str]], float]  = defaultdict(float)
+    ambiguous_spread_umi_noncollapsed_counterdict : GeneralMatchCountDict  = defaultdict(float)
+    ambiguous_spread_umi_collapsed_counterdict : GeneralMatchCountDict  = defaultdict(float)
+    ambiguous_spread_counterdict : GeneralMatchCountDict  = defaultdict(float)
 
     #
     # ITERATE THROUGH THE NON-ERROR INFERRED RESULTS AND FILL THE COUNTS
     #
+    inferred_value_results: InferenceResult
     for inferred_value_results in get_non_error_dict(observed_guide_reporter_umi_counts_inferred, attribute_name).values():
         #
         #   Get the relevant attributes
         #
-        observed_value_counts: Union[CounterType[Optional[str]], int] = inferred_value_results.observed_value
+        observed_value_counts: Union[int, CounterType[Optional[str]]] = inferred_value_results.observed_value
         inferred_value_result: CompleteInferenceMatchResult =  inferred_value_results.inferred_value 
         match_set_single_inference_match_result : Optional[MatchSetSingleInferenceMatchResult] = getattr(inferred_value_result, attribute_name)
         assert match_set_single_inference_match_result is not None, "match_set_single_inference_match_result should not be none since this is from the non error list. Developer error."
@@ -72,7 +76,7 @@ def get_matchset_counterseries(observed_guide_reporter_umi_counts_inferred: Defa
                         ambiguous_ignored_counterdict[dict_index] += observed_value_counts
     
     # Helper function that converts defaultdict to series
-    def create_counterseries(counterdict: DefaultDict[Tuple[str, Optional[str], Optional[str]], Union[int, float]]) -> pd.Series:
+    def create_counterseries(counterdict: GeneralMatchCountDict) -> pd.Series:
         counterseries: pd.Series = whitelist_guide_reporter_df.apply(lambda reporter: counterdict[tuple(reporter)], axis=1)
         counterseries.index = pd.MultiIndex.from_frame(whitelist_guide_reporter_df)
         return counterseries
@@ -101,44 +105,45 @@ def get_matchset_counterseries(observed_guide_reporter_umi_counts_inferred: Defa
 # HELPER FUNCTION GETS COUNTS FOR THE THE MISMATCHES - defined in-function to reduce arguments being passed (NOTE: There is some duplicate code with match counts function - keep in mind if making modifications)
 #
 @typechecked
-def get_mismatchset_counterseries(observed_guide_reporter_umi_counts_inferred: DefaultDict[Tuple[str,Optional[str],Optional[str]], dict], whitelist_guide_reporter_df: pd.DataFrame, contains_umi: bool, attribute_name: str) -> SurrogateProtospacerMismatchSetWhitelistReporterCounterSeriesResults:
+def get_mismatchset_counterseries(observed_guide_reporter_umi_counts_inferred: GeneralMappingInferenceDict, whitelist_guide_reporter_df: pd.DataFrame, contains_umi: bool, attribute_name: str) -> SurrogateProtospacerMismatchSetWhitelistReporterCounterSeriesResults:
     #
     #   DEFINE THE DEFAULTDICTS FOR COUNTING
     #
     # MATCH counters
-    ambiguous_ignored_umi_noncollapsed_match_counterdict : DefaultDict[Tuple[str, Optional[str], Optional[str]], int]  = defaultdict(int)
-    ambiguous_ignored_umi_collapsed_match_counterdict : DefaultDict[Tuple[str, Optional[str], Optional[str]], int]  = defaultdict(int)
-    ambiguous_ignored_match_counterdict : DefaultDict[Tuple[str, Optional[str], Optional[str]], int]  = defaultdict(int)
+    ambiguous_ignored_umi_noncollapsed_match_counterdict : GeneralMatchCountDict  = defaultdict(int)
+    ambiguous_ignored_umi_collapsed_match_counterdict : GeneralMatchCountDict  = defaultdict(int)
+    ambiguous_ignored_match_counterdict : GeneralMatchCountDict  = defaultdict(int)
 
-    ambiguous_accepted_umi_noncollapsed_match_counterdict : DefaultDict[Tuple[str, Optional[str], Optional[str]], int]  = defaultdict(int)
-    ambiguous_accepted_umi_collapsed_match_counterdict : DefaultDict[Tuple[str, Optional[str], Optional[str]], int]  = defaultdict(int)
-    ambiguous_accepted_match_counterdict : DefaultDict[Tuple[str, Optional[str], Optional[str]], int]  = defaultdict(int)
+    ambiguous_accepted_umi_noncollapsed_match_counterdict : GeneralMatchCountDict  = defaultdict(int)
+    ambiguous_accepted_umi_collapsed_match_counterdict : GeneralMatchCountDict  = defaultdict(int)
+    ambiguous_accepted_match_counterdict : GeneralMatchCountDict  = defaultdict(int)
 
-    ambiguous_spread_umi_noncollapsed_match_counterdict : DefaultDict[Tuple[str, Optional[str], Optional[str]], float]  = defaultdict(float)
-    ambiguous_spread_umi_collapsed_match_counterdict : DefaultDict[Tuple[str, Optional[str], Optional[str]], float]  = defaultdict(float)
-    ambiguous_spread_match_counterdict : DefaultDict[Tuple[str, Optional[str], Optional[str]], float]  = defaultdict(float)
+    ambiguous_spread_umi_noncollapsed_match_counterdict : GeneralMatchCountDict  = defaultdict(float)
+    ambiguous_spread_umi_collapsed_match_counterdict : GeneralMatchCountDict  = defaultdict(float)
+    ambiguous_spread_match_counterdict : GeneralMatchCountDict  = defaultdict(float)
 
     # MISMATCH counters (keys are PAIRS of indices, representing the protospacer and surrogate match separately)
-    ambiguous_ignored_umi_noncollapsed_mismatch_counterdict : DefaultDict[Tuple[Tuple[str, Optional[str], Optional[str]], Tuple[str, Optional[str], Optional[str]]], int]  = defaultdict(int)
-    ambiguous_ignored_umi_collapsed_mismatch_counterdict : DefaultDict[Tuple[Tuple[str, Optional[str], Optional[str]], Tuple[str, Optional[str], Optional[str]]], int]  = defaultdict(int)
-    ambiguous_ignored_mismatch_counterdict : DefaultDict[Tuple[Tuple[str, Optional[str], Optional[str]], Tuple[str, Optional[str], Optional[str]]], int]  = defaultdict(int)
+    ambiguous_ignored_umi_noncollapsed_mismatch_counterdict : GeneralMismatchCountDict  = defaultdict(int)
+    ambiguous_ignored_umi_collapsed_mismatch_counterdict : GeneralMismatchCountDict  = defaultdict(int)
+    ambiguous_ignored_mismatch_counterdict : GeneralMismatchCountDict  = defaultdict(int)
 
-    ambiguous_accepted_umi_noncollapsed_mismatch_counterdict : DefaultDict[Tuple[Tuple[str, Optional[str], Optional[str]],Tuple[str, Optional[str], Optional[str]]], int]  = defaultdict(int)
-    ambiguous_accepted_umi_collapsed_mismatch_counterdict : DefaultDict[Tuple[Tuple[str, Optional[str], Optional[str]],Tuple[str, Optional[str], Optional[str]]], int]  = defaultdict(int)
-    ambiguous_accepted_mismatch_counterdict : DefaultDict[Tuple[Tuple[str, Optional[str], Optional[str]],Tuple[str, Optional[str], Optional[str]]], int]  = defaultdict(int)
+    ambiguous_accepted_umi_noncollapsed_mismatch_counterdict : GeneralMismatchCountDict  = defaultdict(int)
+    ambiguous_accepted_umi_collapsed_mismatch_counterdict : GeneralMismatchCountDict  = defaultdict(int)
+    ambiguous_accepted_mismatch_counterdict : GeneralMismatchCountDict  = defaultdict(int)
 
-    ambiguous_spread_umi_noncollapsed_mismatch_counterdict : DefaultDict[Tuple[Tuple[str, Optional[str], Optional[str]],Tuple[str, Optional[str], Optional[str]]], float]  = defaultdict(float)
-    ambiguous_spread_umi_collapsed_mismatch_counterdict : DefaultDict[Tuple[Tuple[str, Optional[str], Optional[str]],Tuple[str, Optional[str], Optional[str]]], float]  = defaultdict(float)
-    ambiguous_spread_mismatch_counterdict : DefaultDict[Tuple[Tuple[str, Optional[str], Optional[str]],Tuple[str, Optional[str], Optional[str]]], float]  = defaultdict(float)
+    ambiguous_spread_umi_noncollapsed_mismatch_counterdict : GeneralMismatchCountDict  = defaultdict(float)
+    ambiguous_spread_umi_collapsed_mismatch_counterdict : GeneralMismatchCountDict = defaultdict(float)
+    ambiguous_spread_mismatch_counterdict : GeneralMismatchCountDict = defaultdict(float)
 
     #
     # ITERATE THROUGH THE NON-ERROR INFERRED RESULTS (NOTE: If only one of the protospacer or surrogate matches but not the other, this is treated as an error, and will NOT be counted or considered (even in the single match series). For those counts, should just use the protospacer-only or surrogate-only match results)
     #
+    inferred_value_results: InferenceResult
     for inferred_value_results in get_non_error_dict(observed_guide_reporter_umi_counts_inferred, attribute_name).values():
         #
         #   Get the relevant attributes
         #
-        observed_value_counts: Union[CounterType[Optional[str]], int] = inferred_value_results.observed_value
+        observed_value_counts: Union[int, CounterType[Optional[str]]] = inferred_value_results.observed_value
         inferred_value_result: CompleteInferenceMatchResult =  inferred_value_results.inferred_value
         surrogate_protospacer_mismatch_single_inference_match_result : Optional[SurrogateProtospacerMismatchSingleInferenceMatchResult] = getattr(inferred_value_result, attribute_name)
         assert surrogate_protospacer_mismatch_single_inference_match_result is not None, "surrogate_protospacer_mismatch_single_inference_match_result should not be none since this is from the non error list. Developer error."
@@ -264,7 +269,7 @@ def get_mismatchset_counterseries(observed_guide_reporter_umi_counts_inferred: D
 # CALLED FUNCTION TO RETRIEVE ALL MATCHSET AND MISMATCHSET COUNTERSERIES
 #
 @typechecked
-def get_counterseries_all_results(observed_guide_reporter_umi_counts_inferred: DefaultDict[Tuple[str,Optional[str],Optional[str]], dict], whitelist_guide_reporter_df: pd.DataFrame, contains_barcode: bool, contains_surrogate: bool,  contains_umi: bool) -> AllMatchSetWhitelistReporterCounterSeriesResults:
+def get_counterseries_all_results(observed_guide_reporter_umi_counts_inferred: GeneralMappingInferenceDict, whitelist_guide_reporter_df: pd.DataFrame, contains_barcode: bool, contains_surrogate: bool,  contains_umi: bool) -> AllMatchSetWhitelistReporterCounterSeriesResults:
     all_match_set_whitelist_reporter_counter_series_results = AllMatchSetWhitelistReporterCounterSeriesResults()
     all_match_set_whitelist_reporter_counter_series_results.protospacer_match = get_matchset_counterseries(observed_guide_reporter_umi_counts_inferred, whitelist_guide_reporter_df, contains_umi, "protospacer_match")
     if contains_barcode:
