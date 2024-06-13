@@ -27,7 +27,6 @@ from .crispr_count_processing import get_counterseries_all_results
 from ..quality_control.crispr_mapping_quality_control import perform_counts_quality_control
 from ..models.mapping_models import *
 from ..models.editing_models import *
-from ..models.types import *
 
 
 # TODO: There will probably be some type errors with the DefaultDict when testing on non UMI (since it requires CounterType), so make sure to test with different variations of inputs

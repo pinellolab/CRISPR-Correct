@@ -1,12 +1,12 @@
 from typeguard import typechecked
 from typing import Union, List, Mapping, Tuple, Optional, Any, DefaultDict
 from typing import Counter as CounterType
-from ..models.types import *
+from ..models.types import GeneralMappingInferenceDict, GeneralMatchCountDict, GeneralMismatchCountDict
 
 
 from collections import Counter
 from collections import defaultdict
-from ..models.mapping_models import MatchSetWhitelistReporterCounterSeriesResults, CompleteInferenceMatchResult, MatchSetSingleInferenceMatchResult, SurrogateProtospacerMismatchSetWhitelistReporterCounterSeriesResults, SurrogateProtospacerMismatchSingleInferenceMatchResult, AllMatchSetWhitelistReporterCounterSeriesResults
+from ..models.mapping_models import MatchSetWhitelistReporterCounterSeriesResults, CompleteInferenceMatchResult, MatchSetSingleInferenceMatchResult, SurrogateProtospacerMismatchSetWhitelistReporterCounterSeriesResults, SurrogateProtospacerMismatchSingleInferenceMatchResult, AllMatchSetWhitelistReporterCounterSeriesResults, InferenceResult
 from .crispr_editing_processing import check_match_result_non_error, get_non_error_dict
 import pandas as pd
 

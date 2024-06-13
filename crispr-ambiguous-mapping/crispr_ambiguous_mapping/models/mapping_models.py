@@ -7,7 +7,7 @@ import pandas as pd
 
 from .error_models import GuideCountError
 from .quality_control_models import QualityControlResult
-from .types import * 
+from .types import GeneralMappingInferenceDict
 
 @dataclass
 class SingleInferenceMatchResultValue:
@@ -50,12 +50,6 @@ class CompleteInferenceMatchResult:
 class InferenceResult:
     observed_value: Union[int, CounterType[Optional[str]]]
     inferred_value: CompleteInferenceMatchResult
-
-
-@dataclass
-class WhitelistReporterCountsResult:
-    observed_guide_reporter_umi_counts_inferred: DefaultDict[Tuple[str,Optional[str],Optional[str]], dict]
-    quality_control_result: QualityControlResult
 
 
 @dataclass
