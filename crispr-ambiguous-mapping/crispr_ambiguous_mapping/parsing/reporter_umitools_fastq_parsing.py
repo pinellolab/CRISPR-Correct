@@ -4,7 +4,7 @@
 from typeguard import typechecked
 from typing import Union, Optional, List, Tuple, DefaultDict
 from typing import Counter as CounterType
-from ..models.types import *
+from ..models.types import ProtospacerCounter, ProtospacerDictUMICounter, ProtospacerBarcodeCounter, ProtospacerBarcodeDictUMICounter, ProtospacerSurrogateCounter, ProtospacerSurrogateDictUMICounter, ProtospacerSurrogateBarcodeCounter, ProtospacerSurrogateBarcodeDictUMICounter
 from collections import Counter
 from typing import Callable
 from functools import partial
