@@ -129,10 +129,10 @@ class InferenceResult:
 
 
 # Inference Result Object
-ProtospacerSurrogateBarcodeMappingInferenceDict = DefaultDict[Tuple[str,str,str], Dict[InferenceResult]]
-ProtospacerSurrogateMappingInferenceDict = DefaultDict[Tuple[str,str], Dict[InferenceResult]]
-ProtospacerBarcodeMappingInferenceDict = DefaultDict[Tuple[str,str], Dict[InferenceResult]]
-ProtospacerMappingInferenceDict = DefaultDict[str, Dict[InferenceResult]]
+ProtospacerSurrogateBarcodeMappingInferenceDict = DefaultDict[Tuple[str,str,str], Dict[Tuple[str,str,str], InferenceResult]]
+ProtospacerSurrogateMappingInferenceDict = DefaultDict[Tuple[str,str], Dict[Tuple[str,str], InferenceResult]]
+ProtospacerBarcodeMappingInferenceDict = DefaultDict[Tuple[str,str], Dict[Tuple[str,str], InferenceResult]]
+ProtospacerMappingInferenceDict = DefaultDict[str, Dict[str, InferenceResult]]
 
 GeneralMappingInferenceDict = Union[ProtospacerSurrogateBarcodeMappingInferenceDict,
       ProtospacerSurrogateMappingInferenceDict,
