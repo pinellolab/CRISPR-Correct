@@ -1,8 +1,7 @@
 from typeguard import typechecked
 from typing import Union, List, Mapping, Tuple, Optional, Any, DefaultDict
 from typing import Counter as CounterType
-from ..models.types import GeneralMappingInferenceDict, GeneralMatchCountDict, GeneralMismatchCountDict
-
+from ..models.mapping_models import GeneralMappingInferenceDict, GeneralMatchCountDict, GeneralMismatchCountDict
 
 from collections import Counter
 from collections import defaultdict

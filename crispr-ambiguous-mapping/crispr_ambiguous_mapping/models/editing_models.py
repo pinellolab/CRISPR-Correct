@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from typing import Counter as CounterType
 from typing import Tuple, Optional, DefaultDict, Dict
-from .types import GeneralAlleleCountSeriesDict
+from .mapping_models import GeneralAlleleCountSeriesDict
 import pandas as pd
 
 @dataclass

@@ -25,7 +25,7 @@ from . import crispr_sequence_encoding
 from . import crispr_guide_inference
 from .crispr_count_processing import get_counterseries_all_results
 from ..quality_control.crispr_mapping_quality_control import perform_counts_quality_control
-from ..models.types import GeneralGuideCountType, GeneralMappingInferenceDict
+from ..models.mapping_models import GeneralGuideCountType, GeneralMappingInferenceDict
 from ..models.mapping_models import WhitelistReporterCountsResult, InferenceResult, CountInput
 
 

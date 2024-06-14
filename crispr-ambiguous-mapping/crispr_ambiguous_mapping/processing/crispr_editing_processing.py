@@ -3,7 +3,7 @@ from dataclasses import dataclass
 from typing import Optional, DefaultDict, Union, Tuple, List
 import pandas as pd
 from typing import Counter as CounterType
-from ..models.types import GeneralMappingInferenceDict, GeneralAlleleDict, GeneralAlleleCountSeriesDict
+from ..models.mapping_models import GeneralMappingInferenceDict, GeneralAlleleDict, GeneralAlleleCountSeriesDict
 from ..models.mapping_models import CompleteInferenceMatchResult, MatchSetSingleInferenceMatchResult, InferenceResult
 from ..models.editing_models import (MatchSetWhitelistReporterObservedSequenceCounterSeriesResults, 
                                      MatchSetWhitelistReporterObservedSequenceMutationProfiles, 
