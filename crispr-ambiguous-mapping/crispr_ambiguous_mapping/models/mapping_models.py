@@ -12,6 +12,8 @@ from typing import Union, List, Mapping, Tuple, Optional, Any, DefaultDict, Dict
 from typing import Counter as CounterType
 import pandas as pd
 
+# Provides a mapping between the whitelist sequence and the list of observed sequences. Each observed sequence has the corresponding count Union[int, Dict [ str, int ]] (either int if no UMI, or Dict[str, int] for UMI-collapsed and non-collpased count)
+WhitelistReporterObservedSequenceMapping = DefaultDict[  Tuple[str, Optional[str], Optional[str]],    List[ Tuple[Tuple[str, Optional[str], Optional[str]], Union[int, Dict [ str, int ]] ]  ]]
 
 # Sequence Count Result Objects
 ProtospacerCounter = CounterType[str]

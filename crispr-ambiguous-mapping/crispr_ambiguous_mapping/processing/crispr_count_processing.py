@@ -1,13 +1,79 @@
 from typeguard import typechecked
-from typing import Union, List, Mapping, Tuple, Optional, Any, DefaultDict
+from typing import Union, List, Mapping, Tuple, Optional, Any, DefaultDict, Dict
 from typing import Counter as CounterType
-from ..models.mapping_models import GeneralMappingInferenceDict, GeneralMatchCountDict, GeneralMismatchCountDict
+from ..models.mapping_models import GeneralMappingInferenceDict, GeneralMatchCountDict, GeneralMismatchCountDict, WhitelistReporterObservedSequenceMapping
 
 from collections import Counter
 from collections import defaultdict
 from ..models.mapping_models import MatchSetWhitelistReporterCounterSeriesResults, CompleteInferenceMatchResult, MatchSetSingleInferenceMatchResult, SurrogateProtospacerMismatchSetWhitelistReporterCounterSeriesResults, SurrogateProtospacerMismatchSingleInferenceMatchResult, AllMatchSetWhitelistReporterCounterSeriesResults, InferenceResult
 from .crispr_editing_processing import check_match_result_non_error, get_non_error_dict
 import pandas as pd
+
+@typechecked
+def helper_get_observed_values_given_whitelist_value(whitelist_sequence_list: List[Tuple[str, Optional[str], Optional[str]]], observed_guide_reporter_umi_counts_inferred: GeneralMappingInferenceDict, attribute_name:str, contains_umi: bool, ambiguous_accepted:bool = True) -> WhitelistReporterObservedSequenceMapping:
+    """
+    Provides the set of observed sequences for a given whitelist sequence
+
+    Args:
+        whitelist_sequence_list (List[Tuple[str, Optional[str], Optional[str]]]): List of whitelist sequence to retrieve observed sequences
+        observed_guide_reporter_umi_counts_inferred (GeneralMappingInferenceDict): Datastructure contain the observed sequence to mapped whitelist sequence
+        attribute_name (str): string specifying white mapping match type to consider.
+        contains_umi (bool): specifying whether UMI is used
+        ambiguous_accepted (bool): specifying whether to consider ambiguous mapping
+
+    Returns:
+        WhitelistReporterObservedSequenceMapping: dictionary mapping between the whitelist sequence and the list of observed sequence. Each observed sequence has the corresponding count Union[int, Dict [ str, int ]] (either int if no UMI, or Dict[str, int] for UMI-collapsed and non-collpased count)
+    """
+    whitelist_sequence_mapping_list: WhitelistReporterObservedSequenceMapping = defaultdict(list)
+
+
+    # Iterate through the inference results (will attempt to do retrieval for all requested whitelist sequences at once for optimization)
+    inferred_value_results: InferenceResult
+    observed_sequence: Tuple[str, Optional[str], Optional[str]]
+    for observed_sequence, inferred_value_results in get_non_error_dict(observed_guide_reporter_umi_counts_inferred, attribute_name).iteritems():
+        #
+        #   Get the relevant attributes
+        #
+        observed_value_counts: Union[int, CounterType[Optional[str]]] = inferred_value_results.observed_value # Read count of the observed sequence
+        inferred_value_result: CompleteInferenceMatchResult =  inferred_value_results.inferred_value  # Whitelist inference results
+        match_set_single_inference_match_result : Optional[MatchSetSingleInferenceMatchResult] = getattr(inferred_value_result, attribute_name) # Get inference result for specific mapping strategy
+        assert match_set_single_inference_match_result is not None, "match_set_single_inference_match_result should not be none since this is from the non error list. Developer error."
+        
+        matches: pd.DataFrame = match_set_single_inference_match_result.value.matches # Get the list of ambiguous
+        
+        if not matches.empty:
+            
+            # Skip observed sequence if there are multiple matches when not accepting ambiguous mapping 
+            if (ambiguous_accepted is False) and (matches.shape[0] > 1):
+                continue
+            
+
+            for whitelist_reporter_series in matches.iterrows(): 
+                # UMI-BASED COUNTING
+                dict_index = tuple(whitelist_reporter_series[1])
+                if dict_index in whitelist_sequence_list: # If the match is in the requested whitelist sequences, proceed
+                    if contains_umi:
+                        assert isinstance(observed_value_counts, Counter), f"For UMI, expecting observed value is a Counter, but type is {type(observed_value_counts)}"
+
+                        # Calculate both UMI noncollapsed and collapsed count
+                        observed_sequence_count = {
+                            "umi_noncollapsed_count": sum(observed_value_counts.values()),
+                            "umi_collapsed_count": len(observed_value_counts.values())
+                        }
+
+                        # Add observed sequence and count to mapping
+                        whitelist_sequence_mapping_list[dict_index].append( (observed_sequence, observed_sequence_count) )
+                    
+                    # STANDARD NON-UMI BASED COUNTING
+                    else:
+                        assert isinstance(observed_value_counts, int), f"For non UMI, expecting observed value is an int, but type is {type(observed_value_counts)}"
+                        
+                        observed_sequence_count = observed_value_counts
+                        
+                        # Add observed sequence and count to mapping
+                        whitelist_sequence_mapping_list[dict_index].append( (observed_sequence, observed_sequence_count) )
+
+    return whitelist_sequence_mapping_list
 
 
 
