@@ -47,11 +47,15 @@ def helper_get_observed_values_given_whitelist_value(whitelist_sequence_list: Li
             if (ambiguous_accepted is False) and (matches.shape[0] > 1):
                 continue
             
-
+            
             for whitelist_reporter_series in matches.iterrows(): 
                 # UMI-BASED COUNTING
                 dict_index = tuple(whitelist_reporter_series[1])
                 if dict_index in whitelist_sequence_list: # If the match is in the requested whitelist sequences, proceed
+                    # Get match info to add to result
+                    all_match_sequences = [tuple(whitelist_reporter_series[1]) for whitelist_reporter_series in matches.iterrows()]
+                    total_match_counts = len(all_match_sequences)
+
                     if contains_umi:
                         assert isinstance(observed_value_counts, Counter), f"For UMI, expecting observed value is a Counter, but type is {type(observed_value_counts)}"
 
@@ -62,7 +66,7 @@ def helper_get_observed_values_given_whitelist_value(whitelist_sequence_list: Li
                         }
 
                         # Add observed sequence and count to mapping
-                        whitelist_sequence_mapping_list[dict_index].append( (observed_sequence, observed_sequence_count) )
+                        whitelist_sequence_mapping_list[dict_index].append( (observed_sequence, observed_sequence_count, total_match_counts, all_match_sequences) )
                     
                     # STANDARD NON-UMI BASED COUNTING
                     else:
@@ -71,7 +75,7 @@ def helper_get_observed_values_given_whitelist_value(whitelist_sequence_list: Li
                         observed_sequence_count = observed_value_counts
                         
                         # Add observed sequence and count to mapping
-                        whitelist_sequence_mapping_list[dict_index].append( (observed_sequence, observed_sequence_count) )
+                        whitelist_sequence_mapping_list[dict_index].append( (observed_sequence, observed_sequence_count, total_match_counts, all_match_sequences) )
 
     return whitelist_sequence_mapping_list
 
