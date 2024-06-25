@@ -30,7 +30,7 @@ def helper_get_observed_values_given_whitelist_value(whitelist_sequence_list: Li
     # Iterate through the inference results (will attempt to do retrieval for all requested whitelist sequences at once for optimization)
     inferred_value_results: InferenceResult
     observed_sequence: Tuple[str, Optional[str], Optional[str]]
-    for observed_sequence, inferred_value_results in get_non_error_dict(observed_guide_reporter_umi_counts_inferred, attribute_name).iteritems():
+    for observed_sequence, inferred_value_results in get_non_error_dict(observed_guide_reporter_umi_counts_inferred, attribute_name).items():
         #
         #   Get the relevant attributes
         #
