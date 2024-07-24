@@ -78,6 +78,8 @@ def log_count_series_warnings(match_type_string: str,
         # Check that the UMI duplication rate is not too high.
         if umidups_mean >= umidups_threshold:
             print(f"NOTE for {match_type_string}; {count_type_string}: Average UMI duplication rate of {umidups_mean} is higher than specified threshold of {umidups_upper_threshold}, refer to the UMI duplication histogram plotted. Your sample may be oversequenced as high average UMI duplication suggests material repetitively sequence post-PCR amplification. Suggested to use the UMI-collapsed count for downstream analysis.")
+
+            # If the guide coverage is also low, recommend performing another screen with higher cell coverage to gain sufficient power
             if (coverage_mean <= mean_coverage_threshold) or (coverage_lower_quantile <= lower_quantile_coverage_threshold):
                 print(f"WARNING for {match_type_string}; {count_type_string}: Since the average UMI duplication rate ({umidups_mean}) is high but the guide coverage of {coverage_mean} (with lower quantile coverage of {coverage_lower_quantile}) is low, sequencing more material may only increase UMI duplication but not the UMI-collapsed guide coverage. It is suggested to perform another screen with increased cell coverage to ensure sufficient power.")
     
@@ -92,7 +94,8 @@ def count_series_result_quality_control_stats(count_series_result: MatchSetWhite
                                               lower_quantile_coverage_percentage: float = 0.1,
                                               lower_quantile_coverage_threshold: float = 60,
                                               given_match_type_vs_protospacer_match_total_ratio_threshold= 0.3,
-                                              umidups_threshold: int = 2):
+                                              umidups_lower_threshold: int = 2,
+                                              umidups_upper_threshold: int = 4):
 
     
     count_series_result_quality_control_stats_dict = dict()
@@ -181,7 +184,8 @@ def count_series_result_quality_control_stats(count_series_result: MatchSetWhite
                                       coverage_mean=protospacer_match_noncollapsed_coverage_mean,
                                       mean_coverage_threshold=mean_coverage_threshold,
                                       umidups_mean=protospacer_match_umidups_mean,
-                                      umidups_threshold=umidups_threshold)
+                                      umidups_lower_threshold=umidups_lower_threshold,
+                                      umidups_upper_threshold=umidups_upper_threshold)
 
 
         if contains_surrogate:
@@ -234,7 +238,10 @@ def count_series_result_quality_control_stats(count_series_result: MatchSetWhite
                 protospacer_surrogate_match_noncollapsed_coverage_mean = np.mean(count_series_result.protospacer_match_surrogate_match.ambiguous_accepted_umi_noncollapsed_counterseries)
                 protospacer_surrogate_match_noncollapsed_coverage_std = np.std(count_series_result.protospacer_match_surrogate_match.ambiguous_accepted_umi_noncollapsed_counterseries)
                 protospacer_surrogate_match_noncollapsed_coverage_lower_quantile = count_series_result.protospacer_match_surrogate_match.ambiguous_accepted_umi_noncollapsed_counterseries.quantile(q=low_quantile_coverage_percentage)
-               
+
+                protospacer_surrogate_match_umidups = count_series_result.protospacer_match_surrogate_match.ambiguous_accepted_umi_noncollapsed_counterseries / count_series_result.protospacer_match_surrogate_match.ambiguous_accepted_umi_collapsed_counterseries
+                protospacer_surrogate_match_umidups_mean = protospacer_surrogate_match_umidups.mean()
+
                 count_series_result_quality_control_stats_dict.update({
                     "protospacer_surrogate_match_noncollapsed_totalcount": protospacer_surrogate_match_noncollapsed_totalcount,
                     "protospacer_match_gt_protospacer_surrogate_match_noncollapsed_total": protospacer_match_gt_protospacer_surrogate_match_noncollapsed_total,
@@ -243,7 +250,8 @@ def count_series_result_quality_control_stats(count_series_result: MatchSetWhite
                     "protospacer_surrogate_match_noncollapsed_gini": protospacer_surrogate_match_noncollapsed_gini,
                     "protospacer_surrogate_match_noncollapsed_coverage_mean": protospacer_surrogate_match_noncollapsed_coverage_mean,
                     "protospacer_surrogate_match_noncollapsed_coverage_std": protospacer_surrogate_match_noncollapsed_coverage_std,
-                    f"protospacer_surrogate_match_noncollapsed_coverage_lower_quantile_{lower_quantile_coverage_percentage}": protospacer_surrogate_match_noncollapsed_coverage_lower_quantile
+                    f"protospacer_surrogate_match_noncollapsed_coverage_lower_quantile_{lower_quantile_coverage_percentage}": protospacer_surrogate_match_noncollapsed_coverage_lower_quantile,
+                    "protospacer_surrogate_match_umidups_mean": protospacer_surrogate_match_umidups_mean
                 })
                 
                 if display_visualizations:
@@ -263,7 +271,11 @@ def count_series_result_quality_control_stats(count_series_result: MatchSetWhite
                                       lower_quantile_coverage_percentage=lower_quantile_coverage_percentage,
                                       lower_quantile_coverage_threshold=lower_quantile_coverage_threshold,
                                       coverage_mean=protospacer_surrogate_match_noncollapsed_coverage_mean,
-                                      mean_coverage_threshold=mean_coverage_threshold)
+                                      mean_coverage_threshold=mean_coverage_threshold,
+                                      umidups_mean=protospacer_surrogate_match_umidups_mean,
+                                      umidups_lower_threshold=umidups_lower_threshold,
+                                      umidups_upper_threshold=umidups_upper_threshold
+                                      )
                 
 
                 if contains_barcode:
@@ -317,6 +329,9 @@ def count_series_result_quality_control_stats(count_series_result: MatchSetWhite
                         protospacer_surrogate_barcode_match_noncollapsed_coverage_mean = np.mean(count_series_result.protospacer_match_surrogate_match_barcode_match.ambiguous_accepted_umi_noncollapsed_counterseries)
                         protospacer_surrogate_barcode_match_noncollapsed_coverage_std = np.std(count_series_result.protospacer_match_surrogate_match_barcode_match.ambiguous_accepted_umi_noncollapsed_counterseries)
                         protospacer_surrogate_barcode_match_noncollapsed_coverage_lower_quantile = count_series_result.protospacer_match_surrogate_match_barcode_match.ambiguous_accepted_umi_noncollapsed_counterseries.quantile(q=low_quantile_coverage_percentage)
+                        
+                        protospacer_surrogate_barcode_match_umidups = count_series_result.protospacer_match_surrogate_match_barcode_match.ambiguous_accepted_umi_noncollapsed_counterseries / count_series_result.protospacer_match_surrogate_match_barcode_match.ambiguous_accepted_umi_collapsed_counterseries
+                        protospacer_surrogate_barcode_match_umidups_mean = protospacer_surrogate_barcode_match_umidups.mean()
 
                         count_series_result_quality_control_stats_dict.update({
                             "protospacer_surrogate_barcode_match_noncollapsed_totalcount": protospacer_surrogate_barcode_match_noncollapsed_totalcount,
@@ -325,7 +340,8 @@ def count_series_result_quality_control_stats(count_series_result: MatchSetWhite
                             "protospacer_surrogate_barcode_match_noncollapsed_gini": protospacer_surrogate_barcode_match_noncollapsed_gini,
                             "protospacer_surrogate_barcode_match_noncollapsed_coverage_mean": protospacer_surrogate_barcode_match_noncollapsed_coverage_mean,
                             "protospacer_surrogate_barcode_match_noncollapsed_coverage_std": protospacer_surrogate_barcode_match_noncollapsed_coverage_std,
-                            f"protospacer_surrogate_barcode_match_noncollapsed_coverage_lower_quantile_{lower_quantile_coverage_percentage}": protospacer_surrogate_barcode_match_noncollapsed_coverage_lower_quantile
+                            f"protospacer_surrogate_barcode_match_noncollapsed_coverage_lower_quantile_{lower_quantile_coverage_percentage}": protospacer_surrogate_barcode_match_noncollapsed_coverage_lower_quantile,
+                            "protospacer_surrogate_barcode_match_umidups": protospacer_surrogate_barcode_match_umidups
                         })
 
                         if display_visualizations:
@@ -345,7 +361,10 @@ def count_series_result_quality_control_stats(count_series_result: MatchSetWhite
                                             lower_quantile_coverage_percentage=lower_quantile_coverage_percentage,
                                             lower_quantile_coverage_threshold=lower_quantile_coverage_threshold,
                                             coverage_mean=protospacer_surrogate_barcode_match_noncollapsed_coverage_mean,
-                                            mean_coverage_threshold=mean_coverage_threshold)
+                                            mean_coverage_threshold=mean_coverage_threshold,
+                                            umidups_mean=protospacer_surrogate_barcode_match_umidups,
+                                            umidups_lower_threshold=umidups_lower_threshold,
+                                            umidups_upper_threshold=umidups_upper_threshold)
 
         else:
             if contains_barcode:
@@ -402,6 +421,8 @@ def count_series_result_quality_control_stats(count_series_result: MatchSetWhite
                     protospacer_barcode_match_noncollapsed_coverage_std = np.std(count_series_result.protospacer_match_barcode_match.ambiguous_accepted_umi_noncollapsed_counterseries)
                     protospacer_barcode_match_noncollapsed_coverage_lower_quantile = count_series_result.protospacer_match_barcode_match.ambiguous_accepted_umi_noncollapsed_counterseries.quantile(q=low_quantile_coverage_percentage)
 
+                    protospacer_barcode_match_umidups = count_series_result.protospacer_match_barcode_match.ambiguous_accepted_umi_noncollapsed_counterseries / count_series_result.protospacer_match_barcode_match.ambiguous_accepted_umi_collapsed_counterseries
+                    protospacer_barcode_match_umidups_mean = protospacer_barcode_match_umidups.mean()
 
                     count_series_result_quality_control_stats_dict.update({
                         "protospacer_barcode_match_noncollapsed_totalcount": protospacer_barcode_match_noncollapsed_totalcount,
@@ -411,8 +432,10 @@ def count_series_result_quality_control_stats(count_series_result: MatchSetWhite
                         "protospacer_barcode_match_noncollapsed_gini": protospacer_barcode_match_noncollapsed_gini,
                         "protospacer_barcode_match_noncollapsed_coverage_mean": protospacer_barcode_match_noncollapsed_coverage_mean,
                         "protospacer_barcode_match_noncollapsed_coverage_std": protospacer_barcode_match_noncollapsed_coverage_std,
-                        f"protospacer_barcode_match_noncollapsed_coverage_lower_quantile_{lower_quantile_coverage_percentage}": protospacer_barcode_match_noncollapsed_coverage_lower_quantile
+                        f"protospacer_barcode_match_noncollapsed_coverage_lower_quantile_{lower_quantile_coverage_percentage}": protospacer_barcode_match_noncollapsed_coverage_lower_quantile,
+                        "protospacer_barcode_match_umidups": protospacer_barcode_match_umidups
                     })
+
                     if display_visualizations:
                         noncollapsed_gini_index_bar_plot_values.append(protospacer_barcode_match_noncollapsed_gini)
 
@@ -430,7 +453,11 @@ def count_series_result_quality_control_stats(count_series_result: MatchSetWhite
                                         lower_quantile_coverage_percentage=lower_quantile_coverage_percentage,
                                         lower_quantile_coverage_threshold=lower_quantile_coverage_threshold,
                                         coverage_mean=protospacer_barcode_match_noncollapsed_coverage_mean,
-                                        mean_coverage_threshold=mean_coverage_threshold)
+                                        mean_coverage_threshold=mean_coverage_threshold,
+                                        umidups_mean==protospacer_barcode_match_umidups,
+                                        umidups_lower_threshold=umidups_lower_threshold,
+                                        umidups_upper_threshold=umidups_upper_threshold
+                                        )
 
         # PLOT GINI INDEX:
         if display_visualizations:
