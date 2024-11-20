@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "crispr-ambiguous-mapping"
-version = "0.0.158"
+version = "0.0.168"
 description = ""
 authors = ["Basheer Becerra <bbecerr@outlook.com>"]
 readme = "README.md"
@@ -10,12 +10,12 @@ packages = [{include = "crispr_ambiguous_mapping"}]
 python = ">=3.8,<3.12"
 numpy = "^1.24.4"
 scipy = "^1.10.1"
-matplotlib = "3.9.0"
+matplotlib = "^3.7.1"
 biopython = "^1.81"
 pandarallel = "^1.6.4"
 typeguard = "^3.0.2"
 pandas = "^1.5.3"
-seaborn = "0.13.2"
+seaborn = "^0.13.2"
 
 
 [build-system]
