@@ -14,6 +14,11 @@ import re
 from Bio.Seq import Seq
 from collections import Counter, defaultdict
 
+#
+# CLASS DEPRECATED AS OF 11/21/2024, use reporter_standard_fastq_parsing class
+#
+
+
 # This is for grouping the FASTQ lines in 1 tuple.
 def grouper(iterable, n=4):
     "s -> (s0,s1,...sn-1), (sn,sn+1,...s2n-1), (s2n,s2n+1,...s3n-1), ..."

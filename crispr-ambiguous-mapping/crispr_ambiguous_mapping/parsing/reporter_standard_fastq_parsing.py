@@ -19,48 +19,6 @@ def grouper(iterable, n=4):
     "s -> (s0,s1,...sn-1), (sn,sn+1,...s2n-1), (s2n,s2n+1,...s3n-1), ..."
     return zip(*[iter(iterable)]*n)
 
-# NOTE: Unsure if this function is used anymore
-def perform_sequence_count(sequence_counter, r1_protospacer_fastq_filehandler, r2_surrogate_fastq_filehandler, barcode_pattern_regex: Optional[str] = None, umi_pattern_regex: Optional[str] = None):
-    if r2_surrogate_fastq_filehandler is None:
-        fastq_read_grouper = grouper(r1_protospacer_fastq_filehandler)   
-    else:
-        fastq_read_grouper = grouper(zip(r1_protospacer_fastq_filehandler, r2_surrogate_fastq_filehandler))
-
-    for fastq_paired_read_group in fastq_read_grouper:
-        if r2_surrogate_fastq_filehandler is None:
-            r1_header_read = fastq_paired_read_group[0]
-            r1_sequence_read = fastq_paired_read_group[1]
-            protospacer=r1_sequence_read
-            if barcode_pattern_regex:
-                barcode_match = re.search(barcode_pattern_regex, r1_header_read)
-                barcode = barcode_match.group(1)
-                if umi_pattern_regex:
-                    umi_match = re.search(umi_pattern_regex, r1_header_read)        
-                    umi = umi_match.group(1)
-                else:
-                    pass
-            else:
-                if umi_pattern_regex:
-                    umi = re.search(umi_pattern_regex, r1_header_read)        
-                else:
-                    pass
-        else:
-            r1_header_read, _ = fastq_paired_read_group[0]
-            r1_sequence_read, r2_sequence_read = fastq_paired_read_group[1]
-            surrogate=r1_sequence_read
-        
-        
-
-        if barcode_pattern_regex:
-            barcode = re.search(barcode_pattern_regex, r1_header_read)
-        if umi_pattern_regex:
-            umi = re.search(umi_pattern_regex, r1_header_read)
-        
-
-        sequence_counter[(protospacer, surrogate, barcode)][umi] += 1
-
-    return sequence_counter
-
 @typechecked
 def get_standard_observed_sequence_counts(  fastq_r1_fn: str, 
                                             fastq_r2_fn: Optional[str], 
@@ -106,21 +64,15 @@ def get_standard_observed_sequence_counts(  fastq_r1_fn: str,
                                             revcomp_protospacer: Optional[bool], 
                                             revcomp_surrogate: Optional[bool], 
                                             revcomp_barcode: Optional[bool],
-                                            revcomp_umi: Optional[bool]) -> Union[CounterType[str], 
+                                            revcomp_umi: Optional[bool],
+                                            contains_surrogate: bool,
+                                            contains_barcode: bool,
+                                            contains_umi: bool) -> Union[CounterType[str], 
                                                                         DefaultDict[str, CounterType[str]], 
                                                                         CounterType[Tuple[str, str]], 
                                                                         DefaultDict[Tuple[str, str], CounterType[str]], 
                                                                         CounterType[Tuple[str, str, str]], 
                                                                         DefaultDict[Tuple[str, str, str], CounterType[str]]]:
-    protospacer_pattern_regex = None if ((protospacer_pattern_regex is not None) and  (protospacer_pattern_regex.strip() == "")) else protospacer_pattern_regex
-    surrogate_pattern_regex = None if ((surrogate_pattern_regex is not None) and (surrogate_pattern_regex.strip() == "")) else surrogate_pattern_regex
-    barcode_pattern_regex = None if ((barcode_pattern_regex is not None) and  (barcode_pattern_regex.strip() == "")) else barcode_pattern_regex
-    umi_pattern_regex = None if ((umi_pattern_regex is not None) and (umi_pattern_regex.strip() == "")) else umi_pattern_regex
-
-    contains_surrogate = (surrogate_pattern_regex is not None) or (surrogate_left_flank is not None) or (surrogate_right_flank is not None) or (surrogate_start_position is not None) or (surrogate_end_position is not None) or (surrogate_length is not None)
-    contains_barcode = (barcode_pattern_regex is not None) or (barcode_left_flank is not None) or (barcode_right_flank is not None) or (barcode_start_position is not None) or (barcode_end_position is not None) or (barcode_length is not None)
-    contains_umi = (umi_pattern_regex is not None) or (umi_left_flank is not None) or (umi_right_flank is not None) or (umi_start_position is not None) or (barcode_end_position is not None) or (barcode_length is not None)
-    
     revcomp = lambda sequence, do_revcomp: str(Seq(sequence).reverse_complement()) if do_revcomp else sequence
 
     def parse_sequence(
@@ -138,7 +90,7 @@ def get_standard_observed_sequence_counts(  fastq_r1_fn: str,
             """
                 Parse entirely by regex
             """
-            sequence = re.search(sequence_pattern_regex, template_sequence).group(1).strip()  
+            sequence = re.search(sequence_pattern_regex, template_sequence).group(1).rstrip()  
         else:
             """
                 Get sequence position start
@@ -180,7 +132,7 @@ def get_standard_observed_sequence_counts(  fastq_r1_fn: str,
             else:
                 raise Exception(f"{sequence_type}_right_flank or {sequence_type}_end_position or {sequence_type}_length must be provided")
             
-            sequence = template_sequence[position_start:position_end]
+            sequence = template_sequence[position_start:position_end].rstrip() # rstrip is important, since need to remove newlines if sequence_length exceeds template_sequence length
         
         # Return sequence (reverse complement if necessary)
         assert revcomp_sequence is not None, f"revcomp_{sequence_type} must be provided, does the sequence need to be reverse complemented?"
@@ -276,103 +228,151 @@ def get_standard_observed_sequence_counts(  fastq_r1_fn: str,
                             protospacer = get_protospacer_from_read_group_partial(fastq_read_group=fastq_single_read_group, includes_r2=False)
                             sequence_counter[protospacer] += 1
                     else:
-                        # LEFTOFF HERE: Implement SURROGATE check then go to R2
+                        sequence_counter: ProtospacerSurrogateCounter = Counter()
+                        for fastq_single_read_group in fastq_single_read_grouper:
+                            protospacer = get_protospacer_from_read_group_partial(fastq_read_group=fastq_single_read_group, includes_r2=False)
+                            surrogate = get_surrogate_from_read_group_partial(fastq_read_group=fastq_single_read_group, includes_r2=False)
+                            sequence_counter[(protospacer, surrogate)] += 1
 
                 else: # ONLY R1; NO BARCODE; YES UMI
-                    sequence_counter: ProtospacerDictUMICounter = defaultdict(Counter)
-                    for fastq_single_read_group in fastq_single_read_grouper:
-                        protospacer = get_protospacer_from_read_group_partial(fastq_read_group=fastq_single_read_group, includes_r2=False)
-                        umi = get_umi_from_read_group_partial(fastq_read_group=fastq_single_read_group, includes_r2=False)
-                        sequence_counter[protospacer][umi] += 1
+                    if not contains_surrogate:
+                        sequence_counter: ProtospacerDictUMICounter = defaultdict(Counter)
+                        for fastq_single_read_group in fastq_single_read_grouper:
+                            protospacer = get_protospacer_from_read_group_partial(fastq_read_group=fastq_single_read_group, includes_r2=False)
+                            umi = get_umi_from_read_group_partial(fastq_read_group=fastq_single_read_group, includes_r2=False)
+                            sequence_counter[protospacer][umi] += 1
+                    else:
+                        sequence_counter: ProtospacerSurrogateDictUMICounter = defaultdict(Counter)
+                        for fastq_single_read_group in fastq_single_read_grouper:
+                            protospacer = get_protospacer_from_read_group_partial(fastq_read_group=fastq_single_read_group, includes_r2=False)
+                            surrogate = get_surrogate_from_read_group_partial(fastq_read_group=fastq_single_read_group, includes_r2=False)
+                            umi = get_umi_from_read_group_partial(fastq_read_group=fastq_single_read_group, includes_r2=False)
+                            sequence_counter[(protospacer, surrogate)][umi] += 1
             else: # ONLY R1; YES BARCODE
                 if not contains_umi: # ONLY R1; YES BARCODE; NO UMI
-                    sequence_counter: ProtospacerBarcodeCounter = Counter()
-                    for fastq_single_read_group in fastq_single_read_grouper:
-                        protospacer = get_protospacer_from_read_group_partial(fastq_read_group=fastq_single_read_group, includes_r2=False)
-                        barcode = get_barcode_from_read_group_partial(fastq_read_group=fastq_single_read_group, includes_r2=False)
-                        sequence_counter[(protospacer, barcode)] += 1
+                    if not contains_surrogate:
+                        sequence_counter: ProtospacerBarcodeCounter = Counter()
+                        for fastq_single_read_group in fastq_single_read_grouper:
+                            protospacer = get_protospacer_from_read_group_partial(fastq_read_group=fastq_single_read_group, includes_r2=False)
+                            barcode = get_barcode_from_read_group_partial(fastq_read_group=fastq_single_read_group, includes_r2=False)
+                            sequence_counter[(protospacer, barcode)] += 1
+                    else:
+                        sequence_counter: ProtospacerSurrogateBarcodeCounter = Counter()
+                        for fastq_single_read_group in fastq_single_read_grouper:
+                            protospacer = get_protospacer_from_read_group_partial(fastq_read_group=fastq_single_read_group, includes_r2=False)
+                            surrogate = get_surrogate_from_read_group_partial(fastq_read_group=fastq_single_read_group, includes_r2=False)
+                            barcode = get_barcode_from_read_group_partial(fastq_read_group=fastq_single_read_group, includes_r2=False)
+                            sequence_counter[(protospacer, surrogate, barcode)] += 1
                 else: # ONLY R1; YES BARCODE; YES UMI
-                    sequence_counter: ProtospacerBarcodeDictUMICounter = defaultdict(Counter)
-                    for fastq_single_read_group in fastq_single_read_grouper:
-                        protospacer = get_protospacer_from_read_group_partial(fastq_read_group=fastq_single_read_group, includes_r2=False)
-                        barcode = get_barcode_from_read_group_partial(fastq_read_group=fastq_single_read_group, includes_r2=False)
-                        umi = get_umi_from_read_group_partial(fastq_read_group=fastq_single_read_group, includes_r2=False)
-                        sequence_counter[(barcode, protospacer)][umi] += 1
+                    if not contains_surrogate:
+                        sequence_counter: ProtospacerBarcodeDictUMICounter = defaultdict(Counter)
+                        for fastq_single_read_group in fastq_single_read_grouper:
+                            protospacer = get_protospacer_from_read_group_partial(fastq_read_group=fastq_single_read_group, includes_r2=False)
+                            barcode = get_barcode_from_read_group_partial(fastq_read_group=fastq_single_read_group, includes_r2=False)
+                            umi = get_umi_from_read_group_partial(fastq_read_group=fastq_single_read_group, includes_r2=False)
+                            sequence_counter[(barcode, protospacer)][umi] += 1
+                    else:
+                        sequence_counter: ProtospacerSurrogateBarcodeDictUMICounter = defaultdict(Counter)
+                        for fastq_single_read_group in fastq_single_read_grouper:
+                            protospacer = get_protospacer_from_read_group_partial(fastq_read_group=fastq_single_read_group, includes_r2=False)
+                            surrogate = get_surrogate_from_read_group_partial(fastq_read_group=fastq_single_read_group, includes_r2=False)
+                            barcode = get_barcode_from_read_group_partial(fastq_read_group=fastq_single_read_group, includes_r2=False)
+                            umi = get_umi_from_read_group_partial(fastq_read_group=fastq_single_read_group, includes_r2=False)
+                            sequence_counter[(barcode, surrogate, protospacer)][umi] += 1
         else: # YES R2
-            fastq_paired_read_grouper = grouper(zip(r1_protospacer_fastq_filehandler, r2_surrogate_fastq_filehandler))
+            fastq_paired_read_grouper = grouper(zip(fastq_r1_filehandler, fastq_r2_filehandler))
             if not contains_barcode: # YES R2; NO BARCODE
                 if not contains_umi: # YES R2; NO BARCODE; NO UMI
-                    sequence_counter: ProtospacerSurrogateCounter = Counter()
-                    for fastq_paired_read_group in fastq_paired_read_grouper:
-                        protospacer = get_protospacer_from_read_group_partial(fastq_read_group=fastq_single_read_group, includes_r2=True)
-                        if contains_surrogate:
+                    if not contains_surrogate:
+                        sequence_counter: ProtospacerCounter = Counter()
+                        for fastq_paired_read_group in fastq_paired_read_grouper:
+                            protospacer = get_protospacer_from_read_group_partial(fastq_read_group=fastq_paired_read_group, includes_r2=True)
+                            if contains_surrogate:
+                                sequence_counter[protospacer] += 1
+                    else:
+                        sequence_counter: ProtospacerSurrogateCounter = Counter()
+                        for fastq_paired_read_group in fastq_paired_read_grouper:
+                            protospacer = get_protospacer_from_read_group_partial(fastq_read_group=fastq_paired_read_group, includes_r2=True)
+                            surrogate = get_surrogate_from_read_group_partial(fastq_read_group=fastq_paired_read_group, includes_r2=True)
                             sequence_counter[(protospacer, surrogate)] += 1
                 else: # YES R2; NO BARCODE; YES UMI
-                    sequence_counter: ProtospacerSurrogateDictUMICounter = defaultdict(Counter)
-                    for fastq_paired_read_group in fastq_paired_read_grouper:
-                        r1_header_read, _ = fastq_paired_read_group[0]
-                        r1_sequence_read, r2_sequence_read = fastq_paired_read_group[1]
-                        
-                        protospacer=revcomp(r1_sequence_read.strip(), revcomp_protospacer)
-                        surrogate=revcomp(r2_sequence_read.strip(), revcomp_surrogate)
-                        umi = re.search(umi_pattern_regex, r1_header_read).group(1).strip()
-                        
-                        sequence_counter[(protospacer, surrogate)][umi] += 1
+                    if not contains_surrogate:
+                        sequence_counter: ProtospacerDictUMICounter = defaultdict(Counter)
+                        for fastq_paired_read_group in fastq_paired_read_grouper:
+                            protospacer = get_protospacer_from_read_group_partial(fastq_read_group=fastq_paired_read_group, includes_r2=True)
+                            umi = get_umi_from_read_group_partial(fastq_read_group=fastq_paired_read_group, includes_r2=True)
+                            sequence_counter[protospacer][umi] += 1
+                    else:
+                        sequence_counter: ProtospacerSurrogateDictUMICounter = defaultdict(Counter)
+                        for fastq_paired_read_group in fastq_paired_read_grouper:
+                            protospacer = get_protospacer_from_read_group_partial(fastq_read_group=fastq_paired_read_group, includes_r2=True)
+                            surrogate = get_surrogate_from_read_group_partial(fastq_read_group=fastq_paired_read_group, includes_r2=True)
+                            umi = get_umi_from_read_group_partial(fastq_read_group=fastq_paired_read_group, includes_r2=True)
+                            sequence_counter[(protospacer, surrogate)][umi] += 1
+            
             else: # YES R2; YES BARCODE
                 if umi_pattern_regex is None: # YES R2; YES BARCODE; NO UMI
-                    sequence_counter: ProtospacerSurrogateBarcodeCounter = Counter()
-                    for fastq_paired_read_group in fastq_paired_read_grouper:
-                        r1_header_read, _ = fastq_paired_read_group[0]
-                        r1_sequence_read, r2_sequence_read = fastq_paired_read_group[1]
-                        
-                        protospacer=revcomp(r1_sequence_read.strip(), revcomp_protospacer)
-                        surrogate=revcomp(r2_sequence_read.strip(), revcomp_surrogate)
-                        barcode = revcomp(re.search(barcode_pattern_regex, r1_header_read).group(1).strip(), revcomp_barcode)
-                        sequence_counter[(protospacer, surrogate, barcode)] += 1
+                    if not contains_surrogate:
+                        sequence_counter: ProtospacerSurrogateBarcodeCounter = Counter()
+                        for fastq_paired_read_group in fastq_paired_read_grouper:
+                            protospacer = get_protospacer_from_read_group_partial(fastq_read_group=fastq_paired_read_group, includes_r2=True)
+                            barcode = get_barcode_from_read_group_partial(fastq_read_group=fastq_paired_read_group, includes_r2=True)
+                            sequence_counter[(protospacer, barcode)] += 1
+                    else:
+                        sequence_counter: ProtospacerSurrogateBarcodeCounter = Counter()
+                        for fastq_paired_read_group in fastq_paired_read_grouper:
+                            protospacer = get_protospacer_from_read_group_partial(fastq_read_group=fastq_paired_read_group, includes_r2=True)
+                            surrogate = get_surrogate_from_read_group_partial(fastq_read_group=fastq_paired_read_group, includes_r2=True)
+                            barcode = get_barcode_from_read_group_partial(fastq_read_group=fastq_paired_read_group, includes_r2=True)
+                            sequence_counter[(protospacer, surrogate, barcode)] += 1
                 else: # YES R2; YES BARCODE; YES UMI
-                    sequence_counter: ProtospacerSurrogateBarcodeDictUMICounter = defaultdict(Counter)
-                    for fastq_paired_read_group in fastq_paired_read_grouper:
-                        r1_header_read, _ = fastq_paired_read_group[0]
-                        r1_sequence_read, r2_sequence_read = fastq_paired_read_group[1]
-                        
-                        protospacer=revcomp(r1_sequence_read.strip(), revcomp_protospacer)
-                        surrogate=revcomp(r2_sequence_read.strip(), revcomp_surrogate)
-                        barcode = revcomp(re.search(barcode_pattern_regex, r1_header_read).group(1).strip(), revcomp_barcode)
-                        umi = re.search(umi_pattern_regex, r1_header_read).group(1).strip()
-                        
-                        sequence_counter[(protospacer, surrogate, barcode)][umi] += 1
+                    if not contains_surrogate:
+                        sequence_counter: ProtospacerSurrogateBarcodeDictUMICounter = defaultdict(Counter)
+                        for fastq_paired_read_group in fastq_paired_read_grouper:
+                            protospacer = get_protospacer_from_read_group_partial(fastq_read_group=fastq_paired_read_group, includes_r2=True)
+                            barcode = get_barcode_from_read_group_partial(fastq_read_group=fastq_paired_read_group, includes_r2=True)
+                            umi = get_umi_from_read_group_partial(fastq_read_group=fastq_paired_read_group, includes_r2=True)
+                            sequence_counter[(protospacer, barcode)][umi] += 1
+                    else:
+                        sequence_counter: ProtospacerSurrogateBarcodeDictUMICounter = defaultdict(Counter)
+                        for fastq_paired_read_group in fastq_paired_read_grouper:
+                            protospacer = get_protospacer_from_read_group_partial(fastq_read_group=fastq_paired_read_group, includes_r2=True)
+                            surrogate = get_surrogate_from_read_group_partial(fastq_read_group=fastq_paired_read_group, includes_r2=True)
+                            barcode = get_barcode_from_read_group_partial(fastq_read_group=fastq_paired_read_group, includes_r2=True)
+                            umi = get_umi_from_read_group_partial(fastq_read_group=fastq_paired_read_group, includes_r2=True)
+                            sequence_counter[(protospacer, surrogate, barcode)][umi] += 1
         return sequence_counter
     
     before_file_loading_time = datetime.now()
     # Open R1 file handler
-    r1_protospacer_fastq_filehandler = None
-    if r1_protospacer_fastq_file.endswith('.gz'):
-        print(f"Opening FASTQ.gz file with gzip, filename={r1_protospacer_fastq_file}")
-        r1_protospacer_fastq_filehandler = gzip.open(r1_protospacer_fastq_file, "rt", encoding="utf-8")
+    fastq_r1_filehandler = None
+    if fastq_r1_fn.endswith('.gz'):
+        print(f"Opening FASTQ.gz file with gzip, filename={fastq_r1_fn}")
+        fastq_r1_filehandler = gzip.open(fastq_r1_fn, "rt", encoding="utf-8")
     else:
-        print(f"Opening FASTQ file, filename={r1_protospacer_fastq_file}")
-        r1_protospacer_fastq_filehandler = open(r1_protospacer_fastq_file, "r")
+        print(f"Opening FASTQ file, filename={fastq_r1_fn}")
+        fastq_r1_filehandler = open(fastq_r1_fn, "r")
     
     # Open R2 file handler if provided
-    r2_surrogate_fastq_filehandler = None
-    if r2_surrogate_fastq_file is not None:
-        if r2_surrogate_fastq_file.endswith('.gz'):
-            print(f"Opening FASTQ.gz file with gzip, filename={r2_surrogate_fastq_file}")
-            r2_surrogate_fastq_filehandler = gzip.open(r2_surrogate_fastq_file, "rt", encoding="utf-8")
+    fastq_r2_filehandler = None
+    if fastq_r2_fn is not None:
+        if fastq_r2_fn.endswith('.gz'):
+            print(f"Opening FASTQ.gz file with gzip, filename={fastq_r2_fn}")
+            fastq_r2_filehandler = gzip.open(fastq_r2_fn, "rt", encoding="utf-8")
         else:
-            print(f"Opening FASTQ file, filename={r2_surrogate_fastq_file}")
-            r2_surrogate_fastq_filehandler = open(r2_surrogate_fastq_file, "r")
+            print(f"Opening FASTQ file, filename={fastq_r2_fn}")
+            fastq_r2_filehandler = open(fastq_r2_fn, "r")
     after_file_loading_time = datetime.now()
     print(f"{(after_file_loading_time-before_file_loading_time).seconds} seconds for file loading")
 
-    sequence_counter = parse_fastq(r1_protospacer_fastq_filehandler, r2_surrogate_fastq_filehandler)
+    sequence_counter = parse_fastq(fastq_r1_filehandler, fastq_r2_filehandler)
     after_parsing_time = datetime.now()
     print(f"{(after_parsing_time-after_file_loading_time).seconds} seconds for parsing")
 
     # Close the file handlers when done
-    if r1_protospacer_fastq_filehandler is not None:
-        r1_protospacer_fastq_filehandler.close()
-    if r2_surrogate_fastq_filehandler is not None:
-        r2_surrogate_fastq_filehandler.close()
+    if fastq_r1_filehandler is not None:
+        fastq_r1_filehandler.close()
+    if fastq_r2_filehandler is not None:
+        fastq_r2_filehandler.close()
 
     return sequence_counter
