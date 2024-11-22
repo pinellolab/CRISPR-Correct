@@ -1,36 +1,37 @@
 from dataclasses import dataclass
 from typing import Counter as CounterType
 from typing import Tuple, Optional, DefaultDict, Dict
+from .mapping_models import GeneralAlleleCountSeriesDict
 import pandas as pd
 
 @dataclass
 class MatchSetWhitelistReporterObservedSequenceCounterSeriesResults:
     
     # Storing as a dictionary 
-    ambiguous_ignored_umi_noncollapsed_alleleseries_dict : Optional[DefaultDict[Tuple[str, Optional[str], Optional[str]], pd.Series]] = None
-    ambiguous_ignored_umi_collapsed_alleleseries_dict : Optional[DefaultDict[Tuple[str, Optional[str], Optional[str]], pd.Series]] = None
-    ambiguous_ignored_alleleseries_dict : Optional[DefaultDict[Tuple[str, Optional[str], Optional[str]], pd.Series]] = None
+    ambiguous_ignored_umi_noncollapsed_alleleseries_dict : Optional[GeneralAlleleCountSeriesDict] = None
+    ambiguous_ignored_umi_collapsed_alleleseries_dict : Optional[GeneralAlleleCountSeriesDict] = None
+    ambiguous_ignored_alleleseries_dict : Optional[GeneralAlleleCountSeriesDict] = None
 
-    ambiguous_accepted_umi_noncollapsed_alleleseries_dict : Optional[DefaultDict[Tuple[str, Optional[str], Optional[str]], pd.Series]] = None
-    ambiguous_accepted_umi_collapsed_alleleseries_dict : Optional[DefaultDict[Tuple[str, Optional[str], Optional[str]], pd.Series]] = None
-    ambiguous_accepted_alleleseries_dict : Optional[DefaultDict[Tuple[str, Optional[str], Optional[str]], pd.Series]] = None
+    ambiguous_accepted_umi_noncollapsed_alleleseries_dict : Optional[GeneralAlleleCountSeriesDict] = None
+    ambiguous_accepted_umi_collapsed_alleleseries_dict : Optional[GeneralAlleleCountSeriesDict] = None
+    ambiguous_accepted_alleleseries_dict : Optional[GeneralAlleleCountSeriesDict] = None
 
-    ambiguous_spread_umi_noncollapsed_alleleseries_dict : Optional[DefaultDict[Tuple[str, Optional[str], Optional[str]], pd.Series]] = None
-    ambiguous_spread_umi_collapsed_alleleseries_dict : Optional[DefaultDict[Tuple[str, Optional[str], Optional[str]], pd.Series]] = None
-    ambiguous_spread_alleleseries_dict : Optional[DefaultDict[Tuple[str, Optional[str], Optional[str]], pd.Series]] = None
+    ambiguous_spread_umi_noncollapsed_alleleseries_dict : Optional[GeneralAlleleCountSeriesDict] = None
+    ambiguous_spread_umi_collapsed_alleleseries_dict : Optional[GeneralAlleleCountSeriesDict] = None
+    ambiguous_spread_alleleseries_dict : Optional[GeneralAlleleCountSeriesDict] = None
         
     # Storing as a dataframe
-    ambiguous_ignored_umi_noncollapsed_allele_df : pd.DataFrame = None
-    ambiguous_ignored_umi_collapsed_allele_df : pd.DataFrame = None
-    ambiguous_ignored_allele_df : pd.DataFrame = None
+    ambiguous_ignored_umi_noncollapsed_allele_df : Optional[pd.DataFrame] = None
+    ambiguous_ignored_umi_collapsed_allele_df : Optional[pd.DataFrame] = None
+    ambiguous_ignored_allele_df : Optional[pd.DataFrame] = None
 
-    ambiguous_accepted_umi_noncollapsed_allele_df : pd.DataFrame = None
-    ambiguous_accepted_umi_collapsed_allele_df : pd.DataFrame = None
-    ambiguous_accepted_allele_df : pd.DataFrame = None
+    ambiguous_accepted_umi_noncollapsed_allele_df : Optional[pd.DataFrame] = None
+    ambiguous_accepted_umi_collapsed_allele_df : Optional[pd.DataFrame] = None
+    ambiguous_accepted_allele_df : Optional[pd.DataFrame] = None
 
-    ambiguous_spread_umi_noncollapsed_allele_df : pd.DataFrame = None
-    ambiguous_spread_umi_collapsed_allele_df : pd.DataFrame = None
-    ambiguous_spread_allele_df : pd.DataFrame = None
+    ambiguous_spread_umi_noncollapsed_allele_df : Optional[pd.DataFrame] = None
+    ambiguous_spread_umi_collapsed_allele_df : Optional[pd.DataFrame] = None
+    ambiguous_spread_allele_df : Optional[pd.DataFrame] = None
 
     # This ensures that any empty series are kept at None
     def __setattr__(self, name, value):

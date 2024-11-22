@@ -8,6 +8,84 @@ import pandas as pd
 from .error_models import GuideCountError
 from .quality_control_models import QualityControlResult
 
+from typing import Union, List, Mapping, Tuple, Optional, Any, DefaultDict, Dict
+from typing import Counter as CounterType
+import pandas as pd
+
+# Provides a mapping between the whitelist sequence and the list of observed sequences. Each observed sequence has the corresponding count Union[int, Dict [ str, int ]] (either int if no UMI, or Dict[str, int] for UMI-collapsed and non-collpased count)
+WhitelistReporterObservedSequenceMapping = DefaultDict[  Tuple[str, Optional[str], Optional[str]],    List[   Tuple[ Tuple[str, Optional[str], Optional[str]], Union[int, Dict [ str, int ]], int, List[Tuple[str, Optional[str], Optional[str]]] ]    ]]
+
+# Sequence Count Result Objects
+ProtospacerCounter = CounterType[str]
+ProtospacerSurrogateCounter = CounterType[Tuple[str, str]]
+ProtospacerBarcodeCounter = CounterType[Tuple[str, str]]
+ProtospacerSurrogateBarcodeCounter = CounterType[Tuple[str, str, str]]
+
+ProtospacerDictUMICounter = DefaultDict[str, CounterType[str]]
+ProtospacerSurrogateDictUMICounter = DefaultDict[Tuple[str, str], CounterType[str]]
+ProtospacerBarcodeDictUMICounter = DefaultDict[Tuple[str, str], CounterType[str]]
+ProtospacerSurrogateBarcodeDictUMICounter = DefaultDict[Tuple[str, str, str], CounterType[str]]
+
+GeneralGuideCountType = Union[ProtospacerCounter, 
+                       ProtospacerSurrogateCounter, 
+                       ProtospacerBarcodeCounter, 
+                       ProtospacerSurrogateBarcodeCounter,
+                       ProtospacerDictUMICounter,
+                       ProtospacerSurrogateDictUMICounter,
+                       ProtospacerBarcodeDictUMICounter, 
+                       ProtospacerSurrogateBarcodeDictUMICounter]
+
+# Mapping Count Dict Object
+
+ProtospacerSurrogateBarcodeMatchCountDict = DefaultDict[Tuple[str, str, str], Union[int, float]]
+ProtospacerSurrogateMatchCountDict = DefaultDict[Tuple[str, str], Union[int, float]]
+ProtospacerBarcodeMatchCountDict = DefaultDict[Tuple[str, str], Union[int, float]]
+ProtospacerMatchCountDict = DefaultDict[str, Union[int, float]]
+GeneralMatchCountDict = Union[ProtospacerSurrogateBarcodeMatchCountDict, 
+      ProtospacerSurrogateMatchCountDict, 
+      ProtospacerBarcodeMatchCountDict, 
+      ProtospacerMatchCountDict]
+
+ProtospacerSurrogateBarcodeMismatchCountDict = DefaultDict[Tuple[Tuple[str, str, str], Tuple[str, str, str]], Union[int, float]]
+ProtospacerSurrogateMismatchCountDict = DefaultDict[Tuple[Tuple[str, str], Tuple[str, str]], Union[int, float]]
+ProtospacerBarcodeMismatchCountDict = DefaultDict[Tuple[Tuple[str, str], Tuple[str, str]], Union[int, float]]
+ProtospacerMismatchCountDict = DefaultDict[Tuple[str, str], Union[int, float]]
+
+GeneralMismatchCountDict = Union[ProtospacerSurrogateBarcodeMismatchCountDict, 
+      ProtospacerSurrogateMismatchCountDict, 
+      ProtospacerBarcodeMismatchCountDict, 
+      ProtospacerMismatchCountDict]
+
+# Allele nested dict Object (Key of first dict is inferred, key of second dict is observed, value of second dict is count)
+ProtospacerSurrogateBarcodeAlleleDict = DefaultDict[Tuple[str, str, str], DefaultDict[Tuple[str, str, str], Union[int, float]]]
+ProtospacerSurrogateAlleleDict = DefaultDict[Tuple[str, str], DefaultDict[Tuple[str, str], Union[int, float]]]
+ProtospacerBarcodeAlleleDict = DefaultDict[Tuple[str, str], DefaultDict[Tuple[str, str], Union[int, float]]]
+ProtospacerAlleleDict = DefaultDict[str, DefaultDict[str, Union[int, float]]]
+
+GeneralAlleleDict = Union[ProtospacerSurrogateBarcodeAlleleDict,
+      ProtospacerSurrogateAlleleDict,
+      ProtospacerBarcodeAlleleDict,
+      ProtospacerAlleleDict]
+
+
+
+
+# Allele Count Series Dict
+ProtospacerSurrogateBarcodeAlleleCountSeriesDict = DefaultDict[Tuple[str, str, str], pd.Series]
+ProtospacerSurrogateAlleleCountSeriesDict = DefaultDict[Tuple[str, str], pd.Series]
+ProtospacerBarcodeAlleleCountSeriesDict = DefaultDict[Tuple[str, str], pd.Series]
+ProtospacerAlleleCountSeriesDict = DefaultDict[str, pd.Series]
+
+GeneralAlleleCountSeriesDict = Union[ProtospacerSurrogateBarcodeAlleleCountSeriesDict,
+                                     ProtospacerSurrogateAlleleCountSeriesDict,
+                                     ProtospacerBarcodeAlleleCountSeriesDict,
+                                     ProtospacerAlleleCountSeriesDict]
+
+
+
+
+
+
 
 @dataclass
 class SingleInferenceMatchResultValue:
@@ -52,10 +130,16 @@ class InferenceResult:
     inferred_value: CompleteInferenceMatchResult
 
 
-@dataclass
-class WhitelistReporterCountsResult:
-    observed_guide_reporter_umi_counts_inferred: DefaultDict[Tuple[str,Optional[str],Optional[str]], dict]
-    quality_control_result: QualityControlResult
+# Inference Result Object
+ProtospacerSurrogateBarcodeMappingInferenceDict = DefaultDict[Tuple[str,str,str], Dict[Tuple[str,str,str], InferenceResult]]
+ProtospacerSurrogateMappingInferenceDict = DefaultDict[Tuple[str,str], Dict[Tuple[str,str], InferenceResult]]
+ProtospacerBarcodeMappingInferenceDict = DefaultDict[Tuple[str,str], Dict[Tuple[str,str], InferenceResult]]
+ProtospacerMappingInferenceDict = DefaultDict[str, Dict[str, InferenceResult]]
+
+GeneralMappingInferenceDict = Union[ProtospacerSurrogateBarcodeMappingInferenceDict,
+      ProtospacerSurrogateMappingInferenceDict,
+      ProtospacerBarcodeMappingInferenceDict,
+      ProtospacerMappingInferenceDict]
 
 
 @dataclass
@@ -145,6 +229,14 @@ class CountInput:
 @dataclass
 class WhitelistReporterCountsResult:
     all_match_set_whitelist_reporter_counter_series_results: AllMatchSetWhitelistReporterCounterSeriesResults
-    observed_guide_reporter_umi_counts_inferred: DefaultDict[Tuple[str,Optional[str],Optional[str]], dict]
+    observed_guide_reporter_umi_counts_inferred: GeneralMappingInferenceDict
     quality_control_result: QualityControlResult
     count_input: CountInput
+
+
+
+#
+# Types
+#
+
+
