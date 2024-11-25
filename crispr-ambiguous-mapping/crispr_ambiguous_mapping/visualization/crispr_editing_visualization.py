@@ -87,20 +87,24 @@ def plot_lfc_scatter_plot(anndata: ad.AnnData,
                           count_size_max_threshold: int = 300,
                           figure_width: int = 100,
                           figure_height: int = 6,
-                          count_to_scale_factor: int = 0.5
+                          count_to_scale_factor: int = 0.5,
+                          perform_assertion: bool = True
                           ):
     for group in anndata.obs.groupby(groupby_columns_list):
         enriched_pop_sample_df = group[1][group[1][population_column_name] == enriched_population_label]
-        assert enriched_pop_sample_df.shape[0] == 1, f"Multiple samples matching enriched condition in group {group[1]}"
+        if perform_assertion is True:
+            assert enriched_pop_sample_df.shape[0] == 1, f"Multiple samples matching enriched condition in group {group[1]}"
         enriched_pop_sample = enriched_pop_sample_df
         
         baseline_pop_sample_df = group[1][group[1][population_column_name] == baseline_population_label]
-        assert baseline_pop_sample_df.shape[0] == 1, f"Multiple samples matching enriched condition in group {group[1]}"
+        if perform_assertion is True:
+            assert baseline_pop_sample_df.shape[0] == 1, f"Multiple samples matching enriched condition in group {group[1]}"
         baseline_pop_sample = baseline_pop_sample_df
 
         if count_size_population_label is not None:
             count_size_pop_sample_df = group[1][group[1][population_column_name] == count_size_population_label]
-            assert count_size_pop_sample_df.shape[0] == 1, f"Multiple samples matching condition to calculate count size in group {group[1]}"
+            if perform_assertion is True:
+                assert count_size_pop_sample_df.shape[0] == 1, f"Multiple samples matching condition to calculate count size in group {group[1]}"
             count_size_pop_sample = count_size_pop_sample_df
         
         enriched_anndata = anndata[enriched_pop_sample.index, :] # DEVELOPER NOTE: Will thow error of indices of samples are changed from ints
