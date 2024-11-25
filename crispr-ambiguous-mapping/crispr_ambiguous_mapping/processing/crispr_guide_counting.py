@@ -40,6 +40,11 @@ def get_whitelist_reporter_counts_with_umi(observed_guide_reporter_umi_counts: G
                                            surrogate_hamming_threshold_strict: Optional[int] = 2, 
                                            barcode_hamming_threshold_strict: Optional[int] = 2, cores: int=1) -> WhitelistReporterCountsResult:
     
+    # Strip all sequences:
+    def strip_series(series):
+        return series.apply(lambda item : item.rstrip())
+    whitelist_guide_reporter_df = whitelist_guide_reporter_df.apply(strip_series, axis=0)
+
     # Temporary bug fix. Pad sequences so they are all of same length - encoding numpy matrices requires consistent shape. Still pass the original guide table for selecting the matches.     
     def pad_series(series):
         max_surrogate_len = series.apply(len).max()
