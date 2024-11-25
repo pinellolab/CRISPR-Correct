@@ -96,7 +96,7 @@ def get_whitelist_reporter_counts_from_umitools_output(whitelist_guide_reporter_
 #@typechecked
 def get_whitelist_reporter_counts_from_fastq(whitelist_guide_reporter_df: pd.DataFrame, 
                                                        fastq_r1_fn: str, 
-                                                       fastq_r2_fn: Optional[str], 
+                                                       fastq_r2_fn: Optional[str] = None, 
                                                        
                                                        protospacer_pattern_regex: Optional[str] = None,
                                                        surrogate_pattern_regex: Optional[str] = None,

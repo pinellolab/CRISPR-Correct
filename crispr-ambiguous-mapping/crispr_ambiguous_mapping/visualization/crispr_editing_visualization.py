@@ -2,10 +2,197 @@ from matplotlib import pyplot as plt
 import numpy as np
 import seaborn as sns
 import pandas as pd
-
+import anndata as ad
 from ..models.editing_models import MatchSetWhitelistReporterObservedSequenceMutationProfiles
+from Bio.Seq import Seq
+from typing import List, Tuple, Optional, Dict
+import matplotlib.patches as mpatches
+from matplotlib.font_manager import FontProperties
+from matplotlib.patches import Rectangle
 
-from typing import List, Tuple, Optional
+
+def show_reporter_encoding_frequency(encoding_df, sequence_type, count_column_name="count"):
+    encoding_df_count = encoding_df.loc[:, count_column_name]
+    encoding_df_type = encoding_df.loc[:, encoding_df.columns.get_level_values("SequenceType") == sequence_type]
+    encoding_frequency_series = encoding_df_type.mul(encoding_df_count, axis=0).sum(axis=0) / encoding_df_count.sum() * 100
+    return encoding_frequency_series
+
+def plot_editing_frequency_heatmap(replicate_scores, protospacer_start_coordinate:int, protospacer_size:int = 20, title: str=""):
+    # Group by Position and sum the frequencies
+    frequency_dfs = []
+    for replicate_score in replicate_scores:
+        frequency_df = pd.DataFrame(replicate_score, columns=["Frequency"]).groupby(['Position', 'Ref'])["Frequency"].sum().reset_index()
+        frequency_dfs.append(frequency_df)
+
+    # Create a single-row DataFrame for the heatmap
+    heatmap_data = pd.DataFrame(columns=range(frequency_dfs[0].shape[0]))
+    for rep_i, frequency_df in enumerate(frequency_dfs):
+        heatmap_data.loc[rep_i] = [0.0] * frequency_df.shape[0]  # Initialize with zeros
+
+    # Add the editing frequencies to the heatmap input dataframe
+    for index, _ in frequency_dfs[0].iterrows():
+        position = frequency_dfs[0].loc[index]['Position']
+        for rep_i, frequency_df in enumerate(frequency_dfs):
+            heatmap_data.at[rep_i, position] = frequency_df.loc[index]['Frequency']
+
+    # Prepare annotations (only show greater than 5% editing)
+    new_annot = heatmap_data.copy()
+    new_annot[new_annot <= 5] = ""
+
+    # Custom function to format numbers to ".2f" and leave strings unchanged
+    def format_numbers(val):
+        if isinstance(val, (int, float)):
+            return f'{val:.1f}%'
+        return val
+
+    # Apply the custom function to each element in the DataFrame
+    new_annot = new_annot.applymap(format_numbers)
+
+    # Plot the heatmap using seaborn
+    plt.figure(figsize=(35, 1.5))
+    heatmap = sns.heatmap(heatmap_data, cmap='Reds', annot=new_annot, fmt='', cbar=True, vmin=0, vmax=100,
+                          linecolor='grey', linewidths=1, cbar_kws={"shrink": 0.7, "pad": 0.01} )
+    plt.xlabel('Position')
+    plt.ylabel('Replicate')
+    plt.title('Editing Frequencies Heatmap')
+
+    # Set reference bases as labels
+    bold_font = FontProperties(weight='bold')
+    heatmap.set_xticklabels(frequency_df["Ref"], fontproperties=bold_font)
+    heatmap.tick_params(axis='x', labelsize=16)
+
+    heatmap.set_yticklabels(heatmap.get_yticklabels(), rotation=0)
+
+    rect = Rectangle((protospacer_start_coordinate, 0.00), protospacer_size, 1, fill=False, edgecolor='black', linewidth=3)
+
+    heatmap.add_patch(rect)
+    sns.despine()
+    plt.title(title)
+    plt.show()
+
+def plot_lfc_scatter_plot(anndata: ad.AnnData, 
+                          reference_sequence_dict: Dict[str, Seq],
+                          groupby_columns_list: List[str], 
+                          enriched_population_label: str, 
+                          baseline_population_label: str, 
+                          population_column_name:str, 
+                          count_size_population_label: Optional[str] = None,
+                          guide_type_column_name:str = "type",
+                          guide_targeting_type_label: str = "targeting",
+                          is_igRNA_column_name: Optional[str] = "is_igRNA", 
+                          strand_column_name: Optional[str] = "strand", 
+                          coordinate_column_name: str = "coordinate", # Set to hg38_editsite_coordinate
+                          chromosome_column_name: str = "chromosome",
+                          score_layer_name: str ="lfc",
+                          count_size_max_threshold: int = 300,
+                          figure_width: int = 100,
+                          figure_height: int = 6,
+                          count_to_scale_factor: int = 0.5
+                          ):
+    for group in anndata.obs.groupby(groupby_columns_list):
+        enriched_pop_sample_df = group[1][group[1][population_column_name] == enriched_population_label]
+        assert enriched_pop_sample_df.shape[0] == 1, f"Multiple samples matching enriched condition in group {group[1]}"
+        enriched_pop_sample = enriched_pop_sample_df
+        
+        baseline_pop_sample_df = group[1][group[1][population_column_name] == baseline_population_label]
+        assert baseline_pop_sample_df.shape[0] == 1, f"Multiple samples matching enriched condition in group {group[1]}"
+        baseline_pop_sample = baseline_pop_sample_df
+
+        if count_size_population_label is not None:
+            count_size_pop_sample_df = group[1][group[1][population_column_name] == count_size_population_label]
+            assert count_size_pop_sample_df.shape[0] == 1, f"Multiple samples matching condition to calculate count size in group {group[1]}"
+            count_size_pop_sample = count_size_pop_sample_df
+        
+        enriched_anndata = anndata[enriched_pop_sample.index, :] # DEVELOPER NOTE: Will thow error of indices of samples are changed from ints
+        baseline_anndata = anndata[baseline_pop_sample.index, :] # DEVELOPER NOTE: Will thow error of indices of samples are changed from ints
+        if count_size_population_label is not None:
+            count_size_anndata = anndata[count_size_pop_sample.index, :] # DEVELOPER NOTE: Will thow error of indices of samples are changed from ints
+        
+        
+        enriched_targeting_anndata = enriched_anndata[:, enriched_anndata.var[guide_type_column_name] == guide_targeting_type_label]
+        baseline_targeting_anndata = baseline_anndata[:, baseline_anndata.var[guide_type_column_name] == guide_targeting_type_label]
+        if count_size_population_label is not None:
+            count_size_targeting_anndata = count_size_anndata[:, count_size_anndata.var[guide_type_column_name] == guide_targeting_type_label]
+
+        # Get igRNAs and pgRNtargeting_anndataAs separately
+        is_igRNA = None
+        is_pgRNA = None
+        if is_igRNA_column_name is not None:
+            is_igRNA = enriched_targeting_anndata.var[is_igRNA_column_name]
+            is_pgRNA = ~is_igRNA
+        else:
+            # If igRNA not provided, set all guides as pgRNA by default
+            is_igRNA = pd.Series([False] * len(enriched_targeting_anndata), index=enriched_targeting_anndata.index)
+            is_pgRNA = pd.Series([True] * len(enriched_targeting_anndata), index=enriched_targeting_anndata.index)
+
+        positive_strand = None
+        negative_strand = None
+        if strand_column_name is not None:
+            positive_strand = enriched_targeting_anndata.var[strand_column_name] == "+"
+            negative_strand = ~positive_strand
+        else:
+            # If strand not provided, set all guides as positive strand by default
+            negative_strand = pd.Series([False] * len(enriched_targeting_anndata), index=enriched_targeting_anndata.index)
+            positive_strand = pd.Series([True] * len(enriched_targeting_anndata), index=enriched_targeting_anndata.index)
+
+        # Get the guide coordinates
+        coordinates = enriched_targeting_anndata.var[coordinate_column_name]
+
+        chromosome = enriched_targeting_anndata.var[chromosome_column_name][0]
+        ids_pgRNA = enriched_targeting_anndata[:, is_pgRNA].var.index
+        positive_strand_pgRNA = positive_strand[is_pgRNA] 
+
+        coordinates_pgRNA = coordinates[is_pgRNA.values]
+        scores_pgRNA = enriched_targeting_anndata[:, is_pgRNA].layers[score_layer_name].mean(axis=0).flatten()
+        if count_size_population_label is not None:
+            counts_pgRNA = count_size_targeting_anndata[:, is_pgRNA].X[0]
+        else:
+            counts_pgRNA = enriched_targeting_anndata[:, is_pgRNA].X[0] + baseline_targeting_anndata[:, is_pgRNA].X[0]
+        counts_pgRNA[counts_pgRNA>count_size_max_threshold] = count_size_max_threshold
+
+        coordinates_igRNA = coordinates[is_igRNA]
+        ids_igRNA = enriched_targeting_anndata[:, is_igRNA].var.index
+        scores_igRNA = enriched_targeting_anndata[:, is_igRNA].layers[score_layer_name].mean(axis=0).flatten()
+        if count_size_population_label is not None:
+            counts_pgRNA = count_size_targeting_anndata[:, is_igRNA].X[0]
+        else:
+            counts_igRNA = enriched_targeting_anndata[:, is_igRNA].X[0] + baseline_targeting_anndata[:, is_igRNA].X[0]
+        counts_igRNA[counts_igRNA>count_size_max_threshold] = count_size_max_threshold
+        
+        positive_strand_igRNA = positive_strand[is_igRNA] 
+
+        fig, axes = plt.subplots(1, 1, figsize=(figure_width, figure_height), sharex=True)
+        edge_colors = ['black', 'orange']
+        
+        scatter = axes.scatter(coordinates_pgRNA, scores_pgRNA, alpha=0.7, c="blue", edgecolors=np.where(positive_strand_pgRNA, edge_colors[0], edge_colors[1]), label="pgRNA", s=counts_pgRNA*count_to_scale_factor)
+        if is_igRNA_column_name is not None:
+            axes.scatter(coordinates_igRNA, scores_igRNA, alpha=0.3, c="black", edgecolors=np.where(positive_strand_pgRNA, edge_colors[0], edge_colors[1]), label="igRNA", s=counts_igRNA*count_to_scale_factor)
+
+        ylim = axes.get_ylim()
+        axes.set_ylim(ylim[0], ylim[1]+1)
+        xlim = axes.get_xlim()
+        for coordinate in range(int(xlim[0])+2,int(xlim[1])-1):
+            axes.text(coordinate-1, ylim[0]+0.1, reference_sequence_dict[chromosome][coordinate], fontsize=10, alpha=1)
+
+        # Create legends for point sizes, edge colors, and dot colors
+        if is_igRNA_column_name is not None:
+            dotcolor_legend = axes.legend(title="Type", loc="upper right")
+            plt.gca().add_artist(dotcolor_legend)
+        if strand_column_name:
+            edgecolor_patches = [mpatches.Patch(color=color, label=["+", "-"][i]) for i, color in enumerate(edge_colors)]
+            edgecolor_legend = plt.legend(handles=edgecolor_patches, title="Strand (Edge Color)", loc="upper right", bbox_to_anchor=(1.0, 0.83))
+            plt.gca().add_artist(edgecolor_legend)
+
+        if count_size_population_label is not None:
+            size_title = f"{count_size_population_label} Count"
+        else:
+            size_title = "Total Count"
+        size_legend = plt.legend(*scatter.legend_elements(prop="sizes", num=5, func=lambda x: x * 1/count_to_scale_factor), title=size_title, loc="upper right", bbox_to_anchor=(1.0, 0.65))
+        plt.gca().add_artist(size_legend)
+        
+        fig.suptitle("_".join([str(term) for term in group[0]]))
+        plt.show() 
+
 
 def plot_mutation_count_histogram(mutation_counter, title="Bar Plot of Counts Sorted by Index", filename: Optional[str] = None):
     fig, ax = plt.subplots(1, figsize=(5, 5))
