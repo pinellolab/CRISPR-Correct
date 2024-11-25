@@ -13,7 +13,7 @@ def initialize_anndata(sample_info_df: pd.DataFrame,
     if count_df is None:
         if count_series_list is not None:
             count_df = pd.DataFrame(count_series_list).transpose()
-            count_df.columns = count_df.index
+            count_df.columns = sample_info_df.index
         else:
             raise Exception("Must provide processed count_df or unprocessed count_series_list")
     
