@@ -73,6 +73,7 @@ def plot_editing_frequency_heatmap(replicate_scores, protospacer_start_coordinat
 def plot_lfc_scatter_plot(anndata: ad.AnnData, 
                           reference_sequence_dict: Dict[str, Seq],
                           groupby_columns_list: List[str], 
+                          replicate_column: Optional[str],
                           enriched_population_label: str, 
                           baseline_population_label: str, 
                           population_column_name:str, 
@@ -88,6 +89,7 @@ def plot_lfc_scatter_plot(anndata: ad.AnnData,
                           figure_width: int = 100,
                           figure_height: int = 6,
                           count_to_scale_factor: int = 0.5,
+                          xlim_input: Optional[Tuple[int, int]] = None,
                           perform_assertion: bool = True
                           ):
     for group in anndata.obs.groupby(groupby_columns_list):
@@ -171,7 +173,10 @@ def plot_lfc_scatter_plot(anndata: ad.AnnData,
         scatter = axes.scatter(coordinates_pgRNA, scores_pgRNA, alpha=0.7, c="blue", edgecolors=np.where(positive_strand_pgRNA, edge_colors[0], edge_colors[1]), label="pgRNA", s=counts_pgRNA*count_to_scale_factor)
         if is_igRNA_column_name is not None:
             axes.scatter(coordinates_igRNA, scores_igRNA, alpha=0.3, c="black", edgecolors=np.where(positive_strand_pgRNA, edge_colors[0], edge_colors[1]), label="igRNA", s=counts_igRNA*count_to_scale_factor)
-
+        
+        
+        if xlim_input:
+            axes.set_xlim(xlim_input[0], xlim_input[1])
         ylim = axes.get_ylim()
         axes.set_ylim(ylim[0], ylim[1]+1)
         xlim = axes.get_xlim()
