@@ -55,8 +55,11 @@ def get_whitelist_reporter_counts_with_umi(observed_guide_reporter_umi_counts: G
     # ENCODE THE WHITELISTED SEQUENCES INTO NUMPY MATRICES - THIS IS REQUIRED FOR HAMMING-BASED MAPPING
     #
     encoded_whitelist_protospacer_sequences_series = crispr_sequence_encoding.encode_guide_series(padded_whitelist_guide_reporter_df["protospacer"])
+    encoded_whitelist_surrogate_sequences_series = None
     if contains_surrogate:
         encoded_whitelist_surrogate_sequences_series = crispr_sequence_encoding.encode_guide_series(padded_whitelist_guide_reporter_df["surrogate"])
+    
+    encoded_whitelist_barcode_sequences_series = None
     if contains_barcode:
         encoded_whitelist_barcode_sequences_series = crispr_sequence_encoding.encode_guide_series(padded_whitelist_guide_reporter_df["barcode"])
 
@@ -68,38 +71,35 @@ def get_whitelist_reporter_counts_with_umi(observed_guide_reporter_umi_counts: G
     #
     # NOTE: Could there be an even more dynamic threshold, that certain mapped guides can have a higher threshold (i.e. those with many editable bases) and other guides can have low hamming (i.e. those with not many editable bases)
     protospacer_hamming_threshold_dynamic = False
+    protospacer_hamming_threshold: int = protospacer_hamming_threshold_strict
     if protospacer_hamming_threshold_strict is None:
         protospacer_hamming_threshold_dynamic = True
         # TODO: Pass in arguments to set this hamming threshold. 
         protospacer_hamming_threshold: int = crispr_guide_inference.determine_hamming_threshold(whitelist_guide_reporter_df["protospacer"], encoded_whitelist_protospacer_sequences_series, sample_count = 100, quantile = 0.05)
-    else:
-        protospacer_hamming_threshold: int = protospacer_hamming_threshold_strict
+        
     print("Protospacer hamming threshold is " + str(protospacer_hamming_threshold))
 
     #
     #   SET THE SURROGATE HAMMING THRESHOLD
     #
+    surrogate_hamming_threshold: Optional[int] = surrogate_hamming_threshold_strict
     if contains_surrogate:
         surrogate_hamming_threshold_dynamic = False
         if surrogate_hamming_threshold_strict is None:
             surrogate_hamming_threshold_dynamic = True
             # TODO: Pass in arguments to set this hamming threshold. 
             surrogate_hamming_threshold: int = crispr_guide_inference.determine_hamming_threshold(whitelist_guide_reporter_df["surrogate"], encoded_whitelist_surrogate_sequences_series, sample_count = 100, quantile = 0.05)
-            
-        else:
-            surrogate_hamming_threshold: int = surrogate_hamming_threshold_strict
         print("Surrogate hamming threshold is " + str(surrogate_hamming_threshold))
 
     #
     #   SET THE BARCODE HAMMING THRESHOLD
     #
+    barcode_hamming_threshold: Optional[int] = barcode_hamming_threshold_strict
     if contains_barcode:
         barcode_hamming_threshold_dynamic = False
         if barcode_hamming_threshold_strict is  None:
             barcode_hamming_threshold_dynamic = True
             barcode_hamming_threshold: int = crispr_guide_inference.determine_hamming_threshold(whitelist_guide_reporter_df["barcode"], encoded_whitelist_barcode_sequences_series, sample_count = 100, quantile = 0.05)
-        else:
-            barcode_hamming_threshold: int = barcode_hamming_threshold_strict
         print("Barcode hamming threshold is " + str(barcode_hamming_threshold))
 
 
@@ -171,8 +171,8 @@ def get_whitelist_reporter_counts_with_umi(observed_guide_reporter_umi_counts: G
             contains_surrogate=contains_surrogate,
             contains_barcode=contains_barcode,
             contains_umi=contains_umi,
-            protospacer_hamming_threshold_strict=protospacer_hamming_threshold_strict,
-            surrogate_hamming_threshold_strict=surrogate_hamming_threshold_strict,
-            barcode_hamming_threshold_strict=barcode_hamming_threshold_strict)
+            protospacer_hamming_threshold_strict=protospacer_hamming_threshold,
+            surrogate_hamming_threshold_strict=surrogate_hamming_threshold,
+            barcode_hamming_threshold_strict=barcode_hamming_threshold)
     
     return WhitelistReporterCountsResult(all_match_set_whitelist_reporter_counter_series_results=all_match_set_whitelist_reporter_counter_series_results, observed_guide_reporter_umi_counts_inferred=observed_guide_reporter_umi_counts_inferred, quality_control_result=quality_control_result, count_input=count_input)

@@ -30,7 +30,7 @@ from ..models.error_models import (GuideCountErrorType,
 
 
 @typechecked
-def infer_whitelist_sequence(observed_guide_reporter_sequence_input: Tuple[str, Optional[str], Optional[str]], 
+def infer_whitelist_sequence(observed_guide_reporter_sequence_input: Union[str, Tuple[str], Tuple[str, str], Tuple[str,str, str]], 
         whitelist_guide_reporter_df: pd.DataFrame, 
         contains_surrogate:bool, 
         contains_barcode:bool, 
@@ -39,8 +39,8 @@ def infer_whitelist_sequence(observed_guide_reporter_sequence_input: Tuple[str, 
         encoded_whitelist_surrogate_sequences_series: Optional[np.ndarray] = None, 
         encoded_whitelist_barcode_sequences_series: Optional[np.ndarray] = None, 
         protospacer_hamming_threshold: int = 7, 
-        surrogate_hamming_threshold: int = 10, 
-        barcode_hamming_threshold: int = 2):
+        surrogate_hamming_threshold: Optional[int] = 10, 
+        barcode_hamming_threshold: Optional[int] = 2):
 
     #
     #   FORMAT OBSERVED SEQUENCES AS PANDAS SERIES

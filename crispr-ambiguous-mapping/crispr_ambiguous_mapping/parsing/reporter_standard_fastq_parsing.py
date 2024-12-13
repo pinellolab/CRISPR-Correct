@@ -219,15 +219,18 @@ def get_standard_observed_sequence_counts(  fastq_r1_fn: str,
     
     def parse_fastq(fastq_r1_filehandler, fastq_r2_filehandler):
         if fastq_r2_fn is None: # ONLY R1
+            print("Only R1 FASTQ is provided, R2 NOT provided")
             fastq_single_read_grouper = grouper(fastq_r1_filehandler)
             if not contains_barcode: # ONLY R1; NO BARCODE
                 if not contains_umi: # ONLY R1; NO BARCODE; NO UMI
                     if not contains_surrogate:
+                        print(f"Performing protospacer-only parsing using function: {get_protospacer_from_read_group_partial}")
                         sequence_counter: ProtospacerCounter = Counter()
                         for fastq_single_read_group in fastq_single_read_grouper:
                             protospacer = get_protospacer_from_read_group_partial(fastq_read_group=fastq_single_read_group, includes_r2=False)
-                            sequence_counter[protospacer] += 1
+                            sequence_counter[(protospacer,)] += 1
                     else:
+                        print(f"Performing protospacer+surrrogate parsing using protospacer function: {get_protospacer_from_read_group_partial} \nsurrogate function: {get_surrogate_from_read_group_partial}")
                         sequence_counter: ProtospacerSurrogateCounter = Counter()
                         for fastq_single_read_group in fastq_single_read_grouper:
                             protospacer = get_protospacer_from_read_group_partial(fastq_read_group=fastq_single_read_group, includes_r2=False)
@@ -236,12 +239,14 @@ def get_standard_observed_sequence_counts(  fastq_r1_fn: str,
 
                 else: # ONLY R1; NO BARCODE; YES UMI
                     if not contains_surrogate:
+                        print(f"Performing protospacer+UMI parsing using protospacer function: {get_protospacer_from_read_group_partial} \nUMI function: {get_umi_from_read_group_partial}")
                         sequence_counter: ProtospacerDictUMICounter = defaultdict(Counter)
                         for fastq_single_read_group in fastq_single_read_grouper:
                             protospacer = get_protospacer_from_read_group_partial(fastq_read_group=fastq_single_read_group, includes_r2=False)
                             umi = get_umi_from_read_group_partial(fastq_read_group=fastq_single_read_group, includes_r2=False)
-                            sequence_counter[protospacer][umi] += 1
+                            sequence_counter[(protospacer,)][umi] += 1
                     else:
+                        print(f"Performing protospacer+surrogate+UMI parsing using protospacer function: {get_protospacer_from_read_group_partial} \nsurrogate function: {get_surrogate_from_read_group_partial} \nUMI function: {get_umi_from_read_group_partial}")
                         sequence_counter: ProtospacerSurrogateDictUMICounter = defaultdict(Counter)
                         for fastq_single_read_group in fastq_single_read_grouper:
                             protospacer = get_protospacer_from_read_group_partial(fastq_read_group=fastq_single_read_group, includes_r2=False)
@@ -251,12 +256,14 @@ def get_standard_observed_sequence_counts(  fastq_r1_fn: str,
             else: # ONLY R1; YES BARCODE
                 if not contains_umi: # ONLY R1; YES BARCODE; NO UMI
                     if not contains_surrogate:
+                        print(f"Performing protospacer+barcode parsing using protospacer function: {get_protospacer_from_read_group_partial} \nbarcode function: {get_barcode_from_read_group_partial}")
                         sequence_counter: ProtospacerBarcodeCounter = Counter()
                         for fastq_single_read_group in fastq_single_read_grouper:
                             protospacer = get_protospacer_from_read_group_partial(fastq_read_group=fastq_single_read_group, includes_r2=False)
                             barcode = get_barcode_from_read_group_partial(fastq_read_group=fastq_single_read_group, includes_r2=False)
                             sequence_counter[(protospacer, barcode)] += 1
                     else:
+                        print(f"Performing protospacer+surrogate+barcode parsing using protospacer function: {get_protospacer_from_read_group_partial} \nsurrogate function: {get_surrogate_from_read_group_partial} \nbarcode function: {get_barcode_from_read_group_partial}")
                         sequence_counter: ProtospacerSurrogateBarcodeCounter = Counter()
                         for fastq_single_read_group in fastq_single_read_grouper:
                             protospacer = get_protospacer_from_read_group_partial(fastq_read_group=fastq_single_read_group, includes_r2=False)
@@ -265,6 +272,7 @@ def get_standard_observed_sequence_counts(  fastq_r1_fn: str,
                             sequence_counter[(protospacer, surrogate, barcode)] += 1
                 else: # ONLY R1; YES BARCODE; YES UMI
                     if not contains_surrogate:
+                        print(f"Performing protospacer+barcode+UMI parsing using protospacer function: {get_protospacer_from_read_group_partial} \nbarcode function: {get_barcode_from_read_group_partial} \nUMI function: {get_umi_from_read_group_partial}")
                         sequence_counter: ProtospacerBarcodeDictUMICounter = defaultdict(Counter)
                         for fastq_single_read_group in fastq_single_read_grouper:
                             protospacer = get_protospacer_from_read_group_partial(fastq_read_group=fastq_single_read_group, includes_r2=False)
@@ -272,6 +280,7 @@ def get_standard_observed_sequence_counts(  fastq_r1_fn: str,
                             umi = get_umi_from_read_group_partial(fastq_read_group=fastq_single_read_group, includes_r2=False)
                             sequence_counter[(barcode, protospacer)][umi] += 1
                     else:
+                        print(f"Performing protospacer+surrogate+barcode+UMI parsing using protospacer function: {get_protospacer_from_read_group_partial} \nsurrogate function: {get_surrogate_from_read_group_partial} \nbarcode function: {get_barcode_from_read_group_partial} \nUMI function: {get_umi_from_read_group_partial}")
                         sequence_counter: ProtospacerSurrogateBarcodeDictUMICounter = defaultdict(Counter)
                         for fastq_single_read_group in fastq_single_read_grouper:
                             protospacer = get_protospacer_from_read_group_partial(fastq_read_group=fastq_single_read_group, includes_r2=False)
@@ -280,16 +289,18 @@ def get_standard_observed_sequence_counts(  fastq_r1_fn: str,
                             umi = get_umi_from_read_group_partial(fastq_read_group=fastq_single_read_group, includes_r2=False)
                             sequence_counter[(barcode, surrogate, protospacer)][umi] += 1
         else: # YES R2
+            print("Both R1 FASTQ and R2 FASTQ is provided")
             fastq_paired_read_grouper = grouper(zip(fastq_r1_filehandler, fastq_r2_filehandler))
             if not contains_barcode: # YES R2; NO BARCODE
                 if not contains_umi: # YES R2; NO BARCODE; NO UMI
                     if not contains_surrogate:
+                        print(f"Performing protospacer-only parsing using function: {get_protospacer_from_read_group_partial}")
                         sequence_counter: ProtospacerCounter = Counter()
                         for fastq_paired_read_group in fastq_paired_read_grouper:
                             protospacer = get_protospacer_from_read_group_partial(fastq_read_group=fastq_paired_read_group, includes_r2=True)
-                            if contains_surrogate:
-                                sequence_counter[protospacer] += 1
+                            sequence_counter[(protospacer,)] += 1
                     else:
+                        print(f"Performing protospacer+surrrogate parsing using protospacer function: {get_protospacer_from_read_group_partial} \nsurrogate function: {get_surrogate_from_read_group_partial}")
                         sequence_counter: ProtospacerSurrogateCounter = Counter()
                         for fastq_paired_read_group in fastq_paired_read_grouper:
                             protospacer = get_protospacer_from_read_group_partial(fastq_read_group=fastq_paired_read_group, includes_r2=True)
@@ -297,12 +308,14 @@ def get_standard_observed_sequence_counts(  fastq_r1_fn: str,
                             sequence_counter[(protospacer, surrogate)] += 1
                 else: # YES R2; NO BARCODE; YES UMI
                     if not contains_surrogate:
+                        print(f"Performing protospacer+UMI parsing using protospacer function: {get_protospacer_from_read_group_partial} \nUMI function: {get_umi_from_read_group_partial}")
                         sequence_counter: ProtospacerDictUMICounter = defaultdict(Counter)
                         for fastq_paired_read_group in fastq_paired_read_grouper:
                             protospacer = get_protospacer_from_read_group_partial(fastq_read_group=fastq_paired_read_group, includes_r2=True)
                             umi = get_umi_from_read_group_partial(fastq_read_group=fastq_paired_read_group, includes_r2=True)
-                            sequence_counter[protospacer][umi] += 1
+                            sequence_counter[(protospacer,)][umi] += 1
                     else:
+                        print(f"Performing protospacer+surrogate+UMI parsing using protospacer function: {get_protospacer_from_read_group_partial} \nsurrogate function: {get_surrogate_from_read_group_partial} \nUMI function: {get_umi_from_read_group_partial}")
                         sequence_counter: ProtospacerSurrogateDictUMICounter = defaultdict(Counter)
                         for fastq_paired_read_group in fastq_paired_read_grouper:
                             protospacer = get_protospacer_from_read_group_partial(fastq_read_group=fastq_paired_read_group, includes_r2=True)
@@ -313,12 +326,14 @@ def get_standard_observed_sequence_counts(  fastq_r1_fn: str,
             else: # YES R2; YES BARCODE
                 if umi_pattern_regex is None: # YES R2; YES BARCODE; NO UMI
                     if not contains_surrogate:
+                        print(f"Performing protospacer+barcode parsing using protospacer function: {get_protospacer_from_read_group_partial} \nbarcode function: {get_barcode_from_read_group_partial}")
                         sequence_counter: ProtospacerSurrogateBarcodeCounter = Counter()
                         for fastq_paired_read_group in fastq_paired_read_grouper:
                             protospacer = get_protospacer_from_read_group_partial(fastq_read_group=fastq_paired_read_group, includes_r2=True)
                             barcode = get_barcode_from_read_group_partial(fastq_read_group=fastq_paired_read_group, includes_r2=True)
                             sequence_counter[(protospacer, barcode)] += 1
                     else:
+                        print(f"Performing protospacer+surrogate+barcode parsing using protospacer function: {get_protospacer_from_read_group_partial} \nsurrogate function: {get_surrogate_from_read_group_partial} \nbarcode function: {get_barcode_from_read_group_partial}")
                         sequence_counter: ProtospacerSurrogateBarcodeCounter = Counter()
                         for fastq_paired_read_group in fastq_paired_read_grouper:
                             protospacer = get_protospacer_from_read_group_partial(fastq_read_group=fastq_paired_read_group, includes_r2=True)
@@ -327,6 +342,7 @@ def get_standard_observed_sequence_counts(  fastq_r1_fn: str,
                             sequence_counter[(protospacer, surrogate, barcode)] += 1
                 else: # YES R2; YES BARCODE; YES UMI
                     if not contains_surrogate:
+                        print(f"Performing protospacer+barcode+UMI parsing using protospacer function: {get_protospacer_from_read_group_partial} \nbarcode function: {get_barcode_from_read_group_partial} \nUMI function: {get_umi_from_read_group_partial}")
                         sequence_counter: ProtospacerSurrogateBarcodeDictUMICounter = defaultdict(Counter)
                         for fastq_paired_read_group in fastq_paired_read_grouper:
                             protospacer = get_protospacer_from_read_group_partial(fastq_read_group=fastq_paired_read_group, includes_r2=True)
@@ -334,6 +350,7 @@ def get_standard_observed_sequence_counts(  fastq_r1_fn: str,
                             umi = get_umi_from_read_group_partial(fastq_read_group=fastq_paired_read_group, includes_r2=True)
                             sequence_counter[(protospacer, barcode)][umi] += 1
                     else:
+                        print(f"Performing protospacer+surrogate+barcode+UMI parsing using protospacer function: {get_protospacer_from_read_group_partial} \nsurrogate function: {get_surrogate_from_read_group_partial} \nbarcode function: {get_barcode_from_read_group_partial} \nUMI function: {get_umi_from_read_group_partial}")
                         sequence_counter: ProtospacerSurrogateBarcodeDictUMICounter = defaultdict(Counter)
                         for fastq_paired_read_group in fastq_paired_read_grouper:
                             protospacer = get_protospacer_from_read_group_partial(fastq_read_group=fastq_paired_read_group, includes_r2=True)
@@ -363,8 +380,8 @@ def get_standard_observed_sequence_counts(  fastq_r1_fn: str,
             print(f"Opening FASTQ file, filename={fastq_r2_fn}")
             fastq_r2_filehandler = open(fastq_r2_fn, "r")
     after_file_loading_time = datetime.now()
-    print(f"{(after_file_loading_time-before_file_loading_time).seconds} seconds for file loading")
 
+    print(f"{(after_file_loading_time-before_file_loading_time).seconds} seconds for file loading")
     sequence_counter = parse_fastq(fastq_r1_filehandler, fastq_r2_filehandler)
     after_parsing_time = datetime.now()
     print(f"{(after_parsing_time-after_file_loading_time).seconds} seconds for parsing")

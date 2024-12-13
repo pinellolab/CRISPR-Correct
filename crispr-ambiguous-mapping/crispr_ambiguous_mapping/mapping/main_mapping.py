@@ -156,7 +156,9 @@ def get_whitelist_reporter_counts_from_fastq(whitelist_guide_reporter_df: pd.Dat
     contains_barcode = (barcode_pattern_regex is not None) or (barcode_left_flank is not None) or (barcode_right_flank is not None) or (barcode_start_position is not None) or (barcode_end_position is not None) or (barcode_length is not None)
     contains_umi = (umi_pattern_regex is not None) or (umi_left_flank is not None) or (umi_right_flank is not None) or (umi_start_position is not None) or (barcode_end_position is not None) or (barcode_length is not None)
     
-
+    print(f"Contains surrogate: {contains_surrogate}")
+    print(f"Contains barcode: {contains_barcode}")
+    print(f"Contains UMI: {contains_umi}")
     #
     # Get counts of observed FASTQ sequences
     #
@@ -209,6 +211,8 @@ def get_whitelist_reporter_counts_from_fastq(whitelist_guide_reporter_df: pd.Dat
                                             contains_surrogate=contains_surrogate,
                                             contains_barcode=contains_barcode,
                                             contains_umi=contains_umi)
+
+    print(f"Number of unique observed parsed sequences: {len(observed_guide_reporter_umi_counts.keys())}")
 
     #   
     # Map the observed sequences to the true whitelist sequence
