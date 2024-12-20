@@ -32,7 +32,7 @@ from ..models.mapping_models import WhitelistReporterCountsResult, InferenceResu
 # TODO: There will probably be some type errors with the DefaultDict when testing on non UMI (since it requires CounterType), so make sure to test with different variations of inputs
 @typechecked
 def get_whitelist_reporter_counts_with_umi(observed_guide_reporter_umi_counts: GeneralGuideCountType, 
-                                           whitelist_guide_reporter_df: pd.DataFrame, 
+                                           whitelist_guide_reporter_df: Optional[pd.DataFrame], 
                                            contains_surrogate:bool = False, 
                                            contains_barcode:bool = False, 
                                            contains_umi:bool = False, 
@@ -40,6 +40,20 @@ def get_whitelist_reporter_counts_with_umi(observed_guide_reporter_umi_counts: G
                                            surrogate_hamming_threshold_strict: Optional[int] = 2, 
                                            barcode_hamming_threshold_strict: Optional[int] = 2, cores: int=1) -> WhitelistReporterCountsResult:
     
+    if whitelist_guide_reporter_df is None:
+        whitelist_dataframe_input = {}
+        whitelist_dataframe_input["protospacer"] = [observed_sequence_tuple[0] for observed_sequence_tuple in observed_guide_reporter_umi_counts.keys()] # protospacer always in 0th index
+        if contains_surrogate:
+            whitelist_dataframe_input["surrogate"] = [observed_sequence_tuple[1] for observed_sequence_tuple in observed_guide_reporter_umi_counts.keys()] # surrogate always in 1st index
+            if contains_barcode:
+                whitelist_dataframe_input["barcode"] = [observed_sequence_tuple[2] for observed_sequence_tuple in observed_guide_reporter_umi_counts.keys()] # barcode in 2nd index if surrogate provided
+        else:
+            if contains_barcode:
+                whitelist_dataframe_input["barcode"] = [observed_sequence_tuple[1] for observed_sequence_tuple in observed_guide_reporter_umi_counts.keys()] # barcode in 1st index if surrogate not provided
+
+        whitelist_guide_reporter_df = pd.DataFrame(whitelist_dataframe_input)
+
+
     # Strip all sequences:
     def strip_series(series):
         return series.apply(lambda item : item.rstrip())

@@ -94,7 +94,7 @@ def get_whitelist_reporter_counts_from_umitools_output(whitelist_guide_reporter_
 
 # TODO 11/20/2024: Implement UMI parsing via sequence or via R1 header
 #@typechecked
-def get_whitelist_reporter_counts_from_fastq(whitelist_guide_reporter_df: pd.DataFrame, 
+def get_whitelist_reporter_counts_from_fastq(whitelist_guide_reporter_df: Optional[pd.DataFrame], 
                                                        fastq_r1_fn: str, 
                                                        fastq_r2_fn: Optional[str] = None, 
                                                        
@@ -156,6 +156,20 @@ def get_whitelist_reporter_counts_from_fastq(whitelist_guide_reporter_df: pd.Dat
     contains_barcode = (barcode_pattern_regex is not None) or (barcode_left_flank is not None) or (barcode_right_flank is not None) or (barcode_start_position is not None) or (barcode_end_position is not None) or (barcode_length is not None)
     contains_umi = (umi_pattern_regex is not None) or (umi_left_flank is not None) or (umi_right_flank is not None) or (umi_start_position is not None) or (barcode_end_position is not None) or (barcode_length is not None)
     
+    def preprocess_sequence(sequence):
+        if sequence is not None:
+            sequence = sequence.upper().rstrip()
+        return sequence
+    
+    protospacer_left_flank = preprocess_sequence(protospacer_left_flank)
+    protospacer_right_flank = preprocess_sequence(protospacer_right_flank)
+    surrogate_left_flank = preprocess_sequence(surrogate_left_flank)
+    surrogate_right_flank = preprocess_sequence(surrogate_right_flank)
+    barcode_left_flank = preprocess_sequence(barcode_left_flank)
+    barcode_right_flank = preprocess_sequence(barcode_right_flank)
+    umi_left_flank = preprocess_sequence(umi_left_flank)
+    umi_right_flank = preprocess_sequence(umi_right_flank)
+
     print(f"Contains surrogate: {contains_surrogate}")
     print(f"Contains barcode: {contains_barcode}")
     print(f"Contains UMI: {contains_umi}")
