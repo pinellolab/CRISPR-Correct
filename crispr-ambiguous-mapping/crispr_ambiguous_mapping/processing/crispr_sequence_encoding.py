@@ -10,6 +10,7 @@ non_ambigious_encoding_dict = dict({
     "G": np.asarray([0,0,1,0]),
     "T": np.asarray([0,0,0,1]),
     "U": np.asarray([0,0,0,1]),
+    "-": np.asarray([9999,9999,9999,9999]), # NOTE: This representes a deletion token
     "X": np.asarray([9999,9999,9999,9999]) # NOTE: This represents a padding token for sequences. Set to some high number, so that the calculated hamming distance is very high and won't be selected (which will happen if the observed sequence is greater than the whitelist sequence)
 })
 
@@ -27,7 +28,8 @@ full_encoding_dict = dict({
     "C": non_ambigious_encoding_dict["C"],
     "G": non_ambigious_encoding_dict["G"],
     "T": non_ambigious_encoding_dict["T"], 
-    "X": non_ambigious_encoding_dict["X"], # NOTE: This represents a padding token for sequences 
+    "X": non_ambigious_encoding_dict["X"], # NOTE: This represents a padding token for sequences
+    "-": non_ambigious_encoding_dict["-"], # NOTE: This represents a padding token for sequences 
     "R": ambiguity_encoder(["A", "G"]),
     "Y": ambiguity_encoder(["C", "T"]),
     "S": ambiguity_encoder(["G", "C"]),
