@@ -25,10 +25,15 @@ def reconstruct_sequence_with_deletions_and_quality(read):
     return ''.join(sequence), qualities
 
 
-def bam2fastq_subsetcontig_reconstructindel(input_bam_fn, output_fastq_fn, contig_name):
+def bam2fastq_subsetcontig_reconstructindel(input_bam_fn, output_fastq_fn, contig_name = None):
     with pysam.AlignmentFile(input_bam_fn, "rb") as bam, open(output_fastq_fn, "w") as fastq:
         # Iterate through reads mapped to the specified contig
-        for read in bam.fetch(contig_name):
+        bam_iterator = None
+        if contig_name is None:
+            bam_iterator = bam
+        else:
+            bam_iterator = bam.fetch(contig_name)
+        for read in bam_iterator:
             # Skip unmapped reads
             if read.is_unmapped:
                 continue
