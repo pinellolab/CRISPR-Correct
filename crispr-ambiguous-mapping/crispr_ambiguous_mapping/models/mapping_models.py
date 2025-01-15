@@ -148,6 +148,10 @@ class MatchSetWhitelistReporterCounterSeriesResults:
     ambiguous_ignored_umi_collapsed_counterseries : Optional[pd.Series] = None
     ambiguous_ignored_counterseries : Optional[pd.Series] = None
 
+    ambiguous_given_ignored_umi_noncollapsed_counterseries : Optional[pd.Series] = None
+    ambiguous_given_ignored_umi_collapsed_counterseries : Optional[pd.Series] = None
+    ambiguous_given_ignored_counterseries : Optional[pd.Series] = None
+
     ambiguous_accepted_umi_noncollapsed_counterseries : Optional[pd.Series] = None
     ambiguous_accepted_umi_collapsed_counterseries : Optional[pd.Series] = None
     ambiguous_accepted_counterseries : Optional[pd.Series] = None

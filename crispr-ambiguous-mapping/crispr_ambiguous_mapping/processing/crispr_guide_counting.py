@@ -33,6 +33,7 @@ from ..models.mapping_models import WhitelistReporterCountsResult, InferenceResu
 @typechecked
 def get_whitelist_reporter_counts_with_umi(observed_guide_reporter_umi_counts: GeneralGuideCountType, 
                                            whitelist_guide_reporter_df: Optional[pd.DataFrame], 
+                                           ambiguity_ignored_guide_reporter_df: Optional[pd.DataFrame], 
                                            contains_surrogate:bool = False, 
                                            contains_barcode:bool = False, 
                                            contains_umi:bool = False, 
@@ -58,11 +59,13 @@ def get_whitelist_reporter_counts_with_umi(observed_guide_reporter_umi_counts: G
     def strip_series(series):
         return series.apply(lambda item : item.rstrip())
     whitelist_guide_reporter_df = whitelist_guide_reporter_df.apply(strip_series, axis=0)
+    if ambiguity_ignored_guide_reporter_df is not None:
+        ambiguity_ignored_guide_reporter_df = ambiguity_ignored_guide_reporter_df.apply(strip_series, axis=0)
 
     # Temporary bug fix. Pad sequences so they are all of same length - encoding numpy matrices requires consistent shape. Still pass the original guide table for selecting the matches.     
     def pad_series(series):
-        max_surrogate_len = series.apply(len).max()
-        return series.apply(lambda item: item.ljust(max_surrogate_len, 'X'))
+        max_len = series.apply(len).max()
+        return series.apply(lambda item: item.ljust(max_len, 'X'))
     padded_whitelist_guide_reporter_df = whitelist_guide_reporter_df.apply(pad_series, axis=0)
     
     #
@@ -170,7 +173,12 @@ def get_whitelist_reporter_counts_with_umi(observed_guide_reporter_umi_counts: G
     # GET THE MAPPED COUNT SERIES BASED ON THE INFERENCE RESULTS
     print("Prepare the processed count series ")
     # Count
-    all_match_set_whitelist_reporter_counter_series_results = get_counterseries_all_results(observed_guide_reporter_umi_counts_inferred, whitelist_guide_reporter_df, contains_barcode, contains_surrogate, contains_umi)
+    all_match_set_whitelist_reporter_counter_series_results = get_counterseries_all_results(observed_guide_reporter_umi_counts_inferred, 
+                                                                                            whitelist_guide_reporter_df, 
+                                                                                            ambiguity_ignored_guide_reporter_df,
+                                                                                            contains_barcode, 
+                                                                                            contains_surrogate, 
+                                                                                            contains_umi)
 
     after_counterseries_time = datetime.now()
     print(f"{(after_counterseries_time-after_inference_processing_time).seconds} seconds for counter series generation")

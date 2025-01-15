@@ -41,6 +41,11 @@ def get_whitelist_reporter_counts_from_umitools_output(whitelist_guide_reporter_
                                                        barcode_hamming_threshold_strict: Optional[int] = 2, 
                                                        protospacer_hamming_threshold_strict: Optional[int] = 7, 
                                                        cores: int=1) -> WhitelistReporterCountsResult:
+    """
+    @Deprecated - Use function get_whitelist_reporter_counts_from_fastq
+
+    """
+    print("\n\n\n\n\nTHIS FUNCTION IS DEPRECATED, use function get_whitelist_reporter_counts_from_fastq\n\n\n\n\n")
     #
     # Get counts of observed FASTQ sequences
     #
@@ -95,6 +100,7 @@ def get_whitelist_reporter_counts_from_umitools_output(whitelist_guide_reporter_
 # TODO 11/20/2024: Implement UMI parsing via sequence or via R1 header
 #@typechecked
 def get_whitelist_reporter_counts_from_fastq(whitelist_guide_reporter_df: Optional[pd.DataFrame], 
+                                                       ambiguity_ignored_guide_reporter_df: Optional[pd.DataFrame], 
                                                        fastq_r1_fn: str, 
                                                        fastq_r2_fn: Optional[str] = None, 
                                                        
@@ -235,6 +241,7 @@ def get_whitelist_reporter_counts_from_fastq(whitelist_guide_reporter_df: Option
         crispr_guide_counting.get_whitelist_reporter_counts_with_umi,
         observed_guide_reporter_umi_counts=observed_guide_reporter_umi_counts,
         whitelist_guide_reporter_df=whitelist_guide_reporter_df,
+        ambiguity_ignored_guide_reporter_df=ambiguity_ignored_guide_reporter_df,
         protospacer_hamming_threshold_strict=protospacer_hamming_threshold_strict,
         surrogate_hamming_threshold_strict=surrogate_hamming_threshold_strict,
         barcode_hamming_threshold_strict=barcode_hamming_threshold_strict,

@@ -5,6 +5,7 @@ from ..models.mapping_models import GeneralMappingInferenceDict, GeneralMatchCou
 
 from collections import Counter
 from collections import defaultdict
+from functools import partial
 from ..models.mapping_models import MatchSetWhitelistReporterCounterSeriesResults, CompleteInferenceMatchResult, MatchSetSingleInferenceMatchResult, SurrogateProtospacerMismatchSetWhitelistReporterCounterSeriesResults, SurrogateProtospacerMismatchSingleInferenceMatchResult, AllMatchSetWhitelistReporterCounterSeriesResults, InferenceResult
 from .crispr_editing_processing import check_match_result_non_error, get_non_error_dict
 import pandas as pd
@@ -86,13 +87,21 @@ def helper_get_observed_values_given_whitelist_value(whitelist_sequence_list: Li
 #
 # HELPER FUNCTION GETS COUNTS FOR THE THE MATCHES - defined in-function to reduce arguments being passed (NOTE: There is some duplicate code with mismatch counts function - keep in mind if making modifications)
 @typechecked
-def get_matchset_counterseries(observed_guide_reporter_umi_counts_inferred: GeneralMappingInferenceDict, whitelist_guide_reporter_df: pd.DataFrame, contains_umi: bool, attribute_name: str) -> MatchSetWhitelistReporterCounterSeriesResults: 
+def get_matchset_counterseries(observed_guide_reporter_umi_counts_inferred: GeneralMappingInferenceDict, 
+                               whitelist_guide_reporter_df: pd.DataFrame, 
+                               ambiguity_ignored_guide_reporter_df: Optional[pd.DataFrame],
+                               contains_umi: bool, 
+                               attribute_name: str) -> MatchSetWhitelistReporterCounterSeriesResults: 
     #
     #   DEFINE THE DEFAULTDICTS FOR COUNTING
     #
     ambiguous_ignored_umi_noncollapsed_counterdict : GeneralMatchCountDict = defaultdict(int)
     ambiguous_ignored_umi_collapsed_counterdict : GeneralMatchCountDict  = defaultdict(int)
     ambiguous_ignored_counterdict : GeneralMatchCountDict  = defaultdict(int)
+
+    ambiguous_given_ignored_umi_noncollapsed_counterdict : GeneralMatchCountDict = defaultdict(int)
+    ambiguous_given_ignored_umi_collapsed_counterdict : GeneralMatchCountDict  = defaultdict(int)
+    ambiguous_given_ignored_counterdict : GeneralMatchCountDict  = defaultdict(int)
 
     ambiguous_accepted_umi_noncollapsed_counterdict : GeneralMatchCountDict  = defaultdict(int)
     ambiguous_accepted_umi_collapsed_counterdict : GeneralMatchCountDict  = defaultdict(int)
@@ -133,6 +142,10 @@ def get_matchset_counterseries(observed_guide_reporter_umi_counts_inferred: Gene
                     if matches.shape[0] == 1:
                         ambiguous_ignored_umi_noncollapsed_counterdict[dict_index] += sum(observed_value_counts.values())
                         ambiguous_ignored_umi_collapsed_counterdict[dict_index] += len(observed_value_counts.values())
+                    elif pd.merge(matches, ambiguity_ignored_guide_reporter_df, how="inner").empty:
+                        # If there are more than 1 match (ambiguous), but the given ignored whitelists are not among the ambiguity, then count
+                        ambiguous_given_ignored_umi_noncollapsed_counterdict[dict_index] += sum(observed_value_counts.values())
+                        ambiguous_given_ignored_umi_collapsed_counterdict[dict_index] += len(observed_value_counts.values())
                 
                 # STANDARD NON-UMI BASED COUNTING
                 else:
@@ -143,6 +156,9 @@ def get_matchset_counterseries(observed_guide_reporter_umi_counts_inferred: Gene
                     # If there is no ambiguous matches, then add to ambiguous_ignored counter
                     if matches.shape[0] == 1:
                         ambiguous_ignored_counterdict[dict_index] += observed_value_counts
+                    elif pd.merge(matches, ambiguity_ignored_guide_reporter_df, how="inner").empty:
+                        # If there are more than 1 match (ambiguous), but the given ignored whitelists are not among the ambiguity, then count
+                        ambiguous_given_ignored_counterdict[dict_index] += observed_value_counts
     
     # Helper function that converts defaultdict to series
     def create_counterseries(counterdict: GeneralMatchCountDict) -> pd.Series:
@@ -158,6 +174,10 @@ def get_matchset_counterseries(observed_guide_reporter_umi_counts_inferred: Gene
     match_set_whitelist_reporter_counter_series_results.ambiguous_ignored_umi_noncollapsed_counterseries = create_counterseries(ambiguous_ignored_umi_noncollapsed_counterdict)
     match_set_whitelist_reporter_counter_series_results.ambiguous_ignored_umi_collapsed_counterseries = create_counterseries(ambiguous_ignored_umi_collapsed_counterdict)
     match_set_whitelist_reporter_counter_series_results.ambiguous_ignored_counterseries = create_counterseries(ambiguous_ignored_counterdict)
+
+    match_set_whitelist_reporter_counter_series_results.ambiguous_given_ignored_umi_noncollapsed_counterseries = create_counterseries(ambiguous_given_ignored_umi_noncollapsed_counterdict)
+    match_set_whitelist_reporter_counter_series_results.ambiguous_given_ignored_umi_collapsed_counterseries = create_counterseries(ambiguous_given_ignored_umi_collapsed_counterdict)
+    match_set_whitelist_reporter_counter_series_results.ambiguous_given_ignored_counterseries = create_counterseries(ambiguous_given_ignored_counterdict)
 
     match_set_whitelist_reporter_counter_series_results.ambiguous_accepted_umi_noncollapsed_counterseries = create_counterseries(ambiguous_accepted_umi_noncollapsed_counterdict)
     match_set_whitelist_reporter_counter_series_results.ambiguous_accepted_umi_collapsed_counterseries = create_counterseries(ambiguous_accepted_umi_collapsed_counterdict)
@@ -338,17 +358,26 @@ def get_mismatchset_counterseries(observed_guide_reporter_umi_counts_inferred: G
 # CALLED FUNCTION TO RETRIEVE ALL MATCHSET AND MISMATCHSET COUNTERSERIES
 #
 @typechecked
-def get_counterseries_all_results(observed_guide_reporter_umi_counts_inferred: GeneralMappingInferenceDict, whitelist_guide_reporter_df: pd.DataFrame, contains_barcode: bool, contains_surrogate: bool,  contains_umi: bool) -> AllMatchSetWhitelistReporterCounterSeriesResults:
+def get_counterseries_all_results(observed_guide_reporter_umi_counts_inferred: GeneralMappingInferenceDict, 
+                                  whitelist_guide_reporter_df: pd.DataFrame, 
+                                  ambiguity_ignored_guide_reporter_df: Optional[pd.DataFrame],
+                                  contains_barcode: bool, 
+                                  contains_surrogate: bool,  
+                                  contains_umi: bool) -> AllMatchSetWhitelistReporterCounterSeriesResults:
     all_match_set_whitelist_reporter_counter_series_results = AllMatchSetWhitelistReporterCounterSeriesResults()
-    all_match_set_whitelist_reporter_counter_series_results.protospacer_match = get_matchset_counterseries(observed_guide_reporter_umi_counts_inferred, whitelist_guide_reporter_df, contains_umi, "protospacer_match")
+    
+    get_matchset_counterseries_p = partial(get_matchset_counterseries, observed_guide_reporter_umi_counts_inferred, whitelist_guide_reporter_df, ambiguity_ignored_guide_reporter_df, contains_umi)
+    get_mismatchset_counterseries_p = partial(get_mismatchset_counterseries, observed_guide_reporter_umi_counts_inferred, whitelist_guide_reporter_df, ambiguity_ignored_guide_reporter_df, contains_umi)
+    
+    all_match_set_whitelist_reporter_counter_series_results.protospacer_match = get_matchset_counterseries_p("protospacer_match")
     if contains_barcode:
-        all_match_set_whitelist_reporter_counter_series_results.protospacer_match_barcode_match = get_matchset_counterseries(observed_guide_reporter_umi_counts_inferred, whitelist_guide_reporter_df, contains_umi, "protospacer_match_barcode_match")
+        all_match_set_whitelist_reporter_counter_series_results.protospacer_match_barcode_match = get_matchset_counterseries_p("protospacer_match_barcode_match")
         if contains_surrogate:
-            all_match_set_whitelist_reporter_counter_series_results.protospacer_match_surrogate_match_barcode_match = get_matchset_counterseries(observed_guide_reporter_umi_counts_inferred, whitelist_guide_reporter_df, contains_umi, "protospacer_match_surrogate_match_barcode_match")
+            all_match_set_whitelist_reporter_counter_series_results.protospacer_match_surrogate_match_barcode_match = get_matchset_counterseries_p("protospacer_match_surrogate_match_barcode_match")
             
-            all_match_set_whitelist_reporter_counter_series_results.protospacer_mismatch_surrogate_match_barcode_match = get_mismatchset_counterseries(observed_guide_reporter_umi_counts_inferred, whitelist_guide_reporter_df, contains_umi, "protospacer_mismatch_surrogate_match_barcode_match")
+            all_match_set_whitelist_reporter_counter_series_results.protospacer_mismatch_surrogate_match_barcode_match = get_mismatchset_counterseries_p("protospacer_mismatch_surrogate_match_barcode_match")
     if contains_surrogate:
-        all_match_set_whitelist_reporter_counter_series_results.protospacer_match_surrogate_match = get_matchset_counterseries(observed_guide_reporter_umi_counts_inferred, whitelist_guide_reporter_df, contains_umi, "protospacer_match_surrogate_match")
-        all_match_set_whitelist_reporter_counter_series_results.protospacer_mismatch_surrogate_match = get_mismatchset_counterseries(observed_guide_reporter_umi_counts_inferred, whitelist_guide_reporter_df, contains_umi, "protospacer_mismatch_surrogate_match")
+        all_match_set_whitelist_reporter_counter_series_results.protospacer_match_surrogate_match = get_matchset_counterseries_p("protospacer_match_surrogate_match")
+        all_match_set_whitelist_reporter_counter_series_results.protospacer_mismatch_surrogate_match = get_mismatchset_counterseries_p("protospacer_mismatch_surrogate_match")
     
     return all_match_set_whitelist_reporter_counter_series_results
