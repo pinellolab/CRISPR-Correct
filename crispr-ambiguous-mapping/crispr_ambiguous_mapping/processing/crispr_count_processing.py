@@ -99,17 +99,21 @@ def get_matchset_counterseries(observed_guide_reporter_umi_counts_inferred: Gene
     ambiguous_ignored_umi_collapsed_counterdict : GeneralMatchCountDict  = defaultdict(int)
     ambiguous_ignored_counterdict : GeneralMatchCountDict  = defaultdict(int)
 
-    ambiguous_given_ignored_umi_noncollapsed_counterdict : GeneralMatchCountDict = defaultdict(int)
-    ambiguous_given_ignored_umi_collapsed_counterdict : GeneralMatchCountDict  = defaultdict(int)
-    ambiguous_given_ignored_counterdict : GeneralMatchCountDict  = defaultdict(int)
-
     ambiguous_accepted_umi_noncollapsed_counterdict : GeneralMatchCountDict  = defaultdict(int)
     ambiguous_accepted_umi_collapsed_counterdict : GeneralMatchCountDict  = defaultdict(int)
     ambiguous_accepted_counterdict : GeneralMatchCountDict  = defaultdict(int)
 
+    ambiguous_accepted_given_ignored_umi_noncollapsed_counterdict : GeneralMatchCountDict = defaultdict(int)
+    ambiguous_accepted_given_ignored_umi_collapsed_counterdict : GeneralMatchCountDict  = defaultdict(int)
+    ambiguous_accepted_given_ignored_counterdict : GeneralMatchCountDict  = defaultdict(int)
+
     ambiguous_spread_umi_noncollapsed_counterdict : GeneralMatchCountDict  = defaultdict(float)
     ambiguous_spread_umi_collapsed_counterdict : GeneralMatchCountDict  = defaultdict(float)
     ambiguous_spread_counterdict : GeneralMatchCountDict  = defaultdict(float)
+
+    ambiguous_spread_given_ignored_umi_noncollapsed_counterdict : GeneralMatchCountDict = defaultdict(int)
+    ambiguous_spread_given_ignored_umi_collapsed_counterdict : GeneralMatchCountDict  = defaultdict(int)
+    ambiguous_spread_given_ignored_counterdict : GeneralMatchCountDict  = defaultdict(int)
 
     #
     # ITERATE THROUGH THE NON-ERROR INFERRED RESULTS AND FILL THE COUNTS
@@ -138,14 +142,24 @@ def get_matchset_counterseries(observed_guide_reporter_umi_counts_inferred: Gene
                     ambiguous_spread_umi_noncollapsed_counterdict[dict_index] += sum(observed_value_counts.values()) / float(matches.shape[0])
                     ambiguous_spread_umi_collapsed_counterdict[dict_index] += len(observed_value_counts.values()) / float(matches.shape[0])
                     
-                    # If there is no ambiguous matches, then add to ambiguous_ignored counter
+                    # If there is no ambiguous matches, then add to ambiguous_ignored counter and ambiguous_given_ignored_umi_collapsed_counterdict
                     if matches.shape[0] == 1:
                         ambiguous_ignored_umi_noncollapsed_counterdict[dict_index] += sum(observed_value_counts.values())
                         ambiguous_ignored_umi_collapsed_counterdict[dict_index] += len(observed_value_counts.values())
-                    elif pd.merge(matches, ambiguity_ignored_guide_reporter_df, how="inner").empty:
+
+                        ambiguous_accepted_given_ignored_umi_noncollapsed_counterdict[dict_index] += sum(observed_value_counts.values())
+                        ambiguous_accepted_given_ignored_umi_collapsed_counterdict[dict_index] += len(observed_value_counts.values())
+
+                        ambiguous_spread_given_ignored_umi_noncollapsed_counterdict[dict_index] += sum(observed_value_counts.values()) / float(matches.shape[0])
+                        ambiguous_spread_given_ignored_umi_collapsed_counterdict[dict_index] += len(observed_value_counts.values()) / float(matches.shape[0])
+
+                    elif (ambiguity_ignored_guide_reporter_df is None) or (pd.merge(matches, ambiguity_ignored_guide_reporter_df, how="inner").empty):
                         # If there are more than 1 match (ambiguous), but the given ignored whitelists are not among the ambiguity, then count
-                        ambiguous_given_ignored_umi_noncollapsed_counterdict[dict_index] += sum(observed_value_counts.values())
-                        ambiguous_given_ignored_umi_collapsed_counterdict[dict_index] += len(observed_value_counts.values())
+                        ambiguous_accepted_given_ignored_umi_noncollapsed_counterdict[dict_index] += sum(observed_value_counts.values())
+                        ambiguous_accepted_given_ignored_umi_collapsed_counterdict[dict_index] += len(observed_value_counts.values())
+
+                        ambiguous_spread_given_ignored_umi_noncollapsed_counterdict[dict_index] += sum(observed_value_counts.values()) / float(matches.shape[0])
+                        ambiguous_spread_given_ignored_umi_collapsed_counterdict[dict_index] += len(observed_value_counts.values()) / float(matches.shape[0])
                 
                 # STANDARD NON-UMI BASED COUNTING
                 else:
@@ -156,9 +170,14 @@ def get_matchset_counterseries(observed_guide_reporter_umi_counts_inferred: Gene
                     # If there is no ambiguous matches, then add to ambiguous_ignored counter
                     if matches.shape[0] == 1:
                         ambiguous_ignored_counterdict[dict_index] += observed_value_counts
-                    elif pd.merge(matches, ambiguity_ignored_guide_reporter_df, how="inner").empty:
+                        
+                        ambiguous_accepted_given_ignored_counterdict[dict_index] += observed_value_counts
+                        ambiguous_spread_given_ignored_counterdict[dict_index] += observed_value_counts / float(matches.shape[0])
+
+                    elif (ambiguity_ignored_guide_reporter_df is None) or (pd.merge(matches, ambiguity_ignored_guide_reporter_df, how="inner").empty):
                         # If there are more than 1 match (ambiguous), but the given ignored whitelists are not among the ambiguity, then count
-                        ambiguous_given_ignored_counterdict[dict_index] += observed_value_counts
+                        ambiguous_accepted_given_ignored_counterdict[dict_index] += observed_value_counts
+                        ambiguous_spread_given_ignored_counterdict[dict_index] += observed_value_counts / float(matches.shape[0])
     
     # Helper function that converts defaultdict to series
     def create_counterseries(counterdict: GeneralMatchCountDict) -> pd.Series:
@@ -175,10 +194,7 @@ def get_matchset_counterseries(observed_guide_reporter_umi_counts_inferred: Gene
     match_set_whitelist_reporter_counter_series_results.ambiguous_ignored_umi_collapsed_counterseries = create_counterseries(ambiguous_ignored_umi_collapsed_counterdict)
     match_set_whitelist_reporter_counter_series_results.ambiguous_ignored_counterseries = create_counterseries(ambiguous_ignored_counterdict)
 
-    match_set_whitelist_reporter_counter_series_results.ambiguous_given_ignored_umi_noncollapsed_counterseries = create_counterseries(ambiguous_given_ignored_umi_noncollapsed_counterdict)
-    match_set_whitelist_reporter_counter_series_results.ambiguous_given_ignored_umi_collapsed_counterseries = create_counterseries(ambiguous_given_ignored_umi_collapsed_counterdict)
-    match_set_whitelist_reporter_counter_series_results.ambiguous_given_ignored_counterseries = create_counterseries(ambiguous_given_ignored_counterdict)
-
+    # LEFTOFF HERE: Add the new given_ignore to the new fields in MatchSetWhitelistReporterCounterSeriesResults
     match_set_whitelist_reporter_counter_series_results.ambiguous_accepted_umi_noncollapsed_counterseries = create_counterseries(ambiguous_accepted_umi_noncollapsed_counterdict)
     match_set_whitelist_reporter_counter_series_results.ambiguous_accepted_umi_collapsed_counterseries = create_counterseries(ambiguous_accepted_umi_collapsed_counterdict)
     match_set_whitelist_reporter_counter_series_results.ambiguous_accepted_counterseries = create_counterseries(ambiguous_accepted_counterdict)
@@ -194,7 +210,11 @@ def get_matchset_counterseries(observed_guide_reporter_umi_counts_inferred: Gene
 # HELPER FUNCTION GETS COUNTS FOR THE THE MISMATCHES - defined in-function to reduce arguments being passed (NOTE: There is some duplicate code with match counts function - keep in mind if making modifications)
 #
 @typechecked
-def get_mismatchset_counterseries(observed_guide_reporter_umi_counts_inferred: GeneralMappingInferenceDict, whitelist_guide_reporter_df: pd.DataFrame, contains_umi: bool, attribute_name: str) -> SurrogateProtospacerMismatchSetWhitelistReporterCounterSeriesResults:
+def get_mismatchset_counterseries(observed_guide_reporter_umi_counts_inferred: GeneralMappingInferenceDict, 
+                                  whitelist_guide_reporter_df: pd.DataFrame, 
+                                  ambiguity_ignored_guide_reporter_df: Optional[pd.DataFrame],
+                                  contains_umi: bool, 
+                                  attribute_name: str) -> SurrogateProtospacerMismatchSetWhitelistReporterCounterSeriesResults:
     #
     #   DEFINE THE DEFAULTDICTS FOR COUNTING
     #
@@ -202,6 +222,10 @@ def get_mismatchset_counterseries(observed_guide_reporter_umi_counts_inferred: G
     ambiguous_ignored_umi_noncollapsed_match_counterdict : GeneralMatchCountDict  = defaultdict(int)
     ambiguous_ignored_umi_collapsed_match_counterdict : GeneralMatchCountDict  = defaultdict(int)
     ambiguous_ignored_match_counterdict : GeneralMatchCountDict  = defaultdict(int)
+
+    ambiguous_given_ignored_umi_noncollapsed_match_counterdict : GeneralMatchCountDict  = defaultdict(int)
+    ambiguous_given_ignored_umi_collapsed_match_counterdict : GeneralMatchCountDict  = defaultdict(int)
+    ambiguous_given_ignored_match_counterdict : GeneralMatchCountDict  = defaultdict(int)
 
     ambiguous_accepted_umi_noncollapsed_match_counterdict : GeneralMatchCountDict  = defaultdict(int)
     ambiguous_accepted_umi_collapsed_match_counterdict : GeneralMatchCountDict  = defaultdict(int)
@@ -215,6 +239,10 @@ def get_mismatchset_counterseries(observed_guide_reporter_umi_counts_inferred: G
     ambiguous_ignored_umi_noncollapsed_mismatch_counterdict : GeneralMismatchCountDict  = defaultdict(int)
     ambiguous_ignored_umi_collapsed_mismatch_counterdict : GeneralMismatchCountDict  = defaultdict(int)
     ambiguous_ignored_mismatch_counterdict : GeneralMismatchCountDict  = defaultdict(int)
+    
+    ambiguous_given_ignored_umi_noncollapsed_mismatch_counterdict : GeneralMismatchCountDict  = defaultdict(int)
+    ambiguous_given_ignored_umi_collapsed_mismatch_counterdict : GeneralMismatchCountDict  = defaultdict(int)
+    ambiguous_given_ignored_mismatch_counterdict : GeneralMismatchCountDict  = defaultdict(int)
 
     ambiguous_accepted_umi_noncollapsed_mismatch_counterdict : GeneralMismatchCountDict  = defaultdict(int)
     ambiguous_accepted_umi_collapsed_mismatch_counterdict : GeneralMismatchCountDict  = defaultdict(int)
@@ -269,6 +297,13 @@ def get_mismatchset_counterseries(observed_guide_reporter_umi_counts_inferred: G
                         if (protospacer_matches.shape[0] == 1) and (surrogate_matches.shape[0] == 1):
                             ambiguous_ignored_umi_noncollapsed_mismatch_counterdict[dict_index] += sum(observed_value_counts.values())
                             ambiguous_ignored_umi_collapsed_mismatch_counterdict[dict_index] += len(observed_value_counts.values())
+
+                            ambiguous_given_ignored_umi_noncollapsed_mismatch_counterdict[dict_index] += sum(observed_value_counts.values())
+                            ambiguous_given_ignored_umi_collapsed_mismatch_counterdict[dict_index] += len(observed_value_counts.values())
+                        elif (ambiguity_ignored_guide_reporter_df is None) or :
+                            ambiguous_given_ignored_umi_noncollapsed_mismatch_counterdict[dict_index] += sum(observed_value_counts.values())
+                            ambiguous_given_ignored_umi_collapsed_mismatch_counterdict[dict_index] += len(observed_value_counts.values())
+                    
                     else:
                         assert isinstance(observed_value_counts, int), f"For non UMI, expecting observed value is an int, but type is {type(observed_value_counts)}"
 
