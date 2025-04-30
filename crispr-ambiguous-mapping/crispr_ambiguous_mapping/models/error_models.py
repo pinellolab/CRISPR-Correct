@@ -20,6 +20,9 @@ class GuideCountErrorType(Enum):
     NO_BARCODE_MATCH_MISSING_INFO = "The barcode was not provided"
     NO_MATCH_OBSERVED_SURROGATE_SHORTER = "The observed surrogate is shorter than the inferred surrogate"
     NULL_MATCH_RESULT = "Match result was null, likely since match result type is not supported given the inputs (i.e. a barcode_match result when barcode is not specified)"
+    BARCODE_MISC = "Miscellaneous barcode error"
+    PROTOSPACER_MISC = "Miscellaneous protospacer error"
+    SURROGATE_MISC = "Miscellaneous surrogate error"
 
 @dataclass
 class GuideCountError:
