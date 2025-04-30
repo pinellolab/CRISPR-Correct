@@ -22,7 +22,7 @@ from concurrent.futures import ProcessPoolExecutor
 
 from . import crispr_sequence_encoding
 from ..models.mapping_models import CompleteInferenceMatchResult, MatchSetSingleInferenceMatchResult, MatchSetSingleInferenceMatchResultValue, SurrogateProtospacerMismatchSingleInferenceMatchResult, SurrogateProtospacerMismatchSingleInferenceMatchResultValue
-from ..models.error_models import (GuideCountErrorType, 
+from ..models.error_models import (GuideCountError, GuideCountErrorType, 
                                    ProtospacerHammingThresholdGuideCountError, SurrogateHammingThresholdGuideCountError, BarcodeHammingThresholdGuideCountError,
                                    MissingInfoGuideCountError, InsufficientLengthGuideCountError, 
                                    ProtospacerMissingInfoGuideCountError, SurrogateMissingInfoGuideCountError, BarcodeMissingInfoGuideCountError, 
@@ -104,27 +104,28 @@ def infer_whitelist_sequence(observed_guide_reporter_sequence_input: Union[str, 
             #
             try:
                 observed_barcode_sequence_encoded = crispr_sequence_encoding.encode_DNA_base_vectorized(crispr_sequence_encoding.numpify_string_vectorized(observed_guide_reporter_sequence["barcode"]))  # Encode the observed barcode
-            except Exception as e:
-                print(e)
-                raise Exception(f"Error encoding barcode sequence: {observed_guide_reporter_sequence['barcode']}")
-            observed_barcode_sequence_dists = crispr_sequence_encoding.retrieve_hamming_distance_whitelist(observed_barcode_sequence_encoded, encoded_whitelist_barcode_sequences_series) # Retrieve hamming distance with whitelist barcode
-            observed_barcode_sequence_dists_min = observed_barcode_sequence_dists.min() # Get the barcode with the minimum  hamming distance
-            barcode_hamming_threshold_met = (observed_barcode_sequence_dists_min < barcode_hamming_threshold)
-
-            barcode_matches_indices = np.where(observed_barcode_sequence_dists == observed_barcode_sequence_dists_min)[0] # Get the indices of ALL barcode matches
-            whitelist_guide_reporter_df_barcode_match = whitelist_guide_reporter_df.iloc[barcode_matches_indices] # Get the whitelist reporters with the matched barcode(s)
             
-            if barcode_hamming_threshold_met: # IF BARCODE MATCH
-                encoded_whitelist_protospacer_sequences_series_barcode_match = encoded_whitelist_protospacer_sequences_series[barcode_matches_indices] # Subset the protospacer encodings with the barcode matches for later
-                if contains_surrogate:
-                    encoded_whitelist_surrogate_sequences_series_barcode_match = encoded_whitelist_surrogate_sequences_series[barcode_matches_indices] # Subset the surrogate encodings with the barcode matches for later
-            else: # NO BARCODE MATCH, ERROR
+                observed_barcode_sequence_dists = crispr_sequence_encoding.retrieve_hamming_distance_whitelist(observed_barcode_sequence_encoded, encoded_whitelist_barcode_sequences_series) # Retrieve hamming distance with whitelist barcode
+                observed_barcode_sequence_dists_min = observed_barcode_sequence_dists.min() # Get the barcode with the minimum  hamming distance
+                barcode_hamming_threshold_met = (observed_barcode_sequence_dists_min < barcode_hamming_threshold)
+
+                barcode_matches_indices = np.where(observed_barcode_sequence_dists == observed_barcode_sequence_dists_min)[0] # Get the indices of ALL barcode matches
+                whitelist_guide_reporter_df_barcode_match = whitelist_guide_reporter_df.iloc[barcode_matches_indices] # Get the whitelist reporters with the matched barcode(s)
+                
+                if barcode_hamming_threshold_met: # IF BARCODE MATCH
+                    encoded_whitelist_protospacer_sequences_series_barcode_match = encoded_whitelist_protospacer_sequences_series[barcode_matches_indices] # Subset the protospacer encodings with the barcode matches for later
+                    if contains_surrogate:
+                        encoded_whitelist_surrogate_sequences_series_barcode_match = encoded_whitelist_surrogate_sequences_series[barcode_matches_indices] # Subset the surrogate encodings with the barcode matches for later
+                else: # NO BARCODE MATCH, ERROR
+                    barcode_available = False
+                    barcode_error_result = BarcodeHammingThresholdGuideCountError(
+                        hamming_min=observed_barcode_sequence_dists_min, 
+                        hamming_threshold=barcode_hamming_threshold,
+                        original_df=whitelist_guide_reporter_df,
+                        hamming_min_match_df=whitelist_guide_reporter_df_barcode_match)
+            except Exception as e:
                 barcode_available = False
-                barcode_error_result = BarcodeHammingThresholdGuideCountError(
-                    hamming_min=observed_barcode_sequence_dists_min, 
-                    hamming_threshold=barcode_hamming_threshold,
-                    original_df=whitelist_guide_reporter_df,
-                    hamming_min_match_df=whitelist_guide_reporter_df_barcode_match)
+                barcode_error_result = GuideCountError(guide_count_error_type=GuideCountErrorType.BARCODE_MISC, miscellaneous_info_dict={"message": f"Error encoding barcode sequence: {observed_guide_reporter_sequence['barcode']}"})
         else:
             barcode_available = False
             
@@ -133,18 +134,26 @@ def infer_whitelist_sequence(observed_guide_reporter_sequence_input: Union[str, 
     # PREPARE THE PROTOSPACER-ONLYMATCHES
     #
     if protospacer_error_result is None:
+        encoding_protospacer_error_result = None
         try:
             observed_protospacer_sequence_encoded = crispr_sequence_encoding.encode_DNA_base_vectorized(crispr_sequence_encoding.numpify_string_vectorized(observed_guide_reporter_sequence["protospacer"]))  # Encode the observed protospacer
-        except Exception as e:
-            print(e)
-            raise Exception(f"Error encoding protospacer sequence: {observed_guide_reporter_sequence['protospacer']}")
-        observed_protospacer_sequence_dists = crispr_sequence_encoding.retrieve_hamming_distance_whitelist(observed_protospacer_sequence_encoded, encoded_whitelist_protospacer_sequences_series) # Hamming distance among all whitelist protospacers
-        observed_protospacer_sequence_dists_min = observed_protospacer_sequence_dists.min() # Get minimum hamming distance
-        protospacer_hamming_threshold_met = (observed_protospacer_sequence_dists_min < protospacer_hamming_threshold)
+            observed_protospacer_sequence_dists = crispr_sequence_encoding.retrieve_hamming_distance_whitelist(observed_protospacer_sequence_encoded, encoded_whitelist_protospacer_sequences_series) # Hamming distance among all whitelist protospacers
+            observed_protospacer_sequence_dists_min = observed_protospacer_sequence_dists.min() # Get minimum hamming distance
+            protospacer_hamming_threshold_met = (observed_protospacer_sequence_dists_min < protospacer_hamming_threshold)
 
-        protospacer_matches_indices = np.where(observed_protospacer_sequence_dists == observed_protospacer_sequence_dists_min)[0]
-        whitelist_guide_reporter_df_hamming_protospacer_match = whitelist_guide_reporter_df.iloc[protospacer_matches_indices] # Get all whitelisted guides with the minimum hamming distance (could be multiple)
-        if protospacer_hamming_threshold_met: # PROTOSPACER MATCHED
+            protospacer_matches_indices = np.where(observed_protospacer_sequence_dists == observed_protospacer_sequence_dists_min)[0]
+            whitelist_guide_reporter_df_hamming_protospacer_match = whitelist_guide_reporter_df.iloc[protospacer_matches_indices] # Get all whitelisted guides with the minimum hamming distance (could be multiple)
+        except Exception as e:
+            encoding_protospacer_error_result = GuideCountError(guide_count_error_type=GuideCountErrorType.PROTOSPACER_MISC, miscellaneous_info_dict={"message": f"Error encoding protospacer sequence: {observed_guide_reporter_sequence['protospacer']}"})
+        
+        if encoding_protospacer_error_result is not None:
+            complete_match_result.protospacer_match = MatchSetSingleInferenceMatchResult(error=encoding_protospacer_error_result)
+            complete_match_result.protospacer_match_surrogate_match_barcode_match = MatchSetSingleInferenceMatchResult(error=encoding_protospacer_error_result)
+            complete_match_result.protospacer_match_surrogate_match = MatchSetSingleInferenceMatchResult(error=encoding_protospacer_error_result)
+            complete_match_result.protospacer_match_barcode_match = MatchSetSingleInferenceMatchResult(error=encoding_protospacer_error_result)
+            complete_match_result.protospacer_mismatch_surrogate_match_barcode_match = SurrogateProtospacerMismatchSingleInferenceMatchResult(error=encoding_protospacer_error_result)
+            complete_match_result.protospacer_mismatch_surrogate_match = SurrogateProtospacerMismatchSingleInferenceMatchResult(error=encoding_protospacer_error_result)
+        elif protospacer_hamming_threshold_met: # PROTOSPACER MATCHED
             #
             # SET THE PROTOSPACER-ONLYMATCHES
             #
@@ -173,19 +182,24 @@ def infer_whitelist_sequence(observed_guide_reporter_sequence_input: Union[str, 
                                 #
                                 # PREPARE PROTOSPACER-MATCH, BARCODE-MATCH, SURROGATE-MATCH
                                 #
-                                encoded_whitelist_surrogate_sequences_series_barcode_match_protospacer_match = encoded_whitelist_surrogate_sequences_series_barcode_match[barcode_match_protospacer_match_indices] # Subset the surrogate encodings with the protospacer and encoding matches for later
+                                encoding_surrogate_error_result = None
                                 try:
+                                    encoded_whitelist_surrogate_sequences_series_barcode_match_protospacer_match = encoded_whitelist_surrogate_sequences_series_barcode_match[barcode_match_protospacer_match_indices] # Subset the surrogate encodings with the protospacer and encoding matches for later
                                     observed_surrogate_sequence_encoded = crispr_sequence_encoding.encode_DNA_base_vectorized(crispr_sequence_encoding.numpify_string_vectorized(observed_guide_reporter_sequence["surrogate"]))  # Encode the observed protospacer
+                                    observed_surrogate_sequence_dists_barcode_match_protospacer_match = crispr_sequence_encoding.retrieve_hamming_distance_whitelist(observed_surrogate_sequence_encoded, encoded_whitelist_surrogate_sequences_series_barcode_match_protospacer_match) # Hamming distance among all whitelist sub-selected surrogates
+                                    observed_surrogate_sequence_dists_barcode_match_protospacer_match_min = observed_surrogate_sequence_dists_barcode_match_protospacer_match.min()
+                                    barcode_match_protospacer_match_surrogate_hamming_threshold_met = (observed_surrogate_sequence_dists_barcode_match_protospacer_match_min < surrogate_hamming_threshold)
+                                    
+                                    barcode_match_protospacer_match_surrogate_match_indices = np.where(observed_surrogate_sequence_dists_barcode_match_protospacer_match == observed_surrogate_sequence_dists_barcode_match_protospacer_match_min)[0]
+                                    whitelist_guide_reporter_df_hamming_barcode_match_protospacer_match_surrogate_match = whitelist_guide_reporter_df_hamming_barcode_match_protospacer_match.iloc[barcode_match_protospacer_match_surrogate_match_indices] # Get all whitelisted guides with the minimum hamming distance (could be multiple)
                                 except Exception as e:
                                     print(f"Error message: {e}")
-                                    raise Exception(f"Error encoding surrogate sequence: {observed_guide_reporter_sequence['surrogate']}")
-                                observed_surrogate_sequence_dists_barcode_match_protospacer_match = crispr_sequence_encoding.retrieve_hamming_distance_whitelist(observed_surrogate_sequence_encoded, encoded_whitelist_surrogate_sequences_series_barcode_match_protospacer_match) # Hamming distance among all whitelist sub-selected surrogates
-                                observed_surrogate_sequence_dists_barcode_match_protospacer_match_min = observed_surrogate_sequence_dists_barcode_match_protospacer_match.min()
-                                barcode_match_protospacer_match_surrogate_hamming_threshold_met = (observed_surrogate_sequence_dists_barcode_match_protospacer_match_min < surrogate_hamming_threshold)
+                                    encoding_surrogate_error_result = GuideCountError(guide_count_error_type=GuideCountErrorType.NULL_MATCH_RESULT, miscellaneous_info_dict={"message": f"Error thrown when encoding surrogate likely: {e}"})
                                 
-                                barcode_match_protospacer_match_surrogate_match_indices = np.where(observed_surrogate_sequence_dists_barcode_match_protospacer_match == observed_surrogate_sequence_dists_barcode_match_protospacer_match_min)[0]
-                                whitelist_guide_reporter_df_hamming_barcode_match_protospacer_match_surrogate_match = whitelist_guide_reporter_df_hamming_barcode_match_protospacer_match.iloc[barcode_match_protospacer_match_surrogate_match_indices] # Get all whitelisted guides with the minimum hamming distance (could be multiple)
-                                if barcode_match_protospacer_match_surrogate_hamming_threshold_met: # SURROGATE MATCHED
+                                if encoding_surrogate_error_result is not None:
+                                    complete_match_result.protospacer_match_surrogate_match_barcode_match = MatchSetSingleInferenceMatchResult(
+                                        error=encoding_surrogate_error_result)
+                                elif barcode_match_protospacer_match_surrogate_hamming_threshold_met: # SURROGATE MATCHED
                                     #
                                     # SET PROTOSPACER-MATCH, BARCODE-MATCH, SURROGATE-MATCH
                                     #
@@ -221,19 +235,24 @@ def infer_whitelist_sequence(observed_guide_reporter_sequence_input: Union[str, 
                     #
                     # GET SURROGATE-MATCHES ON THE PROTOSPACER-MATCHES
                     #
-                    encoded_whitelist_surrogate_sequences_series_protospacer_match = encoded_whitelist_surrogate_sequences_series[protospacer_matches_indices]
+                    encoding_surrogate_error_result = None
                     try:
+                        encoded_whitelist_surrogate_sequences_series_protospacer_match = encoded_whitelist_surrogate_sequences_series[protospacer_matches_indices]
                         observed_surrogate_sequence_encoded = crispr_sequence_encoding.encode_DNA_base_vectorized(crispr_sequence_encoding.numpify_string_vectorized(observed_guide_reporter_sequence["surrogate"]))  # Encode the observed protospacer
+                        observed_surrogate_sequence_dists_protospacer_match = crispr_sequence_encoding.retrieve_hamming_distance_whitelist(observed_surrogate_sequence_encoded, encoded_whitelist_surrogate_sequences_series_protospacer_match) # TODO: This should be on the protospacer-match array
+                        observed_surrogate_sequence_dists_protospacer_match_min = observed_surrogate_sequence_dists_protospacer_match.min()
+                        protospacer_match_surrogate_hamming_threshold_met = (observed_surrogate_sequence_dists_protospacer_match_min < surrogate_hamming_threshold)
+
+                        protospacer_match_surrogate_match_indices = np.where(observed_surrogate_sequence_dists_protospacer_match == observed_surrogate_sequence_dists_protospacer_match_min)[0]
+                        whitelist_guide_reporter_df_hamming_protospacer_match_surrogate_match = whitelist_guide_reporter_df_hamming_protospacer_match.iloc[protospacer_match_surrogate_match_indices] # Get all whitelisted guides with the minimum hamming distance (could be multiple)
                     except Exception as e:
                         print(e)
-                        raise Exception(f"Error encoding surrogate sequence: {observed_guide_reporter_sequence['surrogate']}")
-                    observed_surrogate_sequence_dists_protospacer_match = crispr_sequence_encoding.retrieve_hamming_distance_whitelist(observed_surrogate_sequence_encoded, encoded_whitelist_surrogate_sequences_series_protospacer_match) # TODO: This should be on the protospacer-match array
-                    observed_surrogate_sequence_dists_protospacer_match_min = observed_surrogate_sequence_dists_protospacer_match.min()
-                    protospacer_match_surrogate_hamming_threshold_met = (observed_surrogate_sequence_dists_protospacer_match_min < surrogate_hamming_threshold)
-
-                    protospacer_match_surrogate_match_indices = np.where(observed_surrogate_sequence_dists_protospacer_match == observed_surrogate_sequence_dists_protospacer_match_min)[0]
-                    whitelist_guide_reporter_df_hamming_protospacer_match_surrogate_match = whitelist_guide_reporter_df_hamming_protospacer_match.iloc[protospacer_match_surrogate_match_indices] # Get all whitelisted guides with the minimum hamming distance (could be multiple)
-                    if protospacer_match_surrogate_hamming_threshold_met: # IF SURROGATE MATCH
+                        encoding_surrogate_error_result = GuideCountError(guide_count_error_type=GuideCountErrorType.SURROGATE_MISC, miscellaneous_info_dict={"message":f"Error encoding surrogate sequence: {observed_guide_reporter_sequence['surrogate']}"})
+                    
+                    if encoding_surrogate_error_result is not None:
+                        complete_match_result.protospacer_match_surrogate_match = MatchSetSingleInferenceMatchResult(
+                                        error=encoding_surrogate_error_result)
+                    elif protospacer_match_surrogate_hamming_threshold_met: # IF SURROGATE MATCH
                         complete_match_result.protospacer_match_surrogate_match = MatchSetSingleInferenceMatchResult(value=MatchSetSingleInferenceMatchResultValue(matches=whitelist_guide_reporter_df_hamming_protospacer_match_surrogate_match))
                     else: # NO SURROGATE MATCH, ERROR OUT
                         complete_match_result.protospacer_match_surrogate_match = MatchSetSingleInferenceMatchResult(
@@ -258,21 +277,24 @@ def infer_whitelist_sequence(observed_guide_reporter_sequence_input: Union[str, 
                             #
                             # PREPARE SURROGATE-MATCH, BARCODE-MATCH
                             #
+                            encoding_surrogate_error_result = None
                             try:
                                 observed_surrogate_sequence_encoded = crispr_sequence_encoding.encode_DNA_base_vectorized(crispr_sequence_encoding.numpify_string_vectorized(observed_guide_reporter_sequence["surrogate"]))  # Encode the observed protospacer
+                                observed_surrogate_sequence_dists_barcode_match = crispr_sequence_encoding.retrieve_hamming_distance_whitelist(observed_surrogate_sequence_encoded, encoded_whitelist_surrogate_sequences_series_barcode_match) # Hamming distance among barcode-match protospacers
+                                observed_surrogate_sequence_dists_barcode_match_min = observed_surrogate_sequence_dists_barcode_match.min() # Get minimum hamming distance
+                                barcode_match_surrogate_hamming_threshold_met = (observed_surrogate_sequence_dists_barcode_match_min < surrogate_hamming_threshold)
+                                #
+                                # SET SURROGATE-MATCH, BARCODE-MATCH
+                                #
+                                barcode_match_surrogate_match_indices = np.where(observed_surrogate_sequence_dists_barcode_match == observed_surrogate_sequence_dists_barcode_match_min)[0]
+                                whitelist_guide_reporter_df_hamming_barcode_match_surrogate_match = whitelist_guide_reporter_df_barcode_match.iloc[barcode_match_surrogate_match_indices] # Get all whitelisted guides with the minimum hamming distance (could be multiple)
                             except Exception as e:
                                 print(e)
-                                raise Exception(f"Error encoding surrogate sequence: {observed_guide_reporter_sequence['surrogate']}")
-                            observed_surrogate_sequence_dists_barcode_match = crispr_sequence_encoding.retrieve_hamming_distance_whitelist(observed_surrogate_sequence_encoded, encoded_whitelist_surrogate_sequences_series_barcode_match) # Hamming distance among barcode-match protospacers
-                            observed_surrogate_sequence_dists_barcode_match_min = observed_surrogate_sequence_dists_barcode_match.min() # Get minimum hamming distance
-                            barcode_match_surrogate_hamming_threshold_met = (observed_surrogate_sequence_dists_barcode_match_min < surrogate_hamming_threshold)
+                                encoding_surrogate_error_result = GuideCountError(guide_count_error_type=GuideCountErrorType.SURROGATE_MISC, miscellaneous_info_dict={"message": f"Error encoding surrogate sequence: {observed_guide_reporter_sequence['surrogate']}"})
                             
-                             #
-                            # SET SURROGATE-MATCH, BARCODE-MATCH
-                            #
-                            barcode_match_surrogate_match_indices = np.where(observed_surrogate_sequence_dists_barcode_match == observed_surrogate_sequence_dists_barcode_match_min)[0]
-                            whitelist_guide_reporter_df_hamming_barcode_match_surrogate_match = whitelist_guide_reporter_df_barcode_match.iloc[barcode_match_surrogate_match_indices] # Get all whitelisted guides with the minimum hamming distance (could be multiple)
-
+                            if encoding_surrogate_error_result is not None:
+                                complete_match_result.protospacer_mismatch_surrogate_match_barcode_match = SurrogateProtospacerMismatchSingleInferenceMatchResult(
+                                    error=encoding_surrogate_error_result)
                             if barcode_match_surrogate_hamming_threshold_met: # If the surrogate matches are below the surrogate hamming threshold
                                 # See if there are identical matches between protospacer-only matches and surrogate-only matches
                                 whitelist_guide_reporter_df_hamming_barcode_match_surrogate_match_protospacer_match = pd.merge(whitelist_guide_reporter_df_hamming_barcode_match_surrogate_match, whitelist_guide_reporter_df_hamming_protospacer_match, how='inner')
@@ -297,18 +319,23 @@ def infer_whitelist_sequence(observed_guide_reporter_sequence_input: Union[str, 
                     #
                     # PREPARE SURROGATE MATCHES ON THE PROTOSPACER-MATCHES SEQUENCES
                     #
+                    encoding_surrogate_error_result = None
                     try:
                         observed_surrogate_sequence_encoded = crispr_sequence_encoding.encode_DNA_base_vectorized(crispr_sequence_encoding.numpify_string_vectorized(observed_guide_reporter_sequence["surrogate"]))  # Encode the observed protospacer
+                        observed_surrogate_sequence_dists = crispr_sequence_encoding.retrieve_hamming_distance_whitelist(observed_surrogate_sequence_encoded, encoded_whitelist_surrogate_sequences_series) # Hamming distance among  all whitelist surrogates
+                        observed_surrogate_sequence_dists_min = observed_surrogate_sequence_dists.min()
+                        surrogate_hamming_threshold_met = (observed_surrogate_sequence_dists_min < surrogate_hamming_threshold)
+
+                        surrogate_match_indices = np.where(observed_surrogate_sequence_dists == observed_surrogate_sequence_dists_min)[0]
+                        whitelist_guide_reporter_df_hamming_surrogate_match = whitelist_guide_reporter_df.iloc[surrogate_match_indices] # Get all whitelisted guides with the minimum hamming distance (could be multiple)
                     except Exception as e:
                         print(e)
-                        raise Exception(f"Error encoding surrogate sequence: {observed_guide_reporter_sequence['surrogate']}")
-                    observed_surrogate_sequence_dists = crispr_sequence_encoding.retrieve_hamming_distance_whitelist(observed_surrogate_sequence_encoded, encoded_whitelist_surrogate_sequences_series) # Hamming distance among  all whitelist surrogates
-                    observed_surrogate_sequence_dists_min = observed_surrogate_sequence_dists.min()
-                    surrogate_hamming_threshold_met = (observed_surrogate_sequence_dists_min < surrogate_hamming_threshold)
-
-                    surrogate_match_indices = np.where(observed_surrogate_sequence_dists == observed_surrogate_sequence_dists_min)[0]
-                    whitelist_guide_reporter_df_hamming_surrogate_match = whitelist_guide_reporter_df.iloc[surrogate_match_indices] # Get all whitelisted guides with the minimum hamming distance (could be multiple)
-                    if surrogate_hamming_threshold_met: # IF SURROGATE MATCHED
+                        encoding_surrogate_error_result = GuideCountError(guide_count_error_type=GuideCountErrorType.SURROGATE_MISC, miscellaneous_info_dict={"message": f"Error encoding surrogate sequence: {observed_guide_reporter_sequence['surrogate']}"})
+                    
+                    if encoding_surrogate_error_result is not None:
+                        complete_match_result.protospacer_mismatch_surrogate_match = SurrogateProtospacerMismatchSingleInferenceMatchResult(
+                            error=encoding_surrogate_error_result)
+                    elif surrogate_hamming_threshold_met: # IF SURROGATE MATCHED
 
                         # See if there are identical matches between protospacer-only matches and surrogate-only matches
                         whitelist_guide_reporter_df_hamming_surrogate_match_protospacer_match = pd.merge(whitelist_guide_reporter_df_hamming_surrogate_match, whitelist_guide_reporter_df_hamming_protospacer_match, how='inner')
