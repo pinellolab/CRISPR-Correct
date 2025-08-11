@@ -27,6 +27,7 @@ from ..processing import crispr_sequence_encoding
 from ..parsing import reporter_umitools_fastq_parsing, reporter_standard_fastq_parsing
 from ..models.mapping_models import WhitelistReporterCountsResult
 
+# MAIN METHOD DEPRECATED - can use more generic get_whitelist_reporter_counts_from_fastq
 @typechecked
 def get_whitelist_reporter_counts_from_umitools_output(whitelist_guide_reporter_df: pd.DataFrame, 
                                                        fastq_r1_fn: str, 
@@ -143,6 +144,7 @@ def get_whitelist_reporter_counts_from_fastq(whitelist_guide_reporter_df: Option
                                                        surrogate_hamming_threshold_strict: Optional[int] = None, 
                                                        barcode_hamming_threshold_strict: Optional[int] = None, 
                                                        protospacer_hamming_threshold_strict: Optional[int] = None, 
+                                                       ignore_ambiguous_iupac_reads = False,
                                                        cores: int=1) -> WhitelistReporterCountsResult:
     # Input parameter validation checks
 
@@ -223,7 +225,9 @@ def get_whitelist_reporter_counts_from_fastq(whitelist_guide_reporter_df: Option
                                             
                                             contains_surrogate=contains_surrogate,
                                             contains_barcode=contains_barcode,
-                                            contains_umi=contains_umi)
+                                            contains_umi=contains_umi,
+                                            
+                                            ignore_ambiguous_iupac_reads=ignore_ambiguous_iupac_reads)
 
     print(f"Number of unique observed parsed sequences: {len(observed_guide_reporter_umi_counts.keys())}")
 

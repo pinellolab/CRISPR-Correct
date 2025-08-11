@@ -67,7 +67,9 @@ def get_standard_observed_sequence_counts(  fastq_r1_fn: str,
                                             revcomp_umi: Optional[bool],
                                             contains_surrogate: bool,
                                             contains_barcode: bool,
-                                            contains_umi: bool) -> Union[CounterType[str], 
+                                            contains_umi: bool,
+                                            
+                                            ignore_ambiguous_iupac_reads: bool) -> Union[CounterType[str], 
                                                                         DefaultDict[str, CounterType[str]], 
                                                                         CounterType[Tuple[str, str]], 
                                                                         DefaultDict[Tuple[str, str], CounterType[str]], 
@@ -77,6 +79,7 @@ def get_standard_observed_sequence_counts(  fastq_r1_fn: str,
 
     def parse_sequence(
             template_sequence: str,
+            ignore_ambiguous_iupac_reads: bool,
             sequence_pattern_regex: Optional[str],
             sequence_left_flank:Optional[str],
             sequence_right_flank:Optional[str],
@@ -144,12 +147,16 @@ def get_standard_observed_sequence_counts(  fastq_r1_fn: str,
 
             if (sequence_length is not None) and (len(sequence) != sequence_length):
                 return None # The parsed sequence is not the expected length, so return None
-        
+            
+            if ignore_ambiguous_iupac_reads and (not set(sequence.upper()).issubset({"A", "C", "T", "G"})):
+                return None # Ignore any reads with ambiguous iupac if setting enabled
+
         # Return sequence (reverse complement if necessary)
         assert revcomp_sequence is not None, f"revcomp_{sequence_type} must be provided, does the sequence need to be reverse complemented?"
         return revcomp(sequence, revcomp_sequence)
 
     protospacer_parse_sequence_partial = partial(parse_sequence, 
+                                                 ignore_ambiguous_iupac_reads=ignore_ambiguous_iupac_reads,
                                                  sequence_pattern_regex=protospacer_pattern_regex,
                                                  sequence_left_flank=protospacer_left_flank,
                                                  sequence_right_flank=protospacer_right_flank,
@@ -159,6 +166,7 @@ def get_standard_observed_sequence_counts(  fastq_r1_fn: str,
                                                  revcomp_sequence=revcomp_protospacer,
                                                  sequence_type="protospacer")
     surrogate_parse_sequence_partial = partial(parse_sequence, 
+                                                 ignore_ambiguous_iupac_reads=ignore_ambiguous_iupac_reads,
                                                  sequence_pattern_regex=surrogate_pattern_regex,
                                                  sequence_left_flank=surrogate_left_flank,
                                                  sequence_right_flank=surrogate_right_flank,
@@ -168,6 +176,7 @@ def get_standard_observed_sequence_counts(  fastq_r1_fn: str,
                                                  revcomp_sequence=revcomp_surrogate,
                                                  sequence_type="surrogate")
     barcode_parse_sequence_partial = partial(parse_sequence, 
+                                                 ignore_ambiguous_iupac_reads=ignore_ambiguous_iupac_reads,
                                                  sequence_pattern_regex=barcode_pattern_regex,
                                                  sequence_left_flank=barcode_left_flank,
                                                  sequence_right_flank=barcode_right_flank,
@@ -177,6 +186,7 @@ def get_standard_observed_sequence_counts(  fastq_r1_fn: str,
                                                  revcomp_sequence=revcomp_barcode,
                                                  sequence_type="barcode")
     umi_parse_sequence_partial = partial(parse_sequence, 
+                                                 ignore_ambiguous_iupac_reads=ignore_ambiguous_iupac_reads,
                                                  sequence_pattern_regex=umi_pattern_regex,
                                                  sequence_left_flank=umi_left_flank,
                                                  sequence_right_flank=umi_right_flank,
@@ -407,7 +417,7 @@ def get_standard_observed_sequence_counts(  fastq_r1_fn: str,
             print(f"Opening FASTQ file, filename={fastq_r2_fn}")
             fastq_r2_filehandler = open(fastq_r2_fn, "r")
     after_file_loading_time = datetime.now()
-
+crispr-ambiguous-mapping/crispr_ambiguous_mapping/parsing/reporter_standard_fastq_parsing.py
     print(f"{(after_file_loading_time-before_file_loading_time).seconds} seconds for file loading")
     sequence_counter = parse_fastq(fastq_r1_filehandler, fastq_r2_filehandler)
     after_parsing_time = datetime.now()
