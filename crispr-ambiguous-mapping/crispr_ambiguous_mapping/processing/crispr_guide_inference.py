@@ -103,7 +103,7 @@ def infer_whitelist_sequence(observed_guide_reporter_sequence_input: Union[str, 
             # FIND BARCODE MATCHES
             #
             try:
-                observed_barcode_sequence_encoded = crispr_sequence_encoding.encode_DNA_base_vectorized(crispr_sequence_encoding.numpify_string_vectorized(observed_guide_reporter_sequence["barcode"]))  # Encode the observed barcode
+                observed_barcode_sequence_encoded = crispr_sequence_encoding.encode_DNA_base_observed_vectorized(crispr_sequence_encoding.numpify_string_vectorized(observed_guide_reporter_sequence["barcode"]))  # Encode the observed barcode
             except Exception as e:
                 print(e)
                 raise Exception(f"Error encoding barcode sequence: {observed_guide_reporter_sequence['barcode']}")
@@ -134,7 +134,7 @@ def infer_whitelist_sequence(observed_guide_reporter_sequence_input: Union[str, 
     #
     if protospacer_error_result is None:
         try:
-            observed_protospacer_sequence_encoded = crispr_sequence_encoding.encode_DNA_base_vectorized(crispr_sequence_encoding.numpify_string_vectorized(observed_guide_reporter_sequence["protospacer"]))  # Encode the observed protospacer
+            observed_protospacer_sequence_encoded = crispr_sequence_encoding.encode_DNA_base_observed_vectorized(crispr_sequence_encoding.numpify_string_vectorized(observed_guide_reporter_sequence["protospacer"]))  # Encode the observed protospacer
         except Exception as e:
             print(e)
             raise Exception(f"Error encoding protospacer sequence: {observed_guide_reporter_sequence['protospacer']}")
@@ -175,7 +175,7 @@ def infer_whitelist_sequence(observed_guide_reporter_sequence_input: Union[str, 
                                 #
                                 encoded_whitelist_surrogate_sequences_series_barcode_match_protospacer_match = encoded_whitelist_surrogate_sequences_series_barcode_match[barcode_match_protospacer_match_indices] # Subset the surrogate encodings with the protospacer and encoding matches for later
                                 try:
-                                    observed_surrogate_sequence_encoded = crispr_sequence_encoding.encode_DNA_base_vectorized(crispr_sequence_encoding.numpify_string_vectorized(observed_guide_reporter_sequence["surrogate"]))  # Encode the observed protospacer
+                                    observed_surrogate_sequence_encoded = crispr_sequence_encoding.encode_DNA_base_observed_vectorized(crispr_sequence_encoding.numpify_string_vectorized(observed_guide_reporter_sequence["surrogate"]))  # Encode the observed protospacer
                                 except Exception as e:
                                     print(f"Error message: {e}")
                                     raise Exception(f"Error encoding surrogate sequence: {observed_guide_reporter_sequence['surrogate']}")
@@ -223,7 +223,7 @@ def infer_whitelist_sequence(observed_guide_reporter_sequence_input: Union[str, 
                     #
                     encoded_whitelist_surrogate_sequences_series_protospacer_match = encoded_whitelist_surrogate_sequences_series[protospacer_matches_indices]
                     try:
-                        observed_surrogate_sequence_encoded = crispr_sequence_encoding.encode_DNA_base_vectorized(crispr_sequence_encoding.numpify_string_vectorized(observed_guide_reporter_sequence["surrogate"]))  # Encode the observed protospacer
+                        observed_surrogate_sequence_encoded = crispr_sequence_encoding.encode_DNA_base_observed_vectorized(crispr_sequence_encoding.numpify_string_vectorized(observed_guide_reporter_sequence["surrogate"]))  # Encode the observed protospacer
                     except Exception as e:
                         print(e)
                         raise Exception(f"Error encoding surrogate sequence: {observed_guide_reporter_sequence['surrogate']}")
@@ -259,7 +259,7 @@ def infer_whitelist_sequence(observed_guide_reporter_sequence_input: Union[str, 
                             # PREPARE SURROGATE-MATCH, BARCODE-MATCH
                             #
                             try:
-                                observed_surrogate_sequence_encoded = crispr_sequence_encoding.encode_DNA_base_vectorized(crispr_sequence_encoding.numpify_string_vectorized(observed_guide_reporter_sequence["surrogate"]))  # Encode the observed protospacer
+                                observed_surrogate_sequence_encoded = crispr_sequence_encoding.encode_DNA_base_observed_vectorized(crispr_sequence_encoding.numpify_string_vectorized(observed_guide_reporter_sequence["surrogate"]))  # Encode the observed protospacer
                             except Exception as e:
                                 print(e)
                                 raise Exception(f"Error encoding surrogate sequence: {observed_guide_reporter_sequence['surrogate']}")
@@ -298,7 +298,7 @@ def infer_whitelist_sequence(observed_guide_reporter_sequence_input: Union[str, 
                     # PREPARE SURROGATE MATCHES ON THE PROTOSPACER-MATCHES SEQUENCES
                     #
                     try:
-                        observed_surrogate_sequence_encoded = crispr_sequence_encoding.encode_DNA_base_vectorized(crispr_sequence_encoding.numpify_string_vectorized(observed_guide_reporter_sequence["surrogate"]))  # Encode the observed protospacer
+                        observed_surrogate_sequence_encoded = crispr_sequence_encoding.encode_DNA_base_observed_vectorized(crispr_sequence_encoding.numpify_string_vectorized(observed_guide_reporter_sequence["surrogate"]))  # Encode the observed protospacer
                     except Exception as e:
                         print(e)
                         raise Exception(f"Error encoding surrogate sequence: {observed_guide_reporter_sequence['surrogate']}")
@@ -393,7 +393,7 @@ def determine_hamming_threshold(whitelist_sequences_series: Union[List[str],pd.S
             current_guide_sequence_separated[position] = new_nt
             current_guide_sequence = "".join(current_guide_sequence_separated)
             try:
-                current_guide_sequence_encoded = crispr_sequence_encoding.encode_DNA_base_vectorized(crispr_sequence_encoding.numpify_string_vectorized(current_guide_sequence)) 
+                current_guide_sequence_encoded = crispr_sequence_encoding.encode_DNA_base_observed_vectorized(crispr_sequence_encoding.numpify_string_vectorized(current_guide_sequence)) 
             except Exception as e:
                 print(e)
                 raise Exception(f"Error encoding surrogate sequence: {current_guide_sequence}")

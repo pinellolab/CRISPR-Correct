@@ -1,4 +1,4 @@
-from ..models.mapping_models import MatchSetWhitelistReporterCounterSeriesResults
+from ..models.mapping_models import MatchSetWhitelistReporterCounterSeriesResults, AllMatchSetWhitelistReporterCounterSeriesResults
 import matplotlib.pyplot as plt
 import pandas as pd
 import numpy as np
@@ -637,13 +637,13 @@ def count_series_result_quality_control_stats(count_series_result: MatchSetWhite
     return count_series_result_quality_control_stats_dict
     
 
-def plot_match_type_comparisons(count_series_result: MatchSetWhitelistReporterCounterSeriesResults, contains_umi: bool, contains_surrogate: bool, contains_barcode: bool, collapsed:bool=False, alpha: float=0.3):
+def plot_match_type_comparisons(all_count_series_result: AllMatchSetWhitelistReporterCounterSeriesResults, contains_umi: bool, contains_surrogate: bool, contains_barcode: bool, collapsed:bool=False, alpha: float=0.3):
     if contains_umi:
         if contains_surrogate:
             if collapsed:
                 # PROTOSPACER+SURROGATE vs. PROTOSPACER - COLLAPSED
-                plt.scatter(count_series_result.protospacer_match_surrogate_match.ambiguous_accepted_umi_collapsed_counterseries,
-                        count_series_result.protospacer_match.ambiguous_accepted_umi_collapsed_counterseries,
+                plt.scatter(all_count_series_result.protospacer_match_surrogate_match.ambiguous_accepted_umi_collapsed_counterseries,
+                        all_count_series_result.protospacer_match.ambiguous_accepted_umi_collapsed_counterseries,
                     alpha=alpha)
                 plt.xlabel("Protospacer+Surrogate Match")
                 plt.ylabel("Protospacer Match")
@@ -651,8 +651,8 @@ def plot_match_type_comparisons(count_series_result: MatchSetWhitelistReporterCo
                 plt.show()
             else:
                 # PROTOSPACER+SURROGATE vs. PROTOSPACER - NONCOLLAPSED
-                plt.scatter(count_series_result.protospacer_match_surrogate_match.ambiguous_accepted_umi_noncollapsed_counterseries,
-                        count_series_result.protospacer_match.ambiguous_accepted_umi_noncollapsed_counterseries,
+                plt.scatter(all_count_series_result.protospacer_match_surrogate_match.ambiguous_accepted_umi_noncollapsed_counterseries,
+                        all_count_series_result.protospacer_match.ambiguous_accepted_umi_noncollapsed_counterseries,
                     alpha=alpha)
                 plt.xlabel("Protospacer+Surrogate Match")
                 plt.ylabel("Protospacer Match")
@@ -662,8 +662,8 @@ def plot_match_type_comparisons(count_series_result: MatchSetWhitelistReporterCo
             if contains_barcode:
                 if collapsed:
                     # PROTOSPACER+SURROGATE+BARCODE vs. PROTOSPACER - COLLAPSED
-                    plt.scatter(count_series_result.protospacer_match_surrogate_match_barcode_match.ambiguous_accepted_umi_collapsed_counterseries,
-                        count_series_result.protospacer_match.ambiguous_accepted_umi_collapsed_counterseries,
+                    plt.scatter(all_count_series_result.protospacer_match_surrogate_match_barcode_match.ambiguous_accepted_umi_collapsed_counterseries,
+                        all_count_series_result.protospacer_match.ambiguous_accepted_umi_collapsed_counterseries,
                     alpha=alpha)
                     plt.xlabel("Protospacer+Surrogate+Barcode Match")
                     plt.ylabel("Protospacer Match")
@@ -671,8 +671,8 @@ def plot_match_type_comparisons(count_series_result: MatchSetWhitelistReporterCo
                     plt.show()
                 else:
                     # PROTOSPACER+SURROGATE+BARCODE vs. PROTOSPACER - NONCOLLAPSED
-                    plt.scatter(count_series_result.protospacer_match_surrogate_match_barcode_match.ambiguous_accepted_umi_noncollapsed_counterseries,
-                        count_series_result.protospacer_match.ambiguous_accepted_umi_noncollapsed_counterseries,
+                    plt.scatter(all_count_series_result.protospacer_match_surrogate_match_barcode_match.ambiguous_accepted_umi_noncollapsed_counterseries,
+                        all_count_series_result.protospacer_match.ambiguous_accepted_umi_noncollapsed_counterseries,
                     alpha=alpha)
                     plt.xlabel("Protospacer+Surrogate+Barcode Match")
                     plt.ylabel("Protospacer Match")
@@ -682,8 +682,8 @@ def plot_match_type_comparisons(count_series_result: MatchSetWhitelistReporterCo
             if contains_barcode:
                 if collapsed:
                     # PROTOSPACER+BARCODE vs. PROTOSPACER - COLLAPSED
-                    plt.scatter(count_series_result.protospacer_match_barcode_match.ambiguous_accepted_umi_collapsed_counterseries,
-                        count_series_result.protospacer_match.ambiguous_accepted_umi_collapsed_counterseries,
+                    plt.scatter(all_count_series_result.protospacer_match_barcode_match.ambiguous_accepted_umi_collapsed_counterseries,
+                        all_count_series_result.protospacer_match.ambiguous_accepted_umi_collapsed_counterseries,
                     alpha=alpha)
                     plt.xlabel("Protospacer+Barcode Match")
                     plt.ylabel("Protospacer Match")
@@ -691,8 +691,8 @@ def plot_match_type_comparisons(count_series_result: MatchSetWhitelistReporterCo
                     plt.show()
                 else:
                     # PROTOSPACER+BARCODE vs. PROTOSPACER - NONCOLLAPSED
-                    plt.scatter(count_series_result.protospacer_match_barcode_match.ambiguous_accepted_umi_noncollapsed_counterseries,
-                        count_series_result.protospacer_match.ambiguous_accepted_umi_noncollapsed_counterseries,
+                    plt.scatter(all_count_series_result.protospacer_match_barcode_match.ambiguous_accepted_umi_noncollapsed_counterseries,
+                        all_count_series_result.protospacer_match.ambiguous_accepted_umi_noncollapsed_counterseries,
                     alpha=alpha)
                     plt.xlabel("Protospacer+Barcode Match")
                     plt.ylabel("Protospacer Match")
@@ -702,8 +702,8 @@ def plot_match_type_comparisons(count_series_result: MatchSetWhitelistReporterCo
 
         if contains_surrogate:
             # PROTOSPACER+SURROGATE vs. PROTOSPACER
-            plt.scatter(count_series_result.protospacer_match_surrogate_match.ambiguous_accepted_counterseries,
-                    count_series_result.protospacer_match.ambiguous_accepted_counterseries,
+            plt.scatter(all_count_series_result.protospacer_match_surrogate_match.ambiguous_accepted_counterseries,
+                    all_count_series_result.protospacer_match.ambiguous_accepted_counterseries,
                 alpha=alpha)
             plt.xlabel("Protospacer+Surrogate Match")
             plt.ylabel("Protospacer Match")
@@ -713,8 +713,8 @@ def plot_match_type_comparisons(count_series_result: MatchSetWhitelistReporterCo
             if contains_barcode:
 
                 # PROTOSPACER+SURROGATE+BARCODE vs. PROTOSPACER
-                plt.scatter(count_series_result.protospacer_match_surrogate_match_barcode_match.ambiguous_accepted_counterseries,
-                    count_series_result.protospacer_match.ambiguous_accepted_counterseries,
+                plt.scatter(all_count_series_result.protospacer_match_surrogate_match_barcode_match.ambiguous_accepted_counterseries,
+                    all_count_series_result.protospacer_match.ambiguous_accepted_counterseries,
                 alpha=alpha)
                 plt.xlabel("Protospacer+Surrogate+Barcode Match")
                 plt.ylabel("Protospacer Match")
@@ -724,10 +724,53 @@ def plot_match_type_comparisons(count_series_result: MatchSetWhitelistReporterCo
             if contains_barcode:
 
                 # PROTOSPACER+BARCODE vs. PROTOSPACER
-                plt.scatter(count_series_result.protospacer_match_barcode_match.ambiguous_accepted_counterseries,
-                    count_series_result.protospacer_match.ambiguous_accepted_counterseries,
+                plt.scatter(all_count_series_result.protospacer_match_barcode_match.ambiguous_accepted_counterseries,
+                    all_count_series_result.protospacer_match.ambiguous_accepted_counterseries,
                 alpha=alpha)
                 plt.xlabel("Protospacer+Barcode Match")
                 plt.ylabel("Protospacer Match")
                 plt.title("Comparison of Protospacer+Barcode Match vs. Protospacer-only match")
                 plt.show()
+
+# TODO: 20250107 Incorporate the ambiguity QC into the main QC logging above (need to call this function for each count_series_result)
+def quality_control_ambiguity(count_series_result: MatchSetWhitelistReporterCounterSeriesResults,
+                                ambiguity_percentage_threshold: float = 0.1,
+                                display_logs: bool = True,
+                                display_visualizations: bool = True):
+
+    # Calculate percentage of reads being ambiguously mapped
+    num_ambiguous_reads = count_series_result.ambiguous_spread_counterseries.sum() - count_series_result.ambiguous_ignored_counterseries.sum()
+    total_mapped_reads = count_series_result.ambiguous_spread_counterseries.sum()
+    num_ambiguous_fraction = num_ambiguous_reads/count_series_result.total_mapped_reads
+
+    if display_logs:
+        print(f"{num_ambiguous_reads} out of {total_mapped_reads} reads ({num_ambiguous_fraction*100:.2f}% of mapped reads) are ambiguously mapped")
+
+    # Check percentage of ambiguity for each guide in the library
+    count_series_result_num_ambiguous = count_series_result.ambiguous_accepted_counterseries - count_series_result.protospacer_match.ambiguous_ignored_counterseries
+    count_series_result_percent_ambiguous = count_series_result_num_ambiguous / count_series_result.ambiguous_accepted_counterseries
+
+    if display_logs:
+        print(f"{sum(count_series_result_percent_ambiguous > ambiguity_percentage_threshold)} out of {len(count_series_result_percent_ambiguous)} guides have an greater than {ambiguity_percentage_threshold*100:.2f}% ambiguity count, note these guides or reduce hamming distance threshold during mapping to reduce ambiguous mapping.")
+
+    if display_visualizations:
+        plt.title("Distribution of Ambiguity Count in Library")
+        plt.xlabel("Ambiguous Count")
+        plt.ylabel("Guide Count")
+        count_series_result_num_ambiguous.hist(bins=int(len(count_series_result_num_ambiguous)/20))
+        plt.show()
+
+        plt.title("Distribution of Ambiguity Percentage in Library")
+        plt.xlabel("Percent Ambiguous")
+        plt.ylabel("Guide Count")
+        count_series_result_percent_ambiguous.hist(bins=int(len(count_series_result_percent_ambiguous)/20))
+        plt.show()
+
+    # Return all results used for ambiguity QC
+    return {
+        "num_ambiguous_reads":num_ambiguous_reads,
+        "total_mapped_reads": total_mapped_reads,
+        "num_ambiguous_fraction": num_ambiguous_fraction,
+        "count_series_result_num_ambiguous": count_series_result_num_ambiguous,
+        "count_series_result_percent_ambiguous": count_series_result_percent_ambiguous
+    }

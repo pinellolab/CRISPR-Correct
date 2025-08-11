@@ -68,14 +68,14 @@ def get_whitelist_reporter_counts_with_umi(observed_guide_reporter_umi_counts: G
     #
     # ENCODE THE WHITELISTED SEQUENCES INTO NUMPY MATRICES - THIS IS REQUIRED FOR HAMMING-BASED MAPPING
     #
-    encoded_whitelist_protospacer_sequences_series = crispr_sequence_encoding.encode_guide_series(padded_whitelist_guide_reporter_df["protospacer"])
+    encoded_whitelist_protospacer_sequences_series = crispr_sequence_encoding.encode_guide_series_whitelist(padded_whitelist_guide_reporter_df["protospacer"])
     encoded_whitelist_surrogate_sequences_series = None
     if contains_surrogate:
-        encoded_whitelist_surrogate_sequences_series = crispr_sequence_encoding.encode_guide_series(padded_whitelist_guide_reporter_df["surrogate"])
+        encoded_whitelist_surrogate_sequences_series = crispr_sequence_encoding.encode_guide_series_whitelist(padded_whitelist_guide_reporter_df["surrogate"])
     
     encoded_whitelist_barcode_sequences_series = None
     if contains_barcode:
-        encoded_whitelist_barcode_sequences_series = crispr_sequence_encoding.encode_guide_series(padded_whitelist_guide_reporter_df["barcode"])
+        encoded_whitelist_barcode_sequences_series = crispr_sequence_encoding.encode_guide_series_whitelist(padded_whitelist_guide_reporter_df["barcode"])
 
     
 

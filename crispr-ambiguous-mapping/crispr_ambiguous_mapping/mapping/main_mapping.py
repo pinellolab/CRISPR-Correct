@@ -27,7 +27,6 @@ from ..processing import crispr_sequence_encoding
 from ..parsing import reporter_umitools_fastq_parsing, reporter_standard_fastq_parsing
 from ..models.mapping_models import WhitelistReporterCountsResult
 
-
 @typechecked
 def get_whitelist_reporter_counts_from_umitools_output(whitelist_guide_reporter_df: pd.DataFrame, 
                                                        fastq_r1_fn: str, 

@@ -111,6 +111,10 @@ def plot_lfc_scatter_plot(anndata: ad.AnnData,
         
         enriched_anndata = anndata[enriched_pop_sample.index, :] # DEVELOPER NOTE: Will thow error of indices of samples are changed from ints
         baseline_anndata = anndata[baseline_pop_sample.index, :] # DEVELOPER NOTE: Will thow error of indices of samples are changed from ints
+
+        # NOTE 5/27/2025: Prevents a strange error when subsetting by targetting guides: AssertionError: Don’t call _normalize_index with non-categorical/string names
+        enriched_anndata.var_names = enriched_anndata.var_names.astype(str) 
+        baseline_anndata.var_names = baseline_anndata.var_names.astype(str) 
         if count_size_population_label is not None:
             count_size_anndata = anndata[count_size_pop_sample.index, :] # DEVELOPER NOTE: Will thow error of indices of samples are changed from ints
         
