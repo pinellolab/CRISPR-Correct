@@ -148,8 +148,8 @@ def get_standard_observed_sequence_counts(  fastq_r1_fn: str,
             if (sequence_length is not None) and (len(sequence) != sequence_length):
                 return None # The parsed sequence is not the expected length, so return None
             
-            if ignore_ambiguous_iupac_reads and (not set(sequence.upper()).issubset({"A", "C", "T", "G"})):
-                return None # Ignore any reads with ambiguous iupac if setting enabled
+            #if ignore_ambiguous_iupac_reads and (not set(sequence.upper()).issubset({"A", "C", "T", "G"})):
+            #    return None # Ignore any reads with ambiguous iupac if setting enabled
 
         # Return sequence (reverse complement if necessary)
         assert revcomp_sequence is not None, f"revcomp_{sequence_type} must be provided, does the sequence need to be reverse complemented?"
@@ -416,8 +416,8 @@ def get_standard_observed_sequence_counts(  fastq_r1_fn: str,
         else:
             print(f"Opening FASTQ file, filename={fastq_r2_fn}")
             fastq_r2_filehandler = open(fastq_r2_fn, "r")
+    
     after_file_loading_time = datetime.now()
-crispr-ambiguous-mapping/crispr_ambiguous_mapping/parsing/reporter_standard_fastq_parsing.py
     print(f"{(after_file_loading_time-before_file_loading_time).seconds} seconds for file loading")
     sequence_counter = parse_fastq(fastq_r1_filehandler, fastq_r2_filehandler)
     after_parsing_time = datetime.now()
