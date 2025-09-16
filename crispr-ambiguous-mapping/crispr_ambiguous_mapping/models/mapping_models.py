@@ -15,16 +15,33 @@ import pandas as pd
 # Provides a mapping between the whitelist sequence and the list of observed sequences. Each observed sequence has the corresponding count Union[int, Dict [ str, int ]] (either int if no UMI, or Dict[str, int] for UMI-collapsed and non-collpased count)
 WhitelistReporterObservedSequenceMapping = DefaultDict[  Tuple[str, Optional[str], Optional[str]],    List[   Tuple[ Tuple[str, Optional[str], Optional[str]], Union[int, Dict [ str, int ]], int, List[Tuple[str, Optional[str], Optional[str]]] ]    ]]
 
-# Sequence Count Result Objects
+### Sequence Count Result Objects
+## No cell barcode
+# For non UMI counts
 ProtospacerCounter = CounterType[str]
 ProtospacerSurrogateCounter = CounterType[Tuple[str, str]]
 ProtospacerBarcodeCounter = CounterType[Tuple[str, str]]
 ProtospacerSurrogateBarcodeCounter = CounterType[Tuple[str, str, str]]
 
+# For UMI counts
 ProtospacerDictUMICounter = DefaultDict[str, CounterType[str]]
 ProtospacerSurrogateDictUMICounter = DefaultDict[Tuple[str, str], CounterType[str]]
 ProtospacerBarcodeDictUMICounter = DefaultDict[Tuple[str, str], CounterType[str]]
 ProtospacerSurrogateBarcodeDictUMICounter = DefaultDict[Tuple[str, str, str], CounterType[str]]
+
+
+## With sample barcode
+# For non UMI counts
+SampleProtospacerCounter = DefaultDict[str, CounterType[str]]
+SampleProtospacerSurrogateCounter = DefaultDict[Tuple[str, str], CounterType[str]]
+SampleProtospacerBarcodeCounter = DefaultDict[Tuple[str, str], CounterType[str]]
+SampleProtospacerSurrogateBarcodeCounter = DefaultDict[Tuple[str, str, str], CounterType[str]]
+
+# For UMI counts
+SampleProtospacerDictUMICounter = DefaultDict[str, DefaultDict[str, CounterType[str]]]
+SampleProtospacerSurrogateDictUMICounter = DefaultDict[Tuple[str, str], DefaultDict[str, CounterType[str]]]
+SampleProtospacerBarcodeDictUMICounter = DefaultDict[Tuple[str, str], DefaultDict[str, CounterType[str]]]
+SampleProtospacerSurrogateBarcodeDictUMICounter = DefaultDict[Tuple[str, str, str], DefaultDict[str, CounterType[str]]]
 
 GeneralGuideCountType = Union[ProtospacerCounter, 
                        ProtospacerSurrogateCounter, 
@@ -33,7 +50,15 @@ GeneralGuideCountType = Union[ProtospacerCounter,
                        ProtospacerDictUMICounter,
                        ProtospacerSurrogateDictUMICounter,
                        ProtospacerBarcodeDictUMICounter, 
-                       ProtospacerSurrogateBarcodeDictUMICounter]
+                       ProtospacerSurrogateBarcodeDictUMICounter,
+                       SampleProtospacerCounter, 
+                       SampleProtospacerSurrogateCounter, 
+                       SampleProtospacerBarcodeCounter, 
+                       SampleProtospacerSurrogateBarcodeCounter,
+                       SampleProtospacerDictUMICounter,
+                       SampleProtospacerSurrogateDictUMICounter,
+                       SampleProtospacerBarcodeDictUMICounter, 
+                       SampleProtospacerSurrogateBarcodeDictUMICounter]
 
 # Mapping Count Dict Object
 
@@ -126,7 +151,7 @@ class CompleteInferenceMatchResult:
 
 @dataclass
 class InferenceResult:
-    observed_value: Union[int, CounterType[Optional[str]]]
+    observed_value: Union[int, CounterType[Optional[str]]] # Count
     inferred_value: CompleteInferenceMatchResult
 
 
@@ -220,8 +245,9 @@ class AllMatchSetWhitelistReporterCounterSeriesResults:
 class CountInput:
     whitelist_guide_reporter_df: pd.DataFrame
     contains_surrogate:bool
-    contains_barcode:bool
-    contains_umi:bool
+    contains_guide_barcode:bool
+    contains_guide_umi:bool
+    contains_sample_barcode:bool
     protospacer_hamming_threshold_strict: Optional[int]
     surrogate_hamming_threshold_strict: Optional[int]
     barcode_hamming_threshold_strict: Optional[int]
@@ -233,7 +259,12 @@ class WhitelistReporterCountsResult:
     quality_control_result: QualityControlResult
     count_input: CountInput
 
-
+@dataclass
+class SampleWhitelistReporterCountsResult:
+    all_match_set_whitelist_reporter_counter_series_results_all_samples: DefaultDict[str, AllMatchSetWhitelistReporterCounterSeriesResults]
+    observed_guide_reporter_umi_counts_inferred_all_samples: DefaultDict[str, GeneralMappingInferenceDict]
+    quality_control_result_all_samples: DefaultDict[str, GeneralMappingInferenceDict]
+    count_input: CountInput
 
 #
 # Types

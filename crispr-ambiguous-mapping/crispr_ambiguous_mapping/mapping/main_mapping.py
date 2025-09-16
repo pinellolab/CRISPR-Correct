@@ -25,8 +25,11 @@ from ..processing import crispr_sequence_encoding
 from ..processing import crispr_guide_counting
 from ..processing import crispr_sequence_encoding
 from ..parsing import reporter_umitools_fastq_parsing, reporter_standard_fastq_parsing
-from ..models.mapping_models import WhitelistReporterCountsResult
+from ..models.mapping_models import WhitelistReporterCountsResult, SampleWhitelistReporterCountsResult, GeneralGuideCountType
 
+# 
+# Deprecated 
+#
 @typechecked
 def get_whitelist_reporter_counts_from_umitools_output(whitelist_guide_reporter_df: pd.DataFrame, 
                                                        fastq_r1_fn: str, 
@@ -94,13 +97,14 @@ def get_whitelist_reporter_counts_from_umitools_output(whitelist_guide_reporter_
 # TODO 11/20/2024: Implement UMI parsing via sequence or via R1 header
 #@typechecked
 def get_whitelist_reporter_counts_from_fastq(whitelist_guide_reporter_df: Optional[pd.DataFrame], 
-                                                       fastq_r1_fn: str, 
-                                                       fastq_r2_fn: Optional[str] = None, 
+                                                       fastq_r1_fns: List[str], 
+                                                       fastq_r2_fns: Optional[List[str]] = None, 
                                                        
                                                        protospacer_pattern_regex: Optional[str] = None,
                                                        surrogate_pattern_regex: Optional[str] = None,
-                                                       barcode_pattern_regex: Optional[str] = None,
-                                                       umi_pattern_regex: Optional[str] = None,
+                                                       guide_barcode_pattern_regex: Optional[str] = None,
+                                                       guide_umi_pattern_regex: Optional[str] = None,
+                                                       sample_barcode_pattern_regex: Optional[str] = None,
 
                                                        protospacer_left_flank:Optional[str] = None,
                                                        protospacer_right_flank:Optional[str] = None,
@@ -114,46 +118,59 @@ def get_whitelist_reporter_counts_from_fastq(whitelist_guide_reporter_df: Option
                                                        surrogate_end_position:Optional[int] = None,
                                                        surrogate_length: Optional[int] = None,
 
-                                                       barcode_left_flank:Optional[str] = None,
-                                                       barcode_right_flank:Optional[str] = None,
-                                                       barcode_start_position:Optional[int] = None,
-                                                       barcode_end_position:Optional[int] = None,
-                                                       barcode_length: Optional[int] = None,
+                                                       guide_barcode_left_flank:Optional[str] = None,
+                                                       guide_barcode_right_flank:Optional[str] = None,
+                                                       guide_barcode_start_position:Optional[int] = None,
+                                                       guide_barcode_end_position:Optional[int] = None,
+                                                       guide_barcode_length: Optional[int] = None,
 
-                                                       umi_left_flank:Optional[str] = None,
-                                                       umi_right_flank:Optional[str] = None,
-                                                       umi_start_position:Optional[int] = None,
-                                                       umi_end_position:Optional[int] = None,
-                                                       umi_length: Optional[int] = None,
+                                                       guide_umi_left_flank:Optional[str] = None,
+                                                       guide_umi_right_flank:Optional[str] = None,
+                                                       guide_umi_start_position:Optional[int] = None,
+                                                       guide_umi_end_position:Optional[int] = None,
+                                                       guide_umi_length: Optional[int] = None,
+
+                                                       sample_barcode_left_flank:Optional[str] = None,
+                                                       sample_barcode_right_flank:Optional[str] = None,
+                                                       sample_barcode_start_position:Optional[int] = None,
+                                                       sample_barcode_end_position:Optional[int] = None,
+                                                       sample_barcode_length: Optional[int] = None,
 
                                                        is_protospacer_r1: Optional[bool] = None, 
                                                        is_surrogate_r1: Optional[bool] = None, 
-                                                       is_barcode_r1: Optional[bool] = None,
-                                                       is_umi_r1: Optional[bool] = None,
+                                                       is_guide_barcode_r1: Optional[bool] = None,
+                                                       is_guide_umi_r1: Optional[bool] = None,
+                                                       is_sample_barcode_r1: Optional[bool] = None,
+
                                                        is_protospacer_header: Optional[bool] = None, 
                                                        is_surrogate_header: Optional[bool] = None, 
-                                                       is_barcode_header: Optional[bool] = None,
-                                                       is_umi_header: Optional[bool] = None,
+                                                       is_guide_barcode_header: Optional[bool] = None,
+                                                       is_guide_umi_header: Optional[bool] = None,
+                                                       is_sample_barcode_header: Optional[bool] = None,
                                                     
                                                        revcomp_protospacer: Optional[bool] = None, 
                                                        revcomp_surrogate: Optional[bool] = None, 
-                                                       revcomp_barcode: Optional[bool] = None, 
-                                                       revcomp_umi: Optional[bool] = None,
+                                                       revcomp_guide_barcode: Optional[bool] = None, 
+                                                       revcomp_guide_umi: Optional[bool] = None,
+                                                       revcomp_sample_barcode: Optional[bool] = None, 
                                                         
                                                        surrogate_hamming_threshold_strict: Optional[int] = None, 
-                                                       barcode_hamming_threshold_strict: Optional[int] = None, 
+                                                       guide_barcode_hamming_threshold_strict: Optional[int] = None, 
                                                        protospacer_hamming_threshold_strict: Optional[int] = None, 
-                                                       cores: int=1) -> WhitelistReporterCountsResult:
+
+                                                       store_intermediates: bool = False,
+                                                       cores: int=1) -> Union[WhitelistReporterCountsResult, SampleWhitelistReporterCountsResult]:
     # Input parameter validation checks
 
     protospacer_pattern_regex = None if ((protospacer_pattern_regex is not None) and  (protospacer_pattern_regex.strip() == "")) else protospacer_pattern_regex
     surrogate_pattern_regex = None if ((surrogate_pattern_regex is not None) and (surrogate_pattern_regex.strip() == "")) else surrogate_pattern_regex
-    barcode_pattern_regex = None if ((barcode_pattern_regex is not None) and  (barcode_pattern_regex.strip() == "")) else barcode_pattern_regex
-    umi_pattern_regex = None if ((umi_pattern_regex is not None) and (umi_pattern_regex.strip() == "")) else umi_pattern_regex
+    guide_barcode_pattern_regex = None if ((guide_barcode_pattern_regex is not None) and  (guide_barcode_pattern_regex.strip() == "")) else guide_barcode_pattern_regex
+    guide_umi_pattern_regex = None if ((guide_umi_pattern_regex is not None) and (guide_umi_pattern_regex.strip() == "")) else guide_umi_pattern_regex
 
     contains_surrogate = (surrogate_pattern_regex is not None) or (surrogate_left_flank is not None) or (surrogate_right_flank is not None) or (surrogate_start_position is not None) or (surrogate_end_position is not None) or (surrogate_length is not None)
-    contains_barcode = (barcode_pattern_regex is not None) or (barcode_left_flank is not None) or (barcode_right_flank is not None) or (barcode_start_position is not None) or (barcode_end_position is not None) or (barcode_length is not None)
-    contains_umi = (umi_pattern_regex is not None) or (umi_left_flank is not None) or (umi_right_flank is not None) or (umi_start_position is not None) or (barcode_end_position is not None) or (barcode_length is not None)
+    contains_guide_barcode = (guide_barcode_pattern_regex is not None) or (guide_barcode_left_flank is not None) or (guide_barcode_right_flank is not None) or (guide_barcode_start_position is not None) or (guide_barcode_end_position is not None) or (guide_barcode_length is not None)
+    contains_guide_umi = (guide_umi_pattern_regex is not None) or (guide_umi_left_flank is not None) or (guide_umi_right_flank is not None) or (guide_umi_start_position is not None) or (guide_barcode_end_position is not None) or (guide_barcode_length is not None)
+    contains_sample_barcode = (sample_barcode_pattern_regex is not None) or (sample_barcode_left_flank is not None) or (sample_barcode_right_flank is not None) or (sample_barcode_start_position is not None) or (sample_barcode_end_position is not None) or (sample_barcode_length is not None)
     
     def preprocess_sequence(sequence):
         if sequence is not None:
@@ -164,24 +181,29 @@ def get_whitelist_reporter_counts_from_fastq(whitelist_guide_reporter_df: Option
     protospacer_right_flank = preprocess_sequence(protospacer_right_flank)
     surrogate_left_flank = preprocess_sequence(surrogate_left_flank)
     surrogate_right_flank = preprocess_sequence(surrogate_right_flank)
-    barcode_left_flank = preprocess_sequence(barcode_left_flank)
-    barcode_right_flank = preprocess_sequence(barcode_right_flank)
-    umi_left_flank = preprocess_sequence(umi_left_flank)
-    umi_right_flank = preprocess_sequence(umi_right_flank)
+    guide_barcode_left_flank = preprocess_sequence(guide_barcode_left_flank)
+    guide_barcode_right_flank = preprocess_sequence(guide_barcode_right_flank)
+    guide_umi_left_flank = preprocess_sequence(guide_umi_left_flank)
+    guide_umi_right_flank = preprocess_sequence(guide_umi_right_flank)
+    sample_barcode_left_flank = preprocess_sequence(sample_barcode_left_flank)
+    sample_barcode_right_flank = preprocess_sequence(sample_barcode_right_flank)
 
     print(f"Contains surrogate: {contains_surrogate}")
-    print(f"Contains barcode: {contains_barcode}")
-    print(f"Contains UMI: {contains_umi}")
+    print(f"Contains guide barcode: {contains_guide_barcode}")
+    print(f"Contains guide UMI: {contains_guide_umi}")
+    print(f"Contains sample barcode: {contains_sample_barcode}")
     #
     # Get counts of observed FASTQ sequences
     #
-    observed_guide_reporter_umi_counts = reporter_standard_fastq_parsing.get_standard_observed_sequence_counts(fastq_r1_fn=fastq_r1_fn, 
-                                            fastq_r2_fn=fastq_r2_fn, 
+    observed_guide_reporter_umi_counts: GeneralGuideCountType = reporter_standard_fastq_parsing.get_standard_observed_sequence_counts(
+                                            fastq_r1_fn=fastq_r1_fns, 
+                                            fastq_r2_fn=fastq_r2_fns, 
                                             
                                             protospacer_pattern_regex=protospacer_pattern_regex,
                                             surrogate_pattern_regex=surrogate_pattern_regex,
-                                            barcode_pattern_regex=barcode_pattern_regex,
-                                            umi_pattern_regex=umi_pattern_regex,
+                                            guide_barcode_pattern_regex=guide_barcode_pattern_regex,
+                                            guide_umi_pattern_regex=guide_umi_pattern_regex,
+                                            sample_barcode_pattern_regex=sample_barcode_pattern_regex,
 
                                             protospacer_left_flank=protospacer_left_flank,
                                             protospacer_right_flank=protospacer_right_flank,
@@ -195,51 +217,65 @@ def get_whitelist_reporter_counts_from_fastq(whitelist_guide_reporter_df: Option
                                             surrogate_end_position=surrogate_end_position,
                                             surrogate_length=surrogate_length,
 
-                                            barcode_left_flank=barcode_left_flank,
-                                            barcode_right_flank=barcode_right_flank,
-                                            barcode_start_position=barcode_start_position,
-                                            barcode_end_position=barcode_end_position,
-                                            barcode_length=barcode_length,
+                                            guide_barcode_left_flank=guide_barcode_left_flank,
+                                            guide_barcode_right_flank=guide_barcode_right_flank,
+                                            guide_barcode_start_position=guide_barcode_start_position,
+                                            guide_barcode_end_position=guide_barcode_end_position,
+                                            guide_barcode_length=guide_barcode_length,
 
-                                            umi_left_flank=umi_left_flank,
-                                            umi_right_flank=umi_right_flank,
-                                            umi_start_position=umi_start_position,
-                                            umi_end_position=umi_end_position,
-                                            umi_length=umi_length,
+                                            guide_umi_left_flank=guide_umi_left_flank,
+                                            guide_umi_right_flank=guide_umi_right_flank,
+                                            guide_umi_start_position=guide_umi_start_position,
+                                            guide_umi_end_position=guide_umi_end_position,
+                                            guide_umi_length=guide_umi_length,
+
+                                            sample_barcode_left_flank=sample_barcode_left_flank,
+                                            sample_barcode_right_flank=sample_barcode_right_flank,
+                                            sample_barcode_start_position=sample_barcode_start_position,
+                                            sample_barcode_end_position=sample_barcode_end_position,
+                                            sample_barcode_length=sample_barcode_length,
 
                                             is_protospacer_r1=is_protospacer_r1, 
                                             is_surrogate_r1=is_surrogate_r1, 
-                                            is_barcode_r1=is_barcode_r1,
-                                            is_umi_r1=is_umi_r1,
+                                            is_guide_barcode_r1=is_guide_barcode_r1,
+                                            is_guide_umi_r1=is_guide_umi_r1,
+                                            is_sample_barcode_r1=is_sample_barcode_r1,
+                                            
                                             is_protospacer_header=is_protospacer_header, 
                                             is_surrogate_header=is_surrogate_header, 
-                                            is_barcode_header=is_barcode_header,
-                                            is_umi_header=is_umi_header,
+                                            is_guide_barcode_header=is_guide_barcode_header,
+                                            is_guide_umi_header=is_guide_umi_header,
+                                            is_sample_barcode_header=is_sample_barcode_header,
                                         
                                             revcomp_protospacer=revcomp_protospacer, 
                                             revcomp_surrogate=revcomp_surrogate, 
-                                            revcomp_barcode=revcomp_barcode,
-                                            revcomp_umi=revcomp_umi,
+                                            revcomp_guide_barcode=revcomp_guide_barcode,
+                                            revcomp_guide_umi=revcomp_guide_umi,
+                                            revcomp_sample_barcode=revcomp_sample_barcode,
                                             
-                                            contains_surrogate=contains_surrogate,
-                                            contains_barcode=contains_barcode,
-                                            contains_umi=contains_umi)
+                                            contains_guide_surrogate=contains_surrogate,
+                                            contains_guide_barcode=contains_guide_barcode,
+                                            contains_guide_umi=contains_guide_umi,
+                                            contains_sample_barcode=contains_sample_barcode)
 
     print(f"Number of unique observed parsed sequences: {len(observed_guide_reporter_umi_counts.keys())}")
 
     #   
     # Map the observed sequences to the true whitelist sequence
     #
-    get_whitelist_reporter_counts_with_umi_PARTIAL = partial(
-        crispr_guide_counting.get_whitelist_reporter_counts_with_umi,
+    return crispr_guide_counting.get_whitelist_reporter_counts_with_umi(
         observed_guide_reporter_umi_counts=observed_guide_reporter_umi_counts,
         whitelist_guide_reporter_df=whitelist_guide_reporter_df,
+        contains_guide_surrogate=contains_surrogate, 
+        contains_guide_barcode=contains_guide_barcode, 
+        contains_guide_umi = contains_guide_umi,
+        contains_sample_barcode=contains_sample_barcode, 
         protospacer_hamming_threshold_strict=protospacer_hamming_threshold_strict,
         surrogate_hamming_threshold_strict=surrogate_hamming_threshold_strict,
-        barcode_hamming_threshold_strict=barcode_hamming_threshold_strict,
+        guide_barcode_hamming_threshold_strict=guide_barcode_hamming_threshold_strict,
+        store_intermediates=store_intermediates,
         cores=cores
     )
 
-    return get_whitelist_reporter_counts_with_umi_PARTIAL(contains_surrogate=contains_surrogate, contains_barcode=contains_barcode, contains_umi = contains_umi)
                 
 

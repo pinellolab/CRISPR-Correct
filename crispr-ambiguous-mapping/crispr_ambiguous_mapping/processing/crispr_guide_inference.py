@@ -32,23 +32,25 @@ from ..models.error_models import (GuideCountError, GuideCountErrorType,
 @typechecked
 def infer_whitelist_sequence(observed_guide_reporter_sequence_input: Union[str, Tuple[str], Tuple[str, str], Tuple[str,str, str]], 
         whitelist_guide_reporter_df: pd.DataFrame, 
-        contains_surrogate:bool, 
-        contains_barcode:bool, 
-        contains_umi:bool, 
+        contains_guide_surrogate:bool, 
+        contains_guide_barcode:bool, 
+        contains_guide_umi:bool, 
         encoded_whitelist_protospacer_sequences_series: np.ndarray, 
         encoded_whitelist_surrogate_sequences_series: Optional[np.ndarray] = None, 
         encoded_whitelist_barcode_sequences_series: Optional[np.ndarray] = None, 
         protospacer_hamming_threshold: int = 7, 
         surrogate_hamming_threshold: Optional[int] = 10, 
-        barcode_hamming_threshold: Optional[int] = 2):
+        barcode_hamming_threshold: Optional[int] = 2,
+        store_intermediates:bool = False
+        ):
 
     #
     #   FORMAT OBSERVED SEQUENCES AS PANDAS SERIES
     #
     observed_reporter_sequences_indices = ["protospacer"]
-    if contains_surrogate:
+    if contains_guide_surrogate:
         observed_reporter_sequences_indices.append("surrogate")
-    if contains_barcode:
+    if contains_guide_barcode:
         observed_reporter_sequences_indices.append("barcode")
     observed_guide_reporter_sequence = pd.Series(observed_guide_reporter_sequence_input, index=observed_reporter_sequences_indices)
     
@@ -67,17 +69,17 @@ def infer_whitelist_sequence(observed_guide_reporter_sequence_input: Union[str, 
         
     protospacer_error_result = validate_observed_sequence(sequence_name="protospacer", encoded_whitelist_sequence_series=encoded_whitelist_protospacer_sequences_series, missing_info_error=ProtospacerMissingInfoGuideCountError(sequence_value=observed_guide_reporter_sequence), insufficient_length_error=ProtospacerInsufficientLengthGuideCountError(sequence_length=len(observed_guide_reporter_sequence["protospacer"]), minimum_length=whitelist_guide_reporter_df["protospacer"].apply(len).min()))
     surrogate_error_result = None
-    if contains_surrogate:
+    if contains_guide_surrogate:
         surrogate_error_result = validate_observed_sequence(sequence_name="surrogate", encoded_whitelist_sequence_series=encoded_whitelist_surrogate_sequences_series, missing_info_error=SurrogateMissingInfoGuideCountError(sequence_value=observed_guide_reporter_sequence), insufficient_length_error=SurrogateInsufficientLengthGuideCountError(sequence_length=len(observed_guide_reporter_sequence["surrogate"]), minimum_length=whitelist_guide_reporter_df["surrogate"].apply(len).min()))
     barcode_error_result = None
-    if contains_barcode:
+    if contains_guide_barcode:
         barcode_error_result = validate_observed_sequence(sequence_name="barcode", encoded_whitelist_sequence_series=encoded_whitelist_barcode_sequences_series, missing_info_error=BarcodeMissingInfoGuideCountError(sequence_value=observed_guide_reporter_sequence), insufficient_length_error=BarcodeInsufficientLengthGuideCountError(sequence_length=len(observed_guide_reporter_sequence["barcode"]), minimum_length=whitelist_guide_reporter_df["barcode"].apply(len).min()))
 
     # CHANGE SHAPE OF ENCODINGS TO BE SAME LENGTH
     if protospacer_error_result is None:
         observed_guide_reporter_sequence["protospacer"] = observed_guide_reporter_sequence["protospacer"][:encoded_whitelist_protospacer_sequences_series.shape[1]]
         encoded_whitelist_protospacer_sequences_series = encoded_whitelist_protospacer_sequences_series[:, :len(observed_guide_reporter_sequence["protospacer"]), :] # Change shape of whitelist library encodings
-    if contains_surrogate and (surrogate_error_result is None):
+    if contains_guide_surrogate and (surrogate_error_result is None):
         #print(len(observed_guide_reporter_sequence["surrogate"]))
         #print(len(encoded_whitelist_surrogate_sequences_series.shape))
         observed_guide_reporter_sequence["surrogate"] = observed_guide_reporter_sequence["surrogate"][:encoded_whitelist_protospacer_sequences_series.shape[1]]
@@ -85,7 +87,7 @@ def infer_whitelist_sequence(observed_guide_reporter_sequence_input: Union[str, 
         #print(len(observed_guide_reporter_sequence["surrogate"]))
         #print(len(encoded_whitelist_surrogate_sequences_series.shape))
         #print("Done")
-    if contains_barcode and (barcode_error_result is None):
+    if contains_guide_barcode and (barcode_error_result is None):
         observed_guide_reporter_sequence["barcode"] = observed_guide_reporter_sequence["barcode"][:encoded_whitelist_protospacer_sequences_series.shape[1]]
         encoded_whitelist_barcode_sequences_series = encoded_whitelist_barcode_sequences_series[:, :len(observed_guide_reporter_sequence["barcode"]), :] # Change shape of whitelist library encodings
     
@@ -95,7 +97,7 @@ def infer_whitelist_sequence(observed_guide_reporter_sequence_input: Union[str, 
     #
     # GET THE BARCODE-ONLY MATCHES
     # (Since barcode-matching will be done a lot, let's do first and save the match results)
-    if contains_barcode: # IF BARCODE IS PARSED
+    if contains_guide_barcode: # IF BARCODE IS PARSED
         barcode_available = True # Let's save an indicator on if we successfully parsed barcode for convenience downstream
         if barcode_error_result is None: # IF NO BARCODE PARSING ISSUE
 
@@ -114,7 +116,7 @@ def infer_whitelist_sequence(observed_guide_reporter_sequence_input: Union[str, 
                 
                 if barcode_hamming_threshold_met: # IF BARCODE MATCH
                     encoded_whitelist_protospacer_sequences_series_barcode_match = encoded_whitelist_protospacer_sequences_series[barcode_matches_indices] # Subset the protospacer encodings with the barcode matches for later
-                    if contains_surrogate:
+                    if contains_guide_surrogate:
                         encoded_whitelist_surrogate_sequences_series_barcode_match = encoded_whitelist_surrogate_sequences_series[barcode_matches_indices] # Subset the surrogate encodings with the barcode matches for later
                 else: # NO BARCODE MATCH, ERROR
                     barcode_available = False
@@ -160,7 +162,7 @@ def infer_whitelist_sequence(observed_guide_reporter_sequence_input: Union[str, 
             encoded_whitelist_protospacer_sequences_series_protospacer_match = encoded_whitelist_protospacer_sequences_series[protospacer_matches_indices] # Subset the protospacer encodings with the protospacer matches for later
             complete_match_result.protospacer_match = MatchSetSingleInferenceMatchResult(value=MatchSetSingleInferenceMatchResultValue(matches=whitelist_guide_reporter_df_hamming_protospacer_match))
             
-            if contains_barcode: # IF BARCODE IS PARSED, PROCEED TO BARCODE-MATCHING INFERENCE
+            if contains_guide_barcode: # IF BARCODE IS PARSED, PROCEED TO BARCODE-MATCHING INFERENCE
                 if barcode_available: # IF BARCODE IS MATCHED, PROCEED TO BARCODE-MATCHING INFERENCE
                     #
                     # PREPARE PROTOSPACER-MATCH, BARCODE-MATCH
@@ -177,7 +179,7 @@ def infer_whitelist_sequence(observed_guide_reporter_sequence_input: Union[str, 
                         #
                         
                         complete_match_result.protospacer_match_barcode_match = MatchSetSingleInferenceMatchResult(value=MatchSetSingleInferenceMatchResultValue(matches=whitelist_guide_reporter_df_hamming_barcode_match_protospacer_match))
-                        if contains_surrogate: # IF SURROGATE IS PARSED, PROCEED TO SURROGATE-MATCHING INFERENCE
+                        if contains_guide_surrogate: # IF SURROGATE IS PARSED, PROCEED TO SURROGATE-MATCHING INFERENCE
                             if surrogate_error_result is None:
                                 #
                                 # PREPARE PROTOSPACER-MATCH, BARCODE-MATCH, SURROGATE-MATCH
@@ -229,7 +231,7 @@ def infer_whitelist_sequence(observed_guide_reporter_sequence_input: Union[str, 
             #
             # PROTOSPACER-MATCH, SURROGATE-MATCH, NO BARCODE
             #
-            if contains_surrogate: # IF SURROGATE IS PARSED
+            if contains_guide_surrogate: # IF SURROGATE IS PARSED
                 if surrogate_error_result is None: # AND NO SURROGATE PARSING ISSUE 
 
                     #
@@ -270,9 +272,9 @@ def infer_whitelist_sequence(observed_guide_reporter_sequence_input: Union[str, 
             #
             # GET THE PROTOSPACER-SURROGATE MISMATCHES NOW (if surrogate is available)
             #
-            if contains_surrogate: # IF SURROGATE IS PARSED
+            if contains_guide_surrogate: # IF SURROGATE IS PARSED
                 if surrogate_error_result is None: # AND NO SURROGATE PARSING ISSUE
-                    if contains_barcode: # IF BARCODE IS PARSED
+                    if contains_guide_barcode: # IF BARCODE IS PARSED
                         if barcode_available: # AND NO BARCODE PARSING ISSUE
                             #
                             # PREPARE SURROGATE-MATCH, BARCODE-MATCH
@@ -380,7 +382,6 @@ def infer_whitelist_sequence(observed_guide_reporter_sequence_input: Union[str, 
         complete_match_result.protospacer_mismatch_surrogate_match_barcode_match = SurrogateProtospacerMismatchSingleInferenceMatchResult(error=protospacer_error_result)
         complete_match_result.protospacer_mismatch_surrogate_match = SurrogateProtospacerMismatchSingleInferenceMatchResult(error=protospacer_error_result)
         
-    
     return complete_match_result
 
 
