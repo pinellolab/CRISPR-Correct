@@ -196,8 +196,8 @@ def get_whitelist_reporter_counts_from_fastq(whitelist_guide_reporter_df: Option
     # Get counts of observed FASTQ sequences
     #
     observed_guide_reporter_umi_counts: GeneralGuideCountType = reporter_standard_fastq_parsing.get_standard_observed_sequence_counts(
-                                            fastq_r1_fn=fastq_r1_fns, 
-                                            fastq_r2_fn=fastq_r2_fns, 
+                                            fastq_r1_fns=fastq_r1_fns, 
+                                            fastq_r2_fns=fastq_r2_fns, 
                                             
                                             protospacer_pattern_regex=protospacer_pattern_regex,
                                             surrogate_pattern_regex=surrogate_pattern_regex,
