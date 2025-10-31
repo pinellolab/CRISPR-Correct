@@ -250,7 +250,7 @@ class CountInput:
     contains_sample_barcode:bool
     protospacer_hamming_threshold_strict: Optional[int]
     surrogate_hamming_threshold_strict: Optional[int]
-    barcode_hamming_threshold_strict: Optional[int]
+    guide_barcode_hamming_threshold_strict: Optional[int]
 
 @dataclass
 class WhitelistReporterCountsResult:

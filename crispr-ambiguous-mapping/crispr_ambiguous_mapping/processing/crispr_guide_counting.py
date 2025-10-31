@@ -39,7 +39,7 @@ def get_whitelist_reporter_counts_with_umi(observed_guide_reporter_umi_counts: G
                                            contains_sample_barcode:bool = False, 
                                            protospacer_hamming_threshold_strict: Optional[int] = 7, 
                                            surrogate_hamming_threshold_strict: Optional[int] = 2, 
-                                           barcode_hamming_threshold_strict: Optional[int] = 2, 
+                                           guide_barcode_hamming_threshold_strict: Optional[int] = 2, 
                                            store_intermediates: bool = False,
                                            cores: int=1) -> Union[WhitelistReporterCountsResult, SampleWhitelistReporterCountsResult]:
     
@@ -113,13 +113,13 @@ def get_whitelist_reporter_counts_with_umi(observed_guide_reporter_umi_counts: G
     #
     #   SET THE BARCODE HAMMING THRESHOLD
     #
-    barcode_hamming_threshold: Optional[int] = barcode_hamming_threshold_strict
+    guide_barcode_hamming_threshold: Optional[int] = guide_barcode_hamming_threshold_strict
     if contains_guide_barcode:
-        barcode_hamming_threshold_dynamic = False
-        if barcode_hamming_threshold_strict is  None:
-            barcode_hamming_threshold_dynamic = True
-            barcode_hamming_threshold: int = crispr_guide_inference.determine_hamming_threshold(whitelist_guide_reporter_df["barcode"], encoded_whitelist_barcode_sequences_series, sample_count = 100, quantile = 0.05)
-        print("Barcode hamming threshold is " + str(barcode_hamming_threshold))
+        guide_barcode_hamming_threshold_dynamic = False
+        if guide_barcode_hamming_threshold_strict is  None:
+            guide_barcode_hamming_threshold_dynamic = True
+            guide_barcode_hamming_threshold: int = crispr_guide_inference.determine_hamming_threshold(whitelist_guide_reporter_df["barcode"], encoded_whitelist_barcode_sequences_series, sample_count = 100, quantile = 0.05)
+        print("Barcode hamming threshold is " + str(guide_barcode_hamming_threshold))
 
 
 
@@ -138,7 +138,7 @@ def get_whitelist_reporter_counts_with_umi(observed_guide_reporter_umi_counts: G
             encoded_whitelist_barcode_sequences_series=encoded_whitelist_barcode_sequences_series,
             protospacer_hamming_threshold=protospacer_hamming_threshold, 
             surrogate_hamming_threshold=surrogate_hamming_threshold, 
-            barcode_hamming_threshold=barcode_hamming_threshold,
+            barcode_hamming_threshold=guide_barcode_hamming_threshold,
             store_intermediates=store_intermediates)
 
     # Perform inference: frpom the observed sequences (previously parsed), infer the true sequence from the whitelist DF.
@@ -203,7 +203,7 @@ def get_whitelist_reporter_counts_with_umi(observed_guide_reporter_umi_counts: G
             contains_sample_barcode=contains_sample_barcode,
             protospacer_hamming_threshold_strict=protospacer_hamming_threshold,
             surrogate_hamming_threshold_strict=surrogate_hamming_threshold,
-            barcode_hamming_threshold_strict=barcode_hamming_threshold)
+            guide_barcode_hamming_threshold_strict=guide_barcode_hamming_threshold)
         
         return SampleWhitelistReporterCountsResult(all_match_set_whitelist_reporter_counter_series_results_all_samples=all_match_set_whitelist_reporter_counter_series_results_all_samples,
                                                     observed_guide_reporter_umi_counts_inferred_all_samples=observed_guide_reporter_umi_counts_inferred_all_samples, 
@@ -243,6 +243,6 @@ def get_whitelist_reporter_counts_with_umi(observed_guide_reporter_umi_counts: G
                 contains_guide_umi=contains_guide_umi,
                 protospacer_hamming_threshold_strict=protospacer_hamming_threshold,
                 surrogate_hamming_threshold_strict=surrogate_hamming_threshold,
-                barcode_hamming_threshold_strict=barcode_hamming_threshold)
+                guide_barcode_hamming_threshold_strict=guide_barcode_hamming_threshold)
         
         return WhitelistReporterCountsResult(all_match_set_whitelist_reporter_counter_series_results=all_match_set_whitelist_reporter_counter_series_results, observed_guide_reporter_umi_counts_inferred=observed_guide_reporter_umi_counts_inferred, quality_control_result=quality_control_result, count_input=count_input)
