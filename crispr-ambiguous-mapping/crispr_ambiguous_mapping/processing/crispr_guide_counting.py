@@ -241,6 +241,7 @@ def get_whitelist_reporter_counts_with_umi(observed_guide_reporter_umi_counts: G
                 contains_surrogate=contains_guide_surrogate,
                 contains_guide_barcode=contains_guide_barcode,
                 contains_guide_umi=contains_guide_umi,
+                contains_sample_barcode=contains_sample_barcode,
                 protospacer_hamming_threshold_strict=protospacer_hamming_threshold,
                 surrogate_hamming_threshold_strict=surrogate_hamming_threshold,
                 guide_barcode_hamming_threshold_strict=guide_barcode_hamming_threshold)
