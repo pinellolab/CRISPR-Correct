@@ -127,7 +127,7 @@ def infer_whitelist_sequence(observed_guide_reporter_sequence_input: Union[str, 
                         hamming_min_match_df=whitelist_guide_reporter_df_barcode_match)
             except Exception as e:
                 barcode_available = False
-                barcode_error_result = GuideCountError(guide_count_error_type=GuideCountErrorType.BARCODE_MISC, miscellaneous_info_dict={"message": f"Error encoding barcode sequence: {observed_guide_reporter_sequence['barcode']}"})
+                barcode_error_result = GuideCountError(guide_count_error_type=GuideCountErrorType.BARCODE_MISC, miscellaneous_info_dict={"message": f"Error encoding barcode sequence: {observed_guide_reporter_sequence['barcode']}; Exception message = {str(e)}"})
         else:
             barcode_available = False
             
@@ -146,7 +146,7 @@ def infer_whitelist_sequence(observed_guide_reporter_sequence_input: Union[str, 
             protospacer_matches_indices = np.where(observed_protospacer_sequence_dists == observed_protospacer_sequence_dists_min)[0]
             whitelist_guide_reporter_df_hamming_protospacer_match = whitelist_guide_reporter_df.iloc[protospacer_matches_indices] # Get all whitelisted guides with the minimum hamming distance (could be multiple)
         except Exception as e:
-            encoding_protospacer_error_result = GuideCountError(guide_count_error_type=GuideCountErrorType.PROTOSPACER_MISC, miscellaneous_info_dict={"message": f"Error encoding protospacer sequence: {observed_guide_reporter_sequence['protospacer']}"})
+            encoding_protospacer_error_result = GuideCountError(guide_count_error_type=GuideCountErrorType.PROTOSPACER_MISC, miscellaneous_info_dict={"message": f"Error encoding protospacer sequence: {observed_guide_reporter_sequence['protospacer']}; Exception message = {str(e)}"})
         
         if encoding_protospacer_error_result is not None:
             complete_match_result.protospacer_match = MatchSetSingleInferenceMatchResult(error=encoding_protospacer_error_result)
@@ -249,7 +249,7 @@ def infer_whitelist_sequence(observed_guide_reporter_sequence_input: Union[str, 
                         whitelist_guide_reporter_df_hamming_protospacer_match_surrogate_match = whitelist_guide_reporter_df_hamming_protospacer_match.iloc[protospacer_match_surrogate_match_indices] # Get all whitelisted guides with the minimum hamming distance (could be multiple)
                     except Exception as e:
                         print(e)
-                        encoding_surrogate_error_result = GuideCountError(guide_count_error_type=GuideCountErrorType.SURROGATE_MISC, miscellaneous_info_dict={"message":f"Error encoding surrogate sequence: {observed_guide_reporter_sequence['surrogate']}"})
+                        encoding_surrogate_error_result = GuideCountError(guide_count_error_type=GuideCountErrorType.SURROGATE_MISC, miscellaneous_info_dict={"message":f"Error encoding surrogate sequence: {observed_guide_reporter_sequence['surrogate']}; Exception message = {str(e)}"})
                     
                     if encoding_surrogate_error_result is not None:
                         complete_match_result.protospacer_match_surrogate_match = MatchSetSingleInferenceMatchResult(
@@ -292,7 +292,7 @@ def infer_whitelist_sequence(observed_guide_reporter_sequence_input: Union[str, 
                                 whitelist_guide_reporter_df_hamming_barcode_match_surrogate_match = whitelist_guide_reporter_df_barcode_match.iloc[barcode_match_surrogate_match_indices] # Get all whitelisted guides with the minimum hamming distance (could be multiple)
                             except Exception as e:
                                 print(e)
-                                encoding_surrogate_error_result = GuideCountError(guide_count_error_type=GuideCountErrorType.SURROGATE_MISC, miscellaneous_info_dict={"message": f"Error encoding surrogate sequence: {observed_guide_reporter_sequence['surrogate']}"})
+                                encoding_surrogate_error_result = GuideCountError(guide_count_error_type=GuideCountErrorType.SURROGATE_MISC, miscellaneous_info_dict={"message": f"Error encoding surrogate sequence: {observed_guide_reporter_sequence['surrogate']}; Exception message = {str(e)}"})
                             
                             if encoding_surrogate_error_result is not None:
                                 complete_match_result.protospacer_mismatch_surrogate_match_barcode_match = SurrogateProtospacerMismatchSingleInferenceMatchResult(
@@ -332,7 +332,7 @@ def infer_whitelist_sequence(observed_guide_reporter_sequence_input: Union[str, 
                         whitelist_guide_reporter_df_hamming_surrogate_match = whitelist_guide_reporter_df.iloc[surrogate_match_indices] # Get all whitelisted guides with the minimum hamming distance (could be multiple)
                     except Exception as e:
                         print(e)
-                        encoding_surrogate_error_result = GuideCountError(guide_count_error_type=GuideCountErrorType.SURROGATE_MISC, miscellaneous_info_dict={"message": f"Error encoding surrogate sequence: {observed_guide_reporter_sequence['surrogate']}"})
+                        encoding_surrogate_error_result = GuideCountError(guide_count_error_type=GuideCountErrorType.SURROGATE_MISC, miscellaneous_info_dict={"message": f"Error encoding surrogate sequence: {observed_guide_reporter_sequence['surrogate']}; Exception message = {str(e)}"})
                     
                     if encoding_surrogate_error_result is not None:
                         complete_match_result.protospacer_mismatch_surrogate_match = SurrogateProtospacerMismatchSingleInferenceMatchResult(
