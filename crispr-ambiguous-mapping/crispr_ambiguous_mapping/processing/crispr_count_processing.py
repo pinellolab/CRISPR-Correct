@@ -80,76 +80,135 @@ def helper_get_observed_values_given_whitelist_value(whitelist_sequence_list: Li
     return whitelist_sequence_mapping_list
 
 
-
 #
 #   GET THE WHITELIST COUNT PANDAS SERIES
 #
 # HELPER FUNCTION GETS COUNTS FOR THE THE MATCHES - defined in-function to reduce arguments being passed (NOTE: There is some duplicate code with mismatch counts function - keep in mind if making modifications)
 @typechecked
-def get_matchset_counterseries(observed_guide_reporter_umi_counts_inferred: GeneralMappingInferenceDict, whitelist_guide_reporter_df: pd.DataFrame, contains_umi: bool, attribute_name: str) -> MatchSetWhitelistReporterCounterSeriesResults: 
+def get_matchset_counterseries(
+    observed_guide_reporter_umi_counts_inferred: Union[GeneralMappingInferenceDict, DefaultDict[str, GeneralMappingInferenceDict]],
+    whitelist_guide_reporter_df: pd.DataFrame,
+    contains_guide_umi: bool,
+    contains_sample_barcode: bool,
+    attribute_name: str
+) -> MatchSetWhitelistReporterCounterSeriesResults:
+    
     #
     #   DEFINE THE DEFAULTDICTS FOR COUNTING
+    #   Key is the guide, value is the count
     #
-    ambiguous_ignored_umi_noncollapsed_counterdict : GeneralMatchCountDict = defaultdict(int)
-    ambiguous_ignored_umi_collapsed_counterdict : GeneralMatchCountDict  = defaultdict(int)
-    ambiguous_ignored_counterdict : GeneralMatchCountDict  = defaultdict(int)
+    if contains_sample_barcode:
+        ambiguous_ignored_umi_noncollapsed_counterdict  = defaultdict(lambda: defaultdict(int))
+        ambiguous_ignored_umi_collapsed_counterdict     = defaultdict(lambda: defaultdict(int))
+        ambiguous_ignored_counterdict                   = defaultdict(lambda: defaultdict(int))
 
-    ambiguous_accepted_umi_noncollapsed_counterdict : GeneralMatchCountDict  = defaultdict(int)
-    ambiguous_accepted_umi_collapsed_counterdict : GeneralMatchCountDict  = defaultdict(int)
-    ambiguous_accepted_counterdict : GeneralMatchCountDict  = defaultdict(int)
+        ambiguous_accepted_umi_noncollapsed_counterdict = defaultdict(lambda: defaultdict(int))
+        ambiguous_accepted_umi_collapsed_counterdict    = defaultdict(lambda: defaultdict(int))
+        ambiguous_accepted_counterdict                  = defaultdict(lambda: defaultdict(int))
 
-    ambiguous_spread_umi_noncollapsed_counterdict : GeneralMatchCountDict  = defaultdict(float)
-    ambiguous_spread_umi_collapsed_counterdict : GeneralMatchCountDict  = defaultdict(float)
-    ambiguous_spread_counterdict : GeneralMatchCountDict  = defaultdict(float)
+        ambiguous_spread_umi_noncollapsed_counterdict   = defaultdict(lambda: defaultdict(float))
+        ambiguous_spread_umi_collapsed_counterdict      = defaultdict(lambda: defaultdict(float))
+        ambiguous_spread_counterdict                    = defaultdict(lambda: defaultdict(float))
+    else:
+        ambiguous_ignored_umi_noncollapsed_counterdict  = defaultdict(int)
+        ambiguous_ignored_umi_collapsed_counterdict     = defaultdict(int)
+        ambiguous_ignored_counterdict                   = defaultdict(int)
+
+        ambiguous_accepted_umi_noncollapsed_counterdict = defaultdict(int)
+        ambiguous_accepted_umi_collapsed_counterdict    = defaultdict(int)
+        ambiguous_accepted_counterdict                  = defaultdict(int)
+
+        ambiguous_spread_umi_noncollapsed_counterdict   = defaultdict(float)
+        ambiguous_spread_umi_collapsed_counterdict      = defaultdict(float)
+        ambiguous_spread_counterdict                    = defaultdict(float)
+
 
     #
     # ITERATE THROUGH THE NON-ERROR INFERRED RESULTS AND FILL THE COUNTS
     #
-    inferred_value_results: InferenceResult
-    for inferred_value_results in get_non_error_dict(observed_guide_reporter_umi_counts_inferred, attribute_name).values():
-        #
-        #   Get the relevant attributes
-        #
-        observed_value_counts: Union[int, CounterType[Optional[str]]] = inferred_value_results.observed_value
-        inferred_value_result: CompleteInferenceMatchResult =  inferred_value_results.inferred_value 
-        match_set_single_inference_match_result : Optional[MatchSetSingleInferenceMatchResult] = getattr(inferred_value_result, attribute_name)
-        assert match_set_single_inference_match_result is not None, "match_set_single_inference_match_result should not be none since this is from the non error list. Developer error."
-        
-        matches: pd.DataFrame = match_set_single_inference_match_result.value.matches
-        if not matches.empty:
-            # ITERATE THROUGH MATCHE(S) TO PERFORM COUNTS
-            for whitelist_reporter_series in matches.iterrows(): 
-                # UMI-BASED COUNTING
-                dict_index = tuple(whitelist_reporter_series[1])
-                if contains_umi:
-                    assert isinstance(observed_value_counts, Counter), f"For UMI, expecting observed value is a Counter, but type is {type(observed_value_counts)}"
-                    ambiguous_accepted_umi_noncollapsed_counterdict[dict_index] += sum(observed_value_counts.values())
-                    ambiguous_accepted_umi_collapsed_counterdict[dict_index] += len(observed_value_counts.values())
+    def process_sample(observed_dict, cell_barcode=None):
+        inferred_value_results: InferenceResult
+        for inferred_value_results in get_non_error_dict(observed_dict, attribute_name).values():
+            #
+            #   Get the relevant attributes
+            #
+            observed_value_counts: Union[int, CounterType[Optional[str]]] = inferred_value_results.observed_value
+            inferred_value_result: CompleteInferenceMatchResult =  inferred_value_results.inferred_value 
+            match_set_single_inference_match_result : Optional[MatchSetSingleInferenceMatchResult] = getattr(inferred_value_result, attribute_name)
+            assert match_set_single_inference_match_result is not None, "match_set_single_inference_match_result should not be none since this is from the non error list. Developer error."
+            
+            matches: pd.DataFrame = match_set_single_inference_match_result.value.matches
+            if not matches.empty:
+                # ITERATE THROUGH MATCHE(S) TO PERFORM COUNTS
+                for whitelist_reporter_series in matches.iterrows(): 
+                    dict_index = tuple(whitelist_reporter_series[1])
 
-                    ambiguous_spread_umi_noncollapsed_counterdict[dict_index] += sum(observed_value_counts.values()) / float(matches.shape[0])
-                    ambiguous_spread_umi_collapsed_counterdict[dict_index] += len(observed_value_counts.values()) / float(matches.shape[0])
-                    
-                    # If there is no ambiguous matches, then add to ambiguous_ignored counter
-                    if matches.shape[0] == 1:
-                        ambiguous_ignored_umi_noncollapsed_counterdict[dict_index] += sum(observed_value_counts.values())
-                        ambiguous_ignored_umi_collapsed_counterdict[dict_index] += len(observed_value_counts.values())
-                
-                # STANDARD NON-UMI BASED COUNTING
-                else:
-                    assert isinstance(observed_value_counts, int), f"For non UMI, expecting observed value is an int, but type is {type(observed_value_counts)}"
-                    ambiguous_accepted_counterdict[dict_index] += observed_value_counts
-                    ambiguous_spread_counterdict[dict_index] += observed_value_counts / float(matches.shape[0])
-                    
-                    # If there is no ambiguous matches, then add to ambiguous_ignored counter
-                    if matches.shape[0] == 1:
-                        ambiguous_ignored_counterdict[dict_index] += observed_value_counts
-    
+                    # Helper for incrementing either flat or nested dicts
+                    def add_count(counterdict, value, spread=False):
+                        if contains_sample_barcode:
+                            if spread:
+                                counterdict[cell_barcode][dict_index] += float(value)
+                            else:
+                                counterdict[cell_barcode][dict_index] += value
+                        else:
+                            if spread:
+                                counterdict[dict_index] += float(value)
+                            else:
+                                counterdict[dict_index] += value
+
+                    # UMI-BASED COUNTING
+                    if contains_guide_umi:
+                        assert isinstance(observed_value_counts, Counter), f"For UMI, expecting observed value is a Counter, but type is {type(observed_value_counts)}"
+                        total_reads = sum(observed_value_counts.values())
+                        collapsed = len(observed_value_counts.values())
+                        num_matches = float(matches.shape[0])
+
+                        add_count(ambiguous_accepted_umi_noncollapsed_counterdict, total_reads)
+                        add_count(ambiguous_accepted_umi_collapsed_counterdict, collapsed)
+                        add_count(ambiguous_spread_umi_noncollapsed_counterdict, total_reads / num_matches, spread=True)
+                        add_count(ambiguous_spread_umi_collapsed_counterdict, collapsed / num_matches, spread=True)
+
+                        # If there is no ambiguous matches, then add to ambiguous_ignored counter
+                        if matches.shape[0] == 1:
+                            add_count(ambiguous_ignored_umi_noncollapsed_counterdict, total_reads)
+                            add_count(ambiguous_ignored_umi_collapsed_counterdict, collapsed)
+
+                    # STANDARD NON-UMI BASED COUNTING
+                    else:
+                        assert isinstance(observed_value_counts, int), f"For non UMI, expecting observed value is an int, but type is {type(observed_value_counts)}"
+                        num_matches = float(matches.shape[0])
+                        add_count(ambiguous_accepted_counterdict, observed_value_counts)
+                        add_count(ambiguous_spread_counterdict, observed_value_counts / num_matches, spread=True)
+                        
+                        # If there is no ambiguous matches, then add to ambiguous_ignored counter
+                        if matches.shape[0] == 1:
+                            add_count(ambiguous_ignored_counterdict, observed_value_counts)
+
+    # Process all samples
+    if contains_sample_barcode:
+        for cell_barcode, observed_dict in observed_guide_reporter_umi_counts_inferred.items():
+            process_sample(observed_dict, cell_barcode)
+    else:
+        process_sample(observed_guide_reporter_umi_counts_inferred)
+
+
     # Helper function that converts defaultdict to series
-    def create_counterseries(counterdict: GeneralMatchCountDict) -> pd.Series:
-        counterseries: pd.Series = whitelist_guide_reporter_df.apply(lambda reporter: counterdict[tuple(reporter)], axis=1)
-        counterseries.index = pd.MultiIndex.from_frame(whitelist_guide_reporter_df)
-        return counterseries
-    
+    def create_counterseries(counterdict):
+        if contains_sample_barcode:
+            # Flatten nested dict
+            records = [
+                (cell_barcode, *key_tuple, value)
+                for cell_barcode, inner in counterdict.items()
+                for key_tuple, value in inner.items()
+            ]
+            columns = ["CellBarcode"] + list(whitelist_guide_reporter_df.columns) + ["value"]
+            df = pd.DataFrame.from_records(records, columns=columns)
+            return df.set_index(["CellBarcode"] + list(whitelist_guide_reporter_df.columns))["value"]
+        else:
+            counterseries: pd.Series = whitelist_guide_reporter_df.apply(lambda reporter: counterdict[tuple(reporter)], axis=1)
+            counterseries.index = pd.MultiIndex.from_frame(whitelist_guide_reporter_df)
+            return counterseries
+
 
     #
     #   CONVERT THE COUNT DICTS INTO PANDAS SERIES, since this is a more ideal structure.
@@ -170,166 +229,234 @@ def get_matchset_counterseries(observed_guide_reporter_umi_counts_inferred: Gene
     return match_set_whitelist_reporter_counter_series_results
 
 
+
 #
 # HELPER FUNCTION GETS COUNTS FOR THE THE MISMATCHES - defined in-function to reduce arguments being passed (NOTE: There is some duplicate code with match counts function - keep in mind if making modifications)
 #
 @typechecked
-def get_mismatchset_counterseries(observed_guide_reporter_umi_counts_inferred: GeneralMappingInferenceDict, whitelist_guide_reporter_df: pd.DataFrame, contains_umi: bool, attribute_name: str) -> SurrogateProtospacerMismatchSetWhitelistReporterCounterSeriesResults:
+def get_mismatchset_counterseries(observed_guide_reporter_umi_counts_inferred: Union[GeneralMappingInferenceDict, DefaultDict[str, GeneralMappingInferenceDict]] , whitelist_guide_reporter_df: pd.DataFrame, contains_guide_umi: bool, contains_sample_barcode: bool, attribute_name: str) -> SurrogateProtospacerMismatchSetWhitelistReporterCounterSeriesResults:
     #
     #   DEFINE THE DEFAULTDICTS FOR COUNTING
     #
-    # MATCH counters
-    ambiguous_ignored_umi_noncollapsed_match_counterdict : GeneralMatchCountDict  = defaultdict(int)
-    ambiguous_ignored_umi_collapsed_match_counterdict : GeneralMatchCountDict  = defaultdict(int)
-    ambiguous_ignored_match_counterdict : GeneralMatchCountDict  = defaultdict(int)
 
-    ambiguous_accepted_umi_noncollapsed_match_counterdict : GeneralMatchCountDict  = defaultdict(int)
-    ambiguous_accepted_umi_collapsed_match_counterdict : GeneralMatchCountDict  = defaultdict(int)
-    ambiguous_accepted_match_counterdict : GeneralMatchCountDict  = defaultdict(int)
+    if contains_sample_barcode:
+        ambiguous_ignored_umi_noncollapsed_match_counterdict  = defaultdict(lambda: defaultdict(int))
+        ambiguous_ignored_umi_collapsed_match_counterdict  = defaultdict(lambda: defaultdict(int))
+        ambiguous_ignored_match_counterdict  = defaultdict(lambda: defaultdict(int))
 
-    ambiguous_spread_umi_noncollapsed_match_counterdict : GeneralMatchCountDict  = defaultdict(float)
-    ambiguous_spread_umi_collapsed_match_counterdict : GeneralMatchCountDict  = defaultdict(float)
-    ambiguous_spread_match_counterdict : GeneralMatchCountDict  = defaultdict(float)
+        ambiguous_accepted_umi_noncollapsed_match_counterdict = defaultdict(lambda: defaultdict(int))
+        ambiguous_accepted_umi_collapsed_match_counterdict  = defaultdict(lambda: defaultdict(int))
+        ambiguous_accepted_match_counterdict  = defaultdict(lambda: defaultdict(int))
 
-    # MISMATCH counters (keys are PAIRS of indices, representing the protospacer and surrogate match separately)
-    ambiguous_ignored_umi_noncollapsed_mismatch_counterdict : GeneralMismatchCountDict  = defaultdict(int)
-    ambiguous_ignored_umi_collapsed_mismatch_counterdict : GeneralMismatchCountDict  = defaultdict(int)
-    ambiguous_ignored_mismatch_counterdict : GeneralMismatchCountDict  = defaultdict(int)
+        ambiguous_spread_umi_noncollapsed_match_counterdict  = defaultdict(lambda: defaultdict(float))
+        ambiguous_spread_umi_collapsed_match_counterdict  = defaultdict(lambda: defaultdict(float))
+        ambiguous_spread_match_counterdict  = defaultdict(lambda: defaultdict(float))
 
-    ambiguous_accepted_umi_noncollapsed_mismatch_counterdict : GeneralMismatchCountDict  = defaultdict(int)
-    ambiguous_accepted_umi_collapsed_mismatch_counterdict : GeneralMismatchCountDict  = defaultdict(int)
-    ambiguous_accepted_mismatch_counterdict : GeneralMismatchCountDict  = defaultdict(int)
+        # MISMATCH counters (keys are PAIRS of indices, representing the protospacer and surrogate match separately)
+        ambiguous_ignored_umi_noncollapsed_mismatch_counterdict  = defaultdict(lambda: defaultdict(int))
+        ambiguous_ignored_umi_collapsed_mismatch_counterdict  = defaultdict(lambda: defaultdict(int))
+        ambiguous_ignored_mismatch_counterdict = defaultdict(lambda: defaultdict(int))
 
-    ambiguous_spread_umi_noncollapsed_mismatch_counterdict : GeneralMismatchCountDict  = defaultdict(float)
-    ambiguous_spread_umi_collapsed_mismatch_counterdict : GeneralMismatchCountDict = defaultdict(float)
-    ambiguous_spread_mismatch_counterdict : GeneralMismatchCountDict = defaultdict(float)
+        ambiguous_accepted_umi_noncollapsed_mismatch_counterdict  =defaultdict(lambda:  defaultdict(int))
+        ambiguous_accepted_umi_collapsed_mismatch_counterdict = defaultdict(lambda: defaultdict(int))
+        ambiguous_accepted_mismatch_counterdict  = defaultdict(lambda: defaultdict(int))
+
+        ambiguous_spread_umi_noncollapsed_mismatch_counterdict  = defaultdict(lambda: defaultdict(float))
+        ambiguous_spread_umi_collapsed_mismatch_counterdict  = defaultdict(lambda: defaultdict(float))
+        ambiguous_spread_mismatch_counterdict  = defaultdict(lambda: defaultdict(float))
+    else:
+        # MATCH counters
+        ambiguous_ignored_umi_noncollapsed_match_counterdict  = defaultdict(int)
+        ambiguous_ignored_umi_collapsed_match_counterdict  = defaultdict(int)
+        ambiguous_ignored_match_counterdict  = defaultdict(int)
+
+        ambiguous_accepted_umi_noncollapsed_match_counterdict  = defaultdict(int)
+        ambiguous_accepted_umi_collapsed_match_counterdict  = defaultdict(int)
+        ambiguous_accepted_match_counterdict  = defaultdict(int)
+
+        ambiguous_spread_umi_noncollapsed_match_counterdict  = defaultdict(float)
+        ambiguous_spread_umi_collapsed_match_counterdict = defaultdict(float)
+        ambiguous_spread_match_counterdict  = defaultdict(float)
+
+        # MISMATCH counters (keys are PAIRS of indices, representing the protospacer and surrogate match separately)
+        ambiguous_ignored_umi_noncollapsed_mismatch_counterdict  = defaultdict(int)
+        ambiguous_ignored_umi_collapsed_mismatch_counterdict  = defaultdict(int)
+        ambiguous_ignored_mismatch_counterdict  = defaultdict(int)
+
+        ambiguous_accepted_umi_noncollapsed_mismatch_counterdict   = defaultdict(int)
+        ambiguous_accepted_umi_collapsed_mismatch_counterdict = defaultdict(int)
+        ambiguous_accepted_mismatch_counterdict  = defaultdict(int)
+
+        ambiguous_spread_umi_noncollapsed_mismatch_counterdict  = defaultdict(float)
+        ambiguous_spread_umi_collapsed_mismatch_counterdict = defaultdict(float)
+        ambiguous_spread_mismatch_counterdict = defaultdict(float)
+
+
 
     #
     # ITERATE THROUGH THE NON-ERROR INFERRED RESULTS (NOTE: If only one of the protospacer or surrogate matches but not the other, this is treated as an error, and will NOT be counted or considered (even in the single match series). For those counts, should just use the protospacer-only or surrogate-only match results)
     #
-    inferred_value_results: InferenceResult
-    for inferred_value_results in get_non_error_dict(observed_guide_reporter_umi_counts_inferred, attribute_name).values():
-        #
-        #   Get the relevant attributes
-        #
-        observed_value_counts: Union[int, CounterType[Optional[str]]] = inferred_value_results.observed_value
-        inferred_value_result: CompleteInferenceMatchResult =  inferred_value_results.inferred_value
-        surrogate_protospacer_mismatch_single_inference_match_result : Optional[SurrogateProtospacerMismatchSingleInferenceMatchResult] = getattr(inferred_value_result, attribute_name)
-        assert surrogate_protospacer_mismatch_single_inference_match_result is not None, "surrogate_protospacer_mismatch_single_inference_match_result should not be none since this is from the non error list. Developer error."
-        
-        mismatched: bool = surrogate_protospacer_mismatch_single_inference_match_result.value.mismatched
-        surrogate_matches: pd.DataFrame = surrogate_protospacer_mismatch_single_inference_match_result.value.surrogate_matches
-        protospacer_matches: pd.DataFrame = surrogate_protospacer_mismatch_single_inference_match_result.value.protospacer_matches
-        protospacer_surrogate_matches: pd.DataFrame = surrogate_protospacer_mismatch_single_inference_match_result.value.protospacer_surrogate_matches
+    def process_sample(observed_dict, cell_barcode=None):
+        inferred_value_results: InferenceResult
+        for inferred_value_results in get_non_error_dict(observed_dict, attribute_name).values():
+            #
+            #   Get the relevant attributes
+            #
+            observed_value_counts: Union[int, CounterType[Optional[str]]] = inferred_value_results.observed_value
+            inferred_value_result: CompleteInferenceMatchResult = inferred_value_results.inferred_value
+            surrogate_protospacer_mismatch_single_inference_match_result: Optional[SurrogateProtospacerMismatchSingleInferenceMatchResult] = getattr(inferred_value_result, attribute_name)
+            assert surrogate_protospacer_mismatch_single_inference_match_result is not None, "surrogate_protospacer_mismatch_single_inference_match_result should not be none since this is from the non error list. Developer error."
+            
+            mismatched: bool = surrogate_protospacer_mismatch_single_inference_match_result.value.mismatched
+            surrogate_matches: pd.DataFrame = surrogate_protospacer_mismatch_single_inference_match_result.value.surrogate_matches
+            protospacer_matches: pd.DataFrame = surrogate_protospacer_mismatch_single_inference_match_result.value.protospacer_matches
+            protospacer_surrogate_matches: pd.DataFrame = surrogate_protospacer_mismatch_single_inference_match_result.value.protospacer_surrogate_matches
 
+            # Helper for incrementing nested or flat dicts
+            def add_count(counterdict, key, value):
+                if contains_sample_barcode:
+                    counterdict[cell_barcode][key] += value
+                else:
+                    counterdict[key] += value
 
+            if mismatched:  # If mismatched, Add count to protospacer/surrogate pair
+                assert not surrogate_matches.empty, "Developer error: to be called a mismatch, there must be both separate protospacer and surrogate. No surrogate match (possible no protospacer match)"
+                assert not protospacer_matches.empty, "Developer error: to be called a mismatch, there must be both separate protospacer and surrogate. No surrogate match (possible no protospacer match)"
+                assert protospacer_surrogate_matches.empty, "Developer error: to be called a mismatch, matches dataframe must be empty."
 
-        if mismatched: # If mismatched, Add count to protospacer/surrogate pair. NOTE: Both the protospacer/surrogate matches should be gauranteed
-            assert not surrogate_matches.empty, "Developer error: to be called a mismatch, there must be both separate protospacer and surrogate. No surrogate match (possible no protospacer match)"
-            assert not protospacer_matches.empty, "Developer error: to be called a mismatch, there must be both separate protospacer and surrogate. No surrogate match (possible no protospacer match)"
-            assert protospacer_surrogate_matches.empty, "Developer error: to be called a mismatch, matches dataframe must be empty."
+                for protospacer_matched_whitelist_reporter_series in protospacer_matches.iterrows():
+                    for surrogate_matched_whitelist_reporter_series in surrogate_matches.iterrows():
+                        dict_index = (tuple(protospacer_matched_whitelist_reporter_series[1]), tuple(surrogate_matched_whitelist_reporter_series[1]))
+                        
+                        if contains_guide_umi:
+                            assert isinstance(observed_value_counts, Counter), f"For UMI, expecting observed value is a Counter, but type is {type(observed_value_counts)}"
+                            total_reads = sum(observed_value_counts.values())
+                            collapsed = len(observed_value_counts.values())
+                            denom = float(protospacer_matches.shape[0] * surrogate_matches.shape[0])
 
-            # NOTE: For the mismatches, we want to tally for the specific protospacer_match/surrogate_match pair, so we iterate through both match dataframes to tally
-            for protospacer_matched_whitelist_reporter_series in protospacer_matches.iterrows():
-                for surrogate_matched_whitelist_reporter_series in surrogate_matches.iterrows():
-                    
-                    # NOTE: For the counter_dict key, the order of the pairwise tuple is PROTOSPACER_MATCH, SURROGATE_MATCH.
-                    dict_index = (tuple(protospacer_matched_whitelist_reporter_series[1]), tuple(surrogate_matched_whitelist_reporter_series[1]))
-                    
-                    if contains_umi:
+                            add_count(ambiguous_accepted_umi_noncollapsed_mismatch_counterdict, dict_index, total_reads)
+                            add_count(ambiguous_accepted_umi_collapsed_mismatch_counterdict, dict_index, collapsed)
+                            add_count(ambiguous_spread_umi_noncollapsed_mismatch_counterdict, dict_index, total_reads / denom)
+                            add_count(ambiguous_spread_umi_collapsed_mismatch_counterdict, dict_index, collapsed / denom)
+
+                            if (protospacer_matches.shape[0] == 1) and (surrogate_matches.shape[0] == 1):
+                                add_count(ambiguous_ignored_umi_noncollapsed_mismatch_counterdict, dict_index, total_reads)
+                                add_count(ambiguous_ignored_umi_collapsed_mismatch_counterdict, dict_index, collapsed)
+                        else:
+                            assert isinstance(observed_value_counts, int), f"For non UMI, expecting observed value is an int, but type is {type(observed_value_counts)}"
+                            denom = float(protospacer_matches.shape[0] * surrogate_matches.shape[0])
+
+                            add_count(ambiguous_accepted_mismatch_counterdict, dict_index, observed_value_counts)
+                            add_count(ambiguous_spread_mismatch_counterdict, dict_index, observed_value_counts / denom)
+
+                            if (protospacer_matches.shape[0] == 1) and (surrogate_matches.shape[0] == 1):
+                                add_count(ambiguous_ignored_mismatch_counterdict, dict_index, observed_value_counts)
+
+            else:  # Matched case
+                assert not protospacer_surrogate_matches.empty, f"mismatched==false, but the match dataframe is empty, unexpected paradox. Developer error"
+                
+                matches = protospacer_surrogate_matches
+                for whitelist_reporter_series in matches.iterrows():
+                    dict_index = tuple(whitelist_reporter_series[1])
+                    if contains_guide_umi:
                         assert isinstance(observed_value_counts, Counter), f"For UMI, expecting observed value is a Counter, but type is {type(observed_value_counts)}"
-                        
-                        ambiguous_accepted_umi_noncollapsed_mismatch_counterdict[dict_index] += sum(observed_value_counts.values())
-                        ambiguous_accepted_umi_collapsed_mismatch_counterdict[dict_index] += len(observed_value_counts.values())
+                        total_reads = sum(observed_value_counts.values())
+                        collapsed = len(observed_value_counts.values())
+                        denom = float(matches.shape[0])
 
-                        ambiguous_spread_umi_noncollapsed_mismatch_counterdict[dict_index] += sum(observed_value_counts.values()) / float(protospacer_matches.shape[0]*surrogate_matches.shape[0]) # NOTE: The denominator for the "spreaded count" is intuitively the number of pairs from the protospacer/surrogate-matches, so just the product
-                        ambiguous_spread_umi_collapsed_mismatch_counterdict[dict_index] += len(observed_value_counts.values()) / float(protospacer_matches.shape[0]*surrogate_matches.shape[0])
-                        
-                        # If there is no ambiguous matches, then add to ambiguous_ignored counter
-                        if (protospacer_matches.shape[0] == 1) and (surrogate_matches.shape[0] == 1):
-                            ambiguous_ignored_umi_noncollapsed_mismatch_counterdict[dict_index] += sum(observed_value_counts.values())
-                            ambiguous_ignored_umi_collapsed_mismatch_counterdict[dict_index] += len(observed_value_counts.values())
+                        add_count(ambiguous_accepted_umi_noncollapsed_match_counterdict, dict_index, total_reads)
+                        add_count(ambiguous_accepted_umi_collapsed_match_counterdict, dict_index, collapsed)
+                        add_count(ambiguous_spread_umi_noncollapsed_match_counterdict, dict_index, total_reads / denom)
+                        add_count(ambiguous_spread_umi_collapsed_match_counterdict, dict_index, collapsed / denom)
+
+                        if matches.shape[0] == 1:
+                            add_count(ambiguous_ignored_umi_noncollapsed_match_counterdict, dict_index, total_reads)
+                            add_count(ambiguous_ignored_umi_collapsed_match_counterdict, dict_index, collapsed)
                     else:
                         assert isinstance(observed_value_counts, int), f"For non UMI, expecting observed value is an int, but type is {type(observed_value_counts)}"
+                        denom = float(matches.shape[0])
+                        add_count(ambiguous_accepted_match_counterdict, dict_index, observed_value_counts)
+                        add_count(ambiguous_spread_match_counterdict, dict_index, observed_value_counts / denom)
 
-                        ambiguous_accepted_mismatch_counterdict[dict_index] += observed_value_counts
-                        ambiguous_spread_mismatch_counterdict[dict_index] += observed_value_counts / float(protospacer_matches.shape[0]*surrogate_matches.shape[0])
-                        
-                        # If there is no ambiguous matches, then add to ambiguous_ignored counter
-                        if (protospacer_matches.shape[0] == 1) and (surrogate_matches.shape[0] == 1):
-                            ambiguous_ignored_mismatch_counterdict[dict_index] += observed_value_counts
+                        if matches.shape[0] == 1:
+                            add_count(ambiguous_ignored_match_counterdict, dict_index, observed_value_counts)
 
+    if contains_sample_barcode:
+        for cell_barcode, observed_dict in observed_guide_reporter_umi_counts_inferred.items():
+            process_sample(observed_dict, cell_barcode)
+    else:
+        process_sample(observed_guide_reporter_umi_counts_inferred)
 
-        else: # If matched, add count normally.(NOTE: As mentioned above, "If only one of the protospacer or surrogate matches but not the other, this is treated as an error, and will NOT be counted or considered (even in the single match series). For those counts, should just use the protospacer-only or surrogate-only match results")
-            assert not protospacer_surrogate_matches.empty, f"mismatched==false, but the match dataframe is empty, unexpected paradox. Developer error"
-            
-            matches = protospacer_surrogate_matches
-            # NOTE/TODO: FROM HERE IS THE SAME COUNTING LOGIC AS THE MATCH COUNTING FUNCTION - can modularize.
-            for whitelist_reporter_series in matches.iterrows():
-                dict_index = tuple(whitelist_reporter_series[1])
-                if contains_umi:
-                    assert isinstance(observed_value_counts, Counter), f"For UMI, expecting observed value is a Counter, but type is {type(observed_value_counts)}"
-                    
-                    ambiguous_accepted_umi_noncollapsed_match_counterdict[dict_index] += sum(observed_value_counts.values())
-                    ambiguous_accepted_umi_collapsed_match_counterdict[dict_index] += len(observed_value_counts.values())
+    #
+    # Series creation helpers (now aware of sample barcode)
+    #
+    def create_match_counterseries(counterdict):
+        if contains_sample_barcode:
+            records = [
+                (cell_barcode, *key_tuple, value)
+                for cell_barcode, inner in counterdict.items()
+                for key_tuple, value in inner.items()
+            ]
+            columns = ["CellBarcode"] + list(whitelist_guide_reporter_df.columns) + ["value"]
+            df = pd.DataFrame.from_records(records, columns=columns)
+            return df.set_index(["CellBarcode"] + list(whitelist_guide_reporter_df.columns))["value"]
+        else:
+            counterseries: pd.Series = whitelist_guide_reporter_df.apply(lambda reporter: counterdict[tuple(reporter)], axis=1)
+            counterseries.index = pd.MultiIndex.from_frame(whitelist_guide_reporter_df)
+            return counterseries
 
-                    ambiguous_spread_umi_noncollapsed_match_counterdict[dict_index] += sum(observed_value_counts.values()) / float(matches.shape[0])
-                    ambiguous_spread_umi_collapsed_match_counterdict[dict_index] += len(observed_value_counts.values()) / float(matches.shape[0])
-                    
-                    # If there is no ambiguous matches, then add to ambiguous_ignored counter
-                    if matches.shape[0] == 1:
-                        ambiguous_ignored_umi_noncollapsed_match_counterdict[dict_index] += sum(observed_value_counts.values())
-                        ambiguous_ignored_umi_collapsed_match_counterdict[dict_index] += len(observed_value_counts.values())
-                else:
-                    assert isinstance(observed_value_counts, int), f"For non UMI, expecting observed value is an int, but type is {type(observed_value_counts)}"
-                    ambiguous_accepted_match_counterdict[dict_index] += observed_value_counts
-                    ambiguous_spread_match_counterdict[dict_index] += observed_value_counts / float(matches.shape[0])
-                    
-                    # If there is no ambiguous matches, then add to ambiguous_ignored counter
-                    if matches.shape[0] == 1:
-                        ambiguous_ignored_match_counterdict[dict_index] += observed_value_counts
-    
-    def create_match_counterseries(counterdict: DefaultDict[Tuple[str, Optional[str], Optional[str]], Union[int, float]]) -> pd.Series:
-        counterseries: pd.Series = whitelist_guide_reporter_df.apply(lambda reporter: counterdict[tuple(reporter)], axis=1)
-        counterseries.index = pd.MultiIndex.from_frame(whitelist_guide_reporter_df)
-        return counterseries
-    
-    def create_mismatch_counterseries(counterdict: DefaultDict[Tuple[Tuple[str, Optional[str], Optional[str]], Tuple[str, Optional[str], Optional[str]]], Union[int, float]]) -> pd.Series:
+    def create_mismatch_counterseries(counterdict):
         protospacer_match_suffix = "_ProtospacerMatch"
         surrogate_match_suffix = "_SurrogateMatch"
         whitelist_guide_reporter_df_product = whitelist_guide_reporter_df.merge(whitelist_guide_reporter_df, how='cross', suffixes=(protospacer_match_suffix, surrogate_match_suffix))
-        counterseries: pd.Series = whitelist_guide_reporter_df_product.apply(lambda pairwise_reporter: counterdict[tuple(pairwise_reporter[[index for index in pairwise_reporter.index if index.endswith(protospacer_match_suffix)]]), tuple(pairwise_reporter[[index for index in pairwise_reporter.index if index.endswith(surrogate_match_suffix)]])], axis=1)
-        counterseries.index = pd.MultiIndex.from_frame(whitelist_guide_reporter_df_product)
-        return counterseries
-    
+
+        if contains_sample_barcode:
+            records = []
+            for cell_barcode, inner in counterdict.items():
+                for (protospacer_key, surrogate_key), value in inner.items():
+                    records.append((cell_barcode, *protospacer_key, *surrogate_key, value))
+            columns = ["CellBarcode"] + [c + protospacer_match_suffix for c in whitelist_guide_reporter_df.columns] + [c + surrogate_match_suffix for c in whitelist_guide_reporter_df.columns] + ["value"]
+            df = pd.DataFrame.from_records(records, columns=columns)
+            return df.set_index(["CellBarcode"] + [c + protospacer_match_suffix for c in whitelist_guide_reporter_df.columns] + [c + surrogate_match_suffix for c in whitelist_guide_reporter_df.columns])["value"]
+        else:
+            counterseries: pd.Series = whitelist_guide_reporter_df_product.apply(
+                lambda pairwise_reporter: counterdict[
+                    tuple(pairwise_reporter[[index for index in pairwise_reporter.index if index.endswith(protospacer_match_suffix)]]),
+                    tuple(pairwise_reporter[[index for index in pairwise_reporter.index if index.endswith(surrogate_match_suffix)]])
+                ],
+                axis=1
+            )
+            counterseries.index = pd.MultiIndex.from_frame(whitelist_guide_reporter_df_product)
+            return counterseries
+
 
     surrogate_protospacer_mismatch_set_whitelist_reporter_counter_series_results = SurrogateProtospacerMismatchSetWhitelistReporterCounterSeriesResults()
     
     # MATCH counters
-    surrogate_protospacer_mismatch_set_whitelist_reporter_counter_series_results.ambiguous_ignored_umi_noncollapsed_match_counterseries = ambiguous_ignored_umi_noncollapsed_match_counterdict
-    surrogate_protospacer_mismatch_set_whitelist_reporter_counter_series_results.ambiguous_ignored_umi_collapsed_match_counterseries = ambiguous_ignored_umi_collapsed_match_counterdict
-    surrogate_protospacer_mismatch_set_whitelist_reporter_counter_series_results.ambiguous_ignored_match_counterseries = ambiguous_ignored_match_counterdict
+    surrogate_protospacer_mismatch_set_whitelist_reporter_counter_series_results.ambiguous_ignored_umi_noncollapsed_match_counterseries = create_match_counterseries(ambiguous_ignored_umi_noncollapsed_match_counterdict)
+    surrogate_protospacer_mismatch_set_whitelist_reporter_counter_series_results.ambiguous_ignored_umi_collapsed_match_counterseries = create_match_counterseries(ambiguous_ignored_umi_collapsed_match_counterdict)
+    surrogate_protospacer_mismatch_set_whitelist_reporter_counter_series_results.ambiguous_ignored_match_counterseries = create_match_counterseries(ambiguous_ignored_match_counterdict)
 
-    surrogate_protospacer_mismatch_set_whitelist_reporter_counter_series_results.ambiguous_accepted_umi_noncollapsed_match_counterseries = ambiguous_accepted_umi_noncollapsed_match_counterdict
-    surrogate_protospacer_mismatch_set_whitelist_reporter_counter_series_results.ambiguous_accepted_umi_collapsed_match_counterseries  = ambiguous_accepted_umi_collapsed_match_counterdict
-    surrogate_protospacer_mismatch_set_whitelist_reporter_counter_series_results.ambiguous_accepted_match_counterseries = ambiguous_accepted_match_counterdict
+    surrogate_protospacer_mismatch_set_whitelist_reporter_counter_series_results.ambiguous_accepted_umi_noncollapsed_match_counterseries = create_match_counterseries(ambiguous_accepted_umi_noncollapsed_match_counterdict)
+    surrogate_protospacer_mismatch_set_whitelist_reporter_counter_series_results.ambiguous_accepted_umi_collapsed_match_counterseries = create_match_counterseries(ambiguous_accepted_umi_collapsed_match_counterdict)
+    surrogate_protospacer_mismatch_set_whitelist_reporter_counter_series_results.ambiguous_accepted_match_counterseries = create_match_counterseries(ambiguous_accepted_match_counterdict)
 
-    surrogate_protospacer_mismatch_set_whitelist_reporter_counter_series_results.ambiguous_spread_umi_noncollapsed_match_counterseries = ambiguous_spread_umi_noncollapsed_match_counterdict
-    surrogate_protospacer_mismatch_set_whitelist_reporter_counter_series_results.ambiguous_spread_umi_collapsed_match_counterseries = ambiguous_spread_umi_collapsed_match_counterdict
-    surrogate_protospacer_mismatch_set_whitelist_reporter_counter_series_results.ambiguous_spread_match_counterseries = ambiguous_spread_match_counterdict
+    surrogate_protospacer_mismatch_set_whitelist_reporter_counter_series_results.ambiguous_spread_umi_noncollapsed_match_counterseries = create_match_counterseries(ambiguous_spread_umi_noncollapsed_match_counterdict)
+    surrogate_protospacer_mismatch_set_whitelist_reporter_counter_series_results.ambiguous_spread_umi_collapsed_match_counterseries = create_match_counterseries(ambiguous_spread_umi_collapsed_match_counterdict)
+    surrogate_protospacer_mismatch_set_whitelist_reporter_counter_series_results.ambiguous_spread_match_counterseries = create_match_counterseries(ambiguous_spread_match_counterdict)
 
-    # MISMATCH counters (keys are PAIRS of indices, representing the protospacer and surrogate match separately)
-    surrogate_protospacer_mismatch_set_whitelist_reporter_counter_series_results.ambiguous_ignored_umi_noncollapsed_mismatch_counterseries = ambiguous_ignored_umi_noncollapsed_mismatch_counterdict
-    surrogate_protospacer_mismatch_set_whitelist_reporter_counter_series_results.ambiguous_ignored_umi_collapsed_mismatch_counterseries = ambiguous_ignored_umi_collapsed_mismatch_counterdict
-    surrogate_protospacer_mismatch_set_whitelist_reporter_counter_series_results.ambiguous_ignored_mismatch_counterseries = ambiguous_ignored_mismatch_counterdict
+    # MISMATCH counters
+    surrogate_protospacer_mismatch_set_whitelist_reporter_counter_series_results.ambiguous_ignored_umi_noncollapsed_mismatch_counterseries = create_mismatch_counterseries(ambiguous_ignored_umi_noncollapsed_mismatch_counterdict)
+    surrogate_protospacer_mismatch_set_whitelist_reporter_counter_series_results.ambiguous_ignored_umi_collapsed_mismatch_counterseries = create_mismatch_counterseries(ambiguous_ignored_umi_collapsed_mismatch_counterdict)
+    surrogate_protospacer_mismatch_set_whitelist_reporter_counter_series_results.ambiguous_ignored_mismatch_counterseries = create_mismatch_counterseries(ambiguous_ignored_mismatch_counterdict)
 
-    surrogate_protospacer_mismatch_set_whitelist_reporter_counter_series_results.ambiguous_accepted_umi_noncollapsed_mismatch_counterseries = ambiguous_accepted_umi_noncollapsed_mismatch_counterdict
-    surrogate_protospacer_mismatch_set_whitelist_reporter_counter_series_results.ambiguous_accepted_umi_collapsed_mismatch_counterseries = ambiguous_accepted_umi_collapsed_mismatch_counterdict
-    surrogate_protospacer_mismatch_set_whitelist_reporter_counter_series_results.ambiguous_accepted_mismatch_counterseries = ambiguous_accepted_mismatch_counterdict
+    surrogate_protospacer_mismatch_set_whitelist_reporter_counter_series_results.ambiguous_accepted_umi_noncollapsed_mismatch_counterseries = create_mismatch_counterseries(ambiguous_accepted_umi_noncollapsed_mismatch_counterdict)
+    surrogate_protospacer_mismatch_set_whitelist_reporter_counter_series_results.ambiguous_accepted_umi_collapsed_mismatch_counterseries = create_mismatch_counterseries(ambiguous_accepted_umi_collapsed_mismatch_counterdict)
+    surrogate_protospacer_mismatch_set_whitelist_reporter_counter_series_results.ambiguous_accepted_mismatch_counterseries = create_mismatch_counterseries(ambiguous_accepted_mismatch_counterdict)
 
-    surrogate_protospacer_mismatch_set_whitelist_reporter_counter_series_results.ambiguous_spread_umi_noncollapsed_mismatch_counterseries = ambiguous_spread_umi_noncollapsed_mismatch_counterdict
-    surrogate_protospacer_mismatch_set_whitelist_reporter_counter_series_results.ambiguous_spread_umi_collapsed_mismatch_counterseries = ambiguous_spread_umi_collapsed_mismatch_counterdict
-    surrogate_protospacer_mismatch_set_whitelist_reporter_counter_series_results.ambiguous_spread_mismatch_counterseries = ambiguous_spread_mismatch_counterdict
+    surrogate_protospacer_mismatch_set_whitelist_reporter_counter_series_results.ambiguous_spread_umi_noncollapsed_mismatch_counterseries = create_mismatch_counterseries(ambiguous_spread_umi_noncollapsed_mismatch_counterdict)
+    surrogate_protospacer_mismatch_set_whitelist_reporter_counter_series_results.ambiguous_spread_umi_collapsed_mismatch_counterseries = create_mismatch_counterseries(ambiguous_spread_umi_collapsed_mismatch_counterdict)
+    surrogate_protospacer_mismatch_set_whitelist_reporter_counter_series_results.ambiguous_spread_mismatch_counterseries = create_mismatch_counterseries(ambiguous_spread_mismatch_counterdict)
 
     return surrogate_protospacer_mismatch_set_whitelist_reporter_counter_series_results
 
@@ -338,17 +465,17 @@ def get_mismatchset_counterseries(observed_guide_reporter_umi_counts_inferred: G
 # CALLED FUNCTION TO RETRIEVE ALL MATCHSET AND MISMATCHSET COUNTERSERIES
 #
 @typechecked
-def get_counterseries_all_results(observed_guide_reporter_umi_counts_inferred: GeneralMappingInferenceDict, whitelist_guide_reporter_df: pd.DataFrame, contains_barcode: bool, contains_surrogate: bool,  contains_umi: bool) -> AllMatchSetWhitelistReporterCounterSeriesResults:
+def get_counterseries_all_results(observed_guide_reporter_umi_counts_inferred: Union[GeneralMappingInferenceDict, DefaultDict[str, GeneralMappingInferenceDict]], whitelist_guide_reporter_df: pd.DataFrame, contains_guide_barcode: bool, contains_guide_surrogate: bool,  contains_guide_umi: bool, contains_sample_barcode: bool) -> AllMatchSetWhitelistReporterCounterSeriesResults:
     all_match_set_whitelist_reporter_counter_series_results = AllMatchSetWhitelistReporterCounterSeriesResults()
-    all_match_set_whitelist_reporter_counter_series_results.protospacer_match = get_matchset_counterseries(observed_guide_reporter_umi_counts_inferred, whitelist_guide_reporter_df, contains_umi, "protospacer_match")
-    if contains_barcode:
-        all_match_set_whitelist_reporter_counter_series_results.protospacer_match_barcode_match = get_matchset_counterseries(observed_guide_reporter_umi_counts_inferred, whitelist_guide_reporter_df, contains_umi, "protospacer_match_barcode_match")
-        if contains_surrogate:
-            all_match_set_whitelist_reporter_counter_series_results.protospacer_match_surrogate_match_barcode_match = get_matchset_counterseries(observed_guide_reporter_umi_counts_inferred, whitelist_guide_reporter_df, contains_umi, "protospacer_match_surrogate_match_barcode_match")
+    all_match_set_whitelist_reporter_counter_series_results.protospacer_match = get_matchset_counterseries(observed_guide_reporter_umi_counts_inferred, whitelist_guide_reporter_df, contains_guide_umi, contains_sample_barcode, "protospacer_match")
+    if contains_guide_barcode:
+        all_match_set_whitelist_reporter_counter_series_results.protospacer_match_barcode_match = get_matchset_counterseries(observed_guide_reporter_umi_counts_inferred, whitelist_guide_reporter_df, contains_guide_umi, contains_sample_barcode, "protospacer_match_barcode_match")
+        if contains_guide_surrogate:
+            all_match_set_whitelist_reporter_counter_series_results.protospacer_match_surrogate_match_barcode_match = get_matchset_counterseries(observed_guide_reporter_umi_counts_inferred, whitelist_guide_reporter_df, contains_guide_umi, contains_sample_barcode, "protospacer_match_surrogate_match_barcode_match")
             
-            all_match_set_whitelist_reporter_counter_series_results.protospacer_mismatch_surrogate_match_barcode_match = get_mismatchset_counterseries(observed_guide_reporter_umi_counts_inferred, whitelist_guide_reporter_df, contains_umi, "protospacer_mismatch_surrogate_match_barcode_match")
-    if contains_surrogate:
-        all_match_set_whitelist_reporter_counter_series_results.protospacer_match_surrogate_match = get_matchset_counterseries(observed_guide_reporter_umi_counts_inferred, whitelist_guide_reporter_df, contains_umi, "protospacer_match_surrogate_match")
-        all_match_set_whitelist_reporter_counter_series_results.protospacer_mismatch_surrogate_match = get_mismatchset_counterseries(observed_guide_reporter_umi_counts_inferred, whitelist_guide_reporter_df, contains_umi, "protospacer_mismatch_surrogate_match")
+            all_match_set_whitelist_reporter_counter_series_results.protospacer_mismatch_surrogate_match_barcode_match = get_mismatchset_counterseries(observed_guide_reporter_umi_counts_inferred, whitelist_guide_reporter_df, contains_guide_umi, contains_sample_barcode, "protospacer_mismatch_surrogate_match_barcode_match")
+    if contains_guide_surrogate:
+        all_match_set_whitelist_reporter_counter_series_results.protospacer_match_surrogate_match = get_matchset_counterseries(observed_guide_reporter_umi_counts_inferred, whitelist_guide_reporter_df, contains_guide_umi, contains_sample_barcode, "protospacer_match_surrogate_match")
+        all_match_set_whitelist_reporter_counter_series_results.protospacer_mismatch_surrogate_match = get_mismatchset_counterseries(observed_guide_reporter_umi_counts_inferred, whitelist_guide_reporter_df, contains_guide_umi, contains_sample_barcode, "protospacer_mismatch_surrogate_match")
     
     return all_match_set_whitelist_reporter_counter_series_results

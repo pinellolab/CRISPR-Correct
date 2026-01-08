@@ -26,7 +26,7 @@ from . import crispr_guide_inference
 from .crispr_count_processing import get_counterseries_all_results
 from ..quality_control.crispr_mapping_quality_control import perform_counts_quality_control
 from ..models.mapping_models import GeneralGuideCountType, GeneralMappingInferenceDict
-from ..models.mapping_models import AllMatchSetWhitelistReporterCounterSeriesResults, WhitelistReporterCountsResult, SampleWhitelistReporterCountsResult, InferenceResult, CountInput, QualityControlResult
+from ..models.mapping_models import AllMatchSetWhitelistReporterCounterSeriesResults, WhitelistReporterCountsResult, InferenceResult, CountInput, QualityControlResult
 
 
 # TODO: There will probably be some type errors with the DefaultDict when testing on non UMI (since it requires CounterType), so make sure to test with different variations of inputs
@@ -41,7 +41,7 @@ def get_whitelist_reporter_counts_with_umi(observed_guide_reporter_umi_counts: G
                                            surrogate_hamming_threshold_strict: Optional[int] = 2, 
                                            guide_barcode_hamming_threshold_strict: Optional[int] = 2, 
                                            store_intermediates: bool = False,
-                                           cores: int=1) -> Union[WhitelistReporterCountsResult, SampleWhitelistReporterCountsResult]:
+                                           cores: int=1) -> WhitelistReporterCountsResult:
     
     # Generate whitelist dataframe based on all observed sequences if none provided
     if whitelist_guide_reporter_df is None:
@@ -163,8 +163,12 @@ def get_whitelist_reporter_counts_with_umi(observed_guide_reporter_umi_counts: G
     print(f"Mapping inference results of length {len(inferred_true_reporter_sequences)} to the result object")
     # Some organization: Map the inferred result of each observed sequence to a dict with the inferred result and correspoding count
     
+
+
+    # NOTE 20251031: This may be able to be removed
     if contains_sample_barcode:
         observed_guide_reporter_umi_counts_inferred_all_samples: DefaultDict[str, GeneralMappingInferenceDict] = defaultdict(lambda: defaultdict(dict))
+        
         # Add all cell_barcodes
         for observed_guide_reporter_key_index, observed_guide_reporter_key in enumerate(observed_guide_reporter_list): # Iterate through each observed guide key
             observed_guide_reporter_cell_counts = observed_guide_reporter_umi_counts[observed_guide_reporter_key]
@@ -185,19 +189,12 @@ def get_whitelist_reporter_counts_with_umi(observed_guide_reporter_umi_counts: G
         # GET THE MAPPED COUNT SERIES BASED ON THE INFERENCE RESULTS
         print("Prepare the processed count series ")
         all_cell_barcodes: List[str] = list(observed_guide_reporter_umi_counts_inferred_all_samples.keys())
-        all_match_set_whitelist_reporter_counter_series_results_all_samples: DefaultDict[str, AllMatchSetWhitelistReporterCounterSeriesResults] = defaultdict(AllMatchSetWhitelistReporterCounterSeriesResults)
-        quality_control_result_all_samples: DefaultDict[str, QualityControlResult] = defaultdict(QualityControlResult)
-        for cell_barcode_i, cell_barcode in enumerate(all_cell_barcodes):
-            observed_guide_reporter_umi_counts_inferred_per_sample = observed_guide_reporter_umi_counts_inferred_all_samples[cell_barcode]
-            all_match_set_whitelist_reporter_counter_series_results_per_sample = get_counterseries_all_results(observed_guide_reporter_umi_counts_inferred_per_sample, whitelist_guide_reporter_df, contains_guide_barcode, contains_guide_surrogate, contains_guide_umi)
-            quality_control_result_per_sample: QualityControlResult = perform_counts_quality_control(observed_guide_reporter_umi_counts_inferred_per_sample, contains_guide_umi, contains_guide_surrogate, contains_guide_barcode)
-
-            all_match_set_whitelist_reporter_counter_series_results_all_samples[cell_barcode] = all_match_set_whitelist_reporter_counter_series_results_per_sample
-            quality_control_result_all_samples[cell_barcode] = quality_control_result_per_sample
-
-            if cell_barcode_i % 2500 == 0:
-                print(f"- Processed cell_barcode {cell_barcode_i} out of {len(all_cell_barcodes)}")
-
+        
+        all_match_set_whitelist_reporter_counter_series_results: AllMatchSetWhitelistReporterCounterSeriesResults
+        quality_control_result: QualityControlResult
+        
+        all_match_set_whitelist_reporter_counter_series_results = get_counterseries_all_results(observed_guide_reporter_umi_counts_inferred_all_samples, whitelist_guide_reporter_df, contains_guide_barcode, contains_guide_surrogate, contains_guide_umi, contains_sample_barcode)
+        quality_control_result: QualityControlResult = perform_counts_quality_control(observed_guide_reporter_umi_counts_inferred_all_samples, contains_guide_umi, contains_guide_surrogate, contains_guide_barcode, contains_sample_barcode)
 
         count_input= CountInput(whitelist_guide_reporter_df=whitelist_guide_reporter_df,
             contains_surrogate=contains_guide_surrogate,
@@ -208,10 +205,10 @@ def get_whitelist_reporter_counts_with_umi(observed_guide_reporter_umi_counts: G
             surrogate_hamming_threshold_strict=surrogate_hamming_threshold,
             guide_barcode_hamming_threshold_strict=guide_barcode_hamming_threshold)
         
-        return SampleWhitelistReporterCountsResult(all_match_set_whitelist_reporter_counter_series_results_all_samples=all_match_set_whitelist_reporter_counter_series_results_all_samples,
-                                                    observed_guide_reporter_umi_counts_inferred_all_samples=observed_guide_reporter_umi_counts_inferred_all_samples, 
-                                                    quality_control_result_all_samples=quality_control_result_all_samples, 
-                                                    count_input=count_input)
+        return WhitelistReporterCountsResult(all_match_set_whitelist_reporter_counter_series_results=all_match_set_whitelist_reporter_counter_series_results, 
+                                             observed_guide_reporter_umi_counts_inferred=observed_guide_reporter_umi_counts_inferred_all_samples, 
+                                             quality_control_result=quality_control_result, 
+                                             count_input=count_input)
     else:    
         
         observed_guide_reporter_umi_counts_inferred: GeneralMappingInferenceDict = defaultdict(dict)
@@ -229,13 +226,13 @@ def get_whitelist_reporter_counts_with_umi(observed_guide_reporter_umi_counts: G
         # GET THE MAPPED COUNT SERIES BASED ON THE INFERENCE RESULTS
         print("Prepare the processed count series ")
         # Count
-        all_match_set_whitelist_reporter_counter_series_results = get_counterseries_all_results(observed_guide_reporter_umi_counts_inferred, whitelist_guide_reporter_df, contains_guide_barcode, contains_guide_surrogate, contains_guide_umi)
+        all_match_set_whitelist_reporter_counter_series_results = get_counterseries_all_results(observed_guide_reporter_umi_counts_inferred, whitelist_guide_reporter_df, contains_guide_barcode, contains_guide_surrogate, contains_guide_umi, contains_sample_barcode)
 
         after_counterseries_time = datetime.now()
         print(f"{(after_counterseries_time-after_inference_processing_time).seconds} seconds for counter series generation")
 
         print("Preparing quality control")
-        quality_control_result: QualityControlResult = perform_counts_quality_control(observed_guide_reporter_umi_counts_inferred, contains_guide_umi, contains_guide_surrogate, contains_guide_barcode)
+        quality_control_result: QualityControlResult = perform_counts_quality_control(observed_guide_reporter_umi_counts_inferred, contains_guide_umi, contains_guide_surrogate, contains_guide_barcode, contains_sample_barcode)
         
         after_qualitycontrol_time = datetime.now()
         print(f"{(after_qualitycontrol_time-after_counterseries_time).seconds} seconds for quality control")

@@ -15,8 +15,25 @@ def check_match_result_non_error(match_result):
     return False if match_result is None else match_result.error is None # If match_result is None, treat as error. If match_result is not None, but error is None, then non_error
 
 # Filter dict with observed sequence inference results for only those that do not contain any mapping errors
-def get_non_error_dict(observed_guide_reporter_umi_counts_inferred: GeneralMappingInferenceDict, attribute_name: str) -> MatchSetWhitelistReporterObservedSequenceCounterSeriesResults:
-    return {observed_guide_reporter_key: observed_guide_reporter_umi_counts_inferred_value for observed_guide_reporter_key, observed_guide_reporter_umi_counts_inferred_value in observed_guide_reporter_umi_counts_inferred.items() if check_match_result_non_error(getattr(observed_guide_reporter_umi_counts_inferred_value.inferred_value, attribute_name))}
+def get_non_error_dict(observed_guide_reporter_umi_counts_inferred: Union[GeneralMappingInferenceDict, DefaultDict[str, GeneralMappingInferenceDict]], attribute_name: str) -> MatchSetWhitelistReporterObservedSequenceCounterSeriesResults:
+    """
+    Return a dict of all entries that are non-error.
+    Works with both sample-barcode (nested dict) and no-sample-barcode (flat dict) cases.
+    """
+    non_error_dict = {}
+
+    for key, val in observed_guide_reporter_umi_counts_inferred.items():
+        if hasattr(val, "inferred_value"):  # flat dict
+            attr = getattr(val.inferred_value, attribute_name, None)
+            if check_match_result_non_error(attr):
+                non_error_dict[key] = val
+        else:  # nested dict (sample-barcode case)
+            for inner_key, inner_val in val.items():
+                attr = getattr(inner_val.inferred_value, attribute_name, None)
+                if check_match_result_non_error(attr):
+                    non_error_dict[(key, inner_key)] = inner_val  # tuple key: (sample, guide)
+
+    return non_error_dict
 
 #
 # Given the datastructure containing the inference results "observed_guide_reporter_umi_counts_inferred", iterate through the entire datastructure to generate

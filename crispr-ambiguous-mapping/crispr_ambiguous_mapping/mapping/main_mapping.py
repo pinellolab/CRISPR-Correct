@@ -25,7 +25,7 @@ from ..processing import crispr_sequence_encoding
 from ..processing import crispr_guide_counting
 from ..processing import crispr_sequence_encoding
 from ..parsing import reporter_umitools_fastq_parsing, reporter_standard_fastq_parsing
-from ..models.mapping_models import WhitelistReporterCountsResult, SampleWhitelistReporterCountsResult, GeneralGuideCountType
+from ..models.mapping_models import WhitelistReporterCountsResult, GeneralGuideCountType
 
 # 
 # Deprecated 
@@ -159,7 +159,7 @@ def get_whitelist_reporter_counts_from_fastq(whitelist_guide_reporter_df: Option
                                                        protospacer_hamming_threshold_strict: Optional[int] = None, 
 
                                                        store_intermediates: bool = False,
-                                                       cores: int=1) -> Union[WhitelistReporterCountsResult, SampleWhitelistReporterCountsResult]:
+                                                       cores: int=1) -> WhitelistReporterCountsResult:
     # Input parameter validation checks
 
     protospacer_pattern_regex = None if ((protospacer_pattern_regex is not None) and  (protospacer_pattern_regex.strip() == "")) else protospacer_pattern_regex

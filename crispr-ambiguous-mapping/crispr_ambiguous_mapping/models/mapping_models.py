@@ -255,19 +255,7 @@ class CountInput:
 @dataclass
 class WhitelistReporterCountsResult:
     all_match_set_whitelist_reporter_counter_series_results: AllMatchSetWhitelistReporterCounterSeriesResults
-    observed_guide_reporter_umi_counts_inferred: GeneralMappingInferenceDict
+    observed_guide_reporter_umi_counts_inferred: Union[GeneralMappingInferenceDict, DefaultDict[str, GeneralMappingInferenceDict]]
     quality_control_result: QualityControlResult
     count_input: CountInput
-
-@dataclass
-class SampleWhitelistReporterCountsResult:
-    all_match_set_whitelist_reporter_counter_series_results_all_samples: DefaultDict[str, AllMatchSetWhitelistReporterCounterSeriesResults]
-    observed_guide_reporter_umi_counts_inferred_all_samples: DefaultDict[str, GeneralMappingInferenceDict]
-    quality_control_result_all_samples: DefaultDict[str, GeneralMappingInferenceDict]
-    count_input: CountInput
-
-#
-# Types
-#
-
 
