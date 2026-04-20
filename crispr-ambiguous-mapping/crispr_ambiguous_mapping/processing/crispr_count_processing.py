@@ -140,8 +140,8 @@ def get_matchset_counterseries(
             matches: pd.DataFrame = match_set_single_inference_match_result.value.matches
             if not matches.empty:
                 # ITERATE THROUGH MATCHE(S) TO PERFORM COUNTS
-                for whitelist_reporter_series in matches.iterrows(): 
-                    dict_index = tuple(whitelist_reporter_series[1])
+                # PERF: itertuples is 5-10x faster than iterrows
+                for dict_index in matches.itertuples(index=False, name=None):
 
                     # Helper for incrementing either flat or nested dicts
                     def add_count(counterdict, value, spread=False):
@@ -205,9 +205,21 @@ def get_matchset_counterseries(
             df = pd.DataFrame.from_records(records, columns=columns)
             return df.set_index(["CellBarcode"] + list(whitelist_guide_reporter_df.columns))["value"]
         else:
-            counterseries: pd.Series = whitelist_guide_reporter_df.apply(lambda reporter: counterdict[tuple(reporter)], axis=1)
-            counterseries.index = pd.MultiIndex.from_frame(whitelist_guide_reporter_df)
-            return counterseries
+            # PERF: build directly from counterdict.items() instead of iterating
+            # every whitelist row via .apply(axis=1) (O(N_guides) per series ×
+            # 9 series per tier was dominating the run, especially since
+            # defaultdict access on a miss inserts a zero entry). Only non-zero
+            # keys end up in the Series; mapping_models.__setattr__ already
+            # coerces all-zero Series to None, so downstream is unaffected.
+            cols = list(whitelist_guide_reporter_df.columns)
+            if not counterdict:
+                return pd.Series(
+                    dtype=float,
+                    index=pd.MultiIndex.from_frame(whitelist_guide_reporter_df.iloc[0:0]),
+                )
+            records = [(*key, value) for key, value in counterdict.items()]
+            df = pd.DataFrame.from_records(records, columns=cols + ["value"])
+            return df.set_index(cols)["value"]
 
 
     #
@@ -324,9 +336,10 @@ def get_mismatchset_counterseries(observed_guide_reporter_umi_counts_inferred: U
                 assert not protospacer_matches.empty, "Developer error: to be called a mismatch, there must be both separate protospacer and surrogate. No surrogate match (possible no protospacer match)"
                 assert protospacer_surrogate_matches.empty, "Developer error: to be called a mismatch, matches dataframe must be empty."
 
-                for protospacer_matched_whitelist_reporter_series in protospacer_matches.iterrows():
-                    for surrogate_matched_whitelist_reporter_series in surrogate_matches.iterrows():
-                        dict_index = (tuple(protospacer_matched_whitelist_reporter_series[1]), tuple(surrogate_matched_whitelist_reporter_series[1]))
+                # PERF: itertuples is 5-10x faster than iterrows
+                for proto_row in protospacer_matches.itertuples(index=False, name=None):
+                    for surr_row in surrogate_matches.itertuples(index=False, name=None):
+                        dict_index = (proto_row, surr_row)
                         
                         if contains_guide_umi:
                             assert isinstance(observed_value_counts, Counter), f"For UMI, expecting observed value is a Counter, but type is {type(observed_value_counts)}"
@@ -356,8 +369,8 @@ def get_mismatchset_counterseries(observed_guide_reporter_umi_counts_inferred: U
                 assert not protospacer_surrogate_matches.empty, f"mismatched==false, but the match dataframe is empty, unexpected paradox. Developer error"
                 
                 matches = protospacer_surrogate_matches
-                for whitelist_reporter_series in matches.iterrows():
-                    dict_index = tuple(whitelist_reporter_series[1])
+                # PERF: itertuples is 5-10x faster than iterrows
+                for dict_index in matches.itertuples(index=False, name=None):
                     if contains_guide_umi:
                         assert isinstance(observed_value_counts, Counter), f"For UMI, expecting observed value is a Counter, but type is {type(observed_value_counts)}"
                         total_reads = sum(observed_value_counts.values())
@@ -401,33 +414,49 @@ def get_mismatchset_counterseries(observed_guide_reporter_umi_counts_inferred: U
             df = pd.DataFrame.from_records(records, columns=columns)
             return df.set_index(["CellBarcode"] + list(whitelist_guide_reporter_df.columns))["value"]
         else:
-            counterseries: pd.Series = whitelist_guide_reporter_df.apply(lambda reporter: counterdict[tuple(reporter)], axis=1)
-            counterseries.index = pd.MultiIndex.from_frame(whitelist_guide_reporter_df)
-            return counterseries
+            # PERF: same fix as create_counterseries above (avoid .apply over whitelist).
+            cols = list(whitelist_guide_reporter_df.columns)
+            if not counterdict:
+                return pd.Series(
+                    dtype=float,
+                    index=pd.MultiIndex.from_frame(whitelist_guide_reporter_df.iloc[0:0]),
+                )
+            records = [(*key, value) for key, value in counterdict.items()]
+            df = pd.DataFrame.from_records(records, columns=cols + ["value"])
+            return df.set_index(cols)["value"]
 
     def create_mismatch_counterseries(counterdict):
         protospacer_match_suffix = "_ProtospacerMatch"
         surrogate_match_suffix = "_SurrogateMatch"
-        whitelist_guide_reporter_df_product = whitelist_guide_reporter_df.merge(whitelist_guide_reporter_df, how='cross', suffixes=(protospacer_match_suffix, surrogate_match_suffix))
+        proto_cols = [c + protospacer_match_suffix for c in whitelist_guide_reporter_df.columns]
+        surr_cols  = [c + surrogate_match_suffix  for c in whitelist_guide_reporter_df.columns]
 
         if contains_sample_barcode:
             records = []
             for cell_barcode, inner in counterdict.items():
                 for (protospacer_key, surrogate_key), value in inner.items():
                     records.append((cell_barcode, *protospacer_key, *surrogate_key, value))
-            columns = ["CellBarcode"] + [c + protospacer_match_suffix for c in whitelist_guide_reporter_df.columns] + [c + surrogate_match_suffix for c in whitelist_guide_reporter_df.columns] + ["value"]
+            columns = ["CellBarcode"] + proto_cols + surr_cols + ["value"]
             df = pd.DataFrame.from_records(records, columns=columns)
-            return df.set_index(["CellBarcode"] + [c + protospacer_match_suffix for c in whitelist_guide_reporter_df.columns] + [c + surrogate_match_suffix for c in whitelist_guide_reporter_df.columns])["value"]
+            return df.set_index(["CellBarcode"] + proto_cols + surr_cols)["value"]
         else:
-            counterseries: pd.Series = whitelist_guide_reporter_df_product.apply(
-                lambda pairwise_reporter: counterdict[
-                    tuple(pairwise_reporter[[index for index in pairwise_reporter.index if index.endswith(protospacer_match_suffix)]]),
-                    tuple(pairwise_reporter[[index for index in pairwise_reporter.index if index.endswith(surrogate_match_suffix)]])
-                ],
-                axis=1
-            )
-            counterseries.index = pd.MultiIndex.from_frame(whitelist_guide_reporter_df_product)
-            return counterseries
+            # PERF: previously this built a cross-product of the whitelist
+            # (N_guides^2 rows — 1.4M for a 1186-guide library) and then
+            # .apply(axis=1) looked up every (proto, surr) pair in counterdict.
+            # Because defaultdict access inserts a zero entry on miss, the dict
+            # also grew O(N^2). Build directly from counterdict.items() instead;
+            # rows for unseen pairs simply don't appear (they would have been
+            # zero anyway, and mapping_models.__setattr__ strips all-zero Series).
+            if not counterdict:
+                empty_df = pd.DataFrame(columns=proto_cols + surr_cols)
+                return pd.Series(
+                    dtype=float,
+                    index=pd.MultiIndex.from_frame(empty_df),
+                )
+            records = [(*proto_key, *surr_key, value)
+                       for (proto_key, surr_key), value in counterdict.items()]
+            df = pd.DataFrame.from_records(records, columns=proto_cols + surr_cols + ["value"])
+            return df.set_index(proto_cols + surr_cols)["value"]
 
 
     surrogate_protospacer_mismatch_set_whitelist_reporter_counter_series_results = SurrogateProtospacerMismatchSetWhitelistReporterCounterSeriesResults()
