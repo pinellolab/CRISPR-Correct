@@ -52,6 +52,22 @@ def get_whitelist_reporter_counts_with_umi(observed_guide_reporter_umi_counts: G
                                            retain_inference_results: bool = False,
                                            cores: int=1) -> WhitelistReporterCountsResult:
     
+    # §4.4: validate whitelist DF columns up front so misnamed columns fail
+    # with a clear message instead of deep inside the encoding loop.
+    if whitelist_guide_reporter_df is not None:
+        _required_cols = {"protospacer"}
+        if contains_guide_surrogate:
+            _required_cols.add("surrogate")
+        if contains_guide_barcode:
+            _required_cols.add("barcode")
+        _missing = _required_cols - set(whitelist_guide_reporter_df.columns)
+        if _missing:
+            raise ValueError(
+                f"whitelist_guide_reporter_df is missing required columns: {sorted(_missing)}. "
+                f"Expected {sorted(_required_cols)} given contains_guide_surrogate={contains_guide_surrogate}, "
+                f"contains_guide_barcode={contains_guide_barcode}. Found columns: {list(whitelist_guide_reporter_df.columns)}."
+            )
+
     # Generate whitelist dataframe based on all observed sequences if none provided
     if whitelist_guide_reporter_df is None:
         whitelist_dataframe_input = {}

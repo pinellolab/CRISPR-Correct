@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from enum import Enum
 from typing import Union, List, Mapping, Tuple, Optional, Any, DefaultDict, Dict
 from typing import Counter as CounterType
 
@@ -7,6 +8,24 @@ import pandas as pd
 
 from .error_models import GuideCountError
 from .quality_control_models import QualityControlResult
+
+
+class MatchTier(str, Enum):
+    """Type-safe names for the six mapping tiers exposed by `CompleteInferenceMatchResult`.
+
+    §4.2 / §7.5: previously users passed magic strings like
+    ``"protospacer_match_surrogate_match_barcode_match"`` to post-processing
+    functions. The enum subclasses ``str`` so existing magic-string callers
+    keep working (``MatchTier.PM_SM_BM == "protospacer_match_surrogate_match_barcode_match"``
+    is True); new code can use the typed members for IDE autocompletion and
+    static checking.
+    """
+    PM = "protospacer_match"
+    PM_SM = "protospacer_match_surrogate_match"
+    PM_BM = "protospacer_match_barcode_match"
+    PM_SM_BM = "protospacer_match_surrogate_match_barcode_match"
+    PM_MISMATCH_SM = "protospacer_mismatch_surrogate_match"
+    PM_MISMATCH_SM_BM = "protospacer_mismatch_surrogate_match_barcode_match"
 
 from typing import Union, List, Mapping, Tuple, Optional, Any, DefaultDict, Dict
 from typing import Counter as CounterType

@@ -24,10 +24,60 @@ class GuideCountErrorType(Enum):
     PROTOSPACER_MISC = "Miscellaneous protospacer error"
     SURROGATE_MISC = "Miscellaneous surrogate error"
 
+_DEFAULT_SUGGESTIONS = {
+    GuideCountErrorType.NO_MATCH_PROTOSPACER_HAMMING_THRESHOLD: (
+        "Observed protospacer did not match any whitelist guide within the strict Hamming threshold. "
+        "Consider relaxing `protospacer_hamming_threshold_strict` (e.g. 7 -> 10) if your read quality is low, "
+        "or verify the protospacer extraction parameters (position/flanks/length, revcomp, r1 vs r2)."
+    ),
+    GuideCountErrorType.NO_MATCH_SURROGATE_HAMMING_THRESHOLD: (
+        "The inferred surrogate did not match within `surrogate_hamming_threshold_strict`. "
+        "Base-editing drives surrogate Hamming distances higher than protospacer distances — "
+        "threshold ~10 for 32bp surrogates is typical. If you're seeing many of these, raise the threshold."
+    ),
+    GuideCountErrorType.NO_MATCH_BARCODE_HAMMING_THRESHOLD: (
+        "Observed barcode did not match any whitelist barcode within `guide_barcode_hamming_threshold_strict`. "
+        "4bp barcodes typically use threshold 2. Check the barcode extraction regex and revcomp setting."
+    ),
+    GuideCountErrorType.NO_PROTOSPACER_WITH_SAME_LENGTH: (
+        "The observed protospacer is shorter than the whitelist minimum. Check extraction length/position."
+    ),
+    GuideCountErrorType.NO_BARCODE_WITH_SAME_LENGTH: (
+        "The observed barcode is shorter than the whitelist minimum. Check extraction length/position."
+    ),
+    GuideCountErrorType.NO_SURROGATE_WITH_SAME_LENGTH: (
+        "The observed surrogate is shorter than the whitelist minimum. Check extraction length/position."
+    ),
+    GuideCountErrorType.NO_PROTOSPACER_MATCH_MISSING_INFO: (
+        "Protospacer extraction returned None — the regex/flank did not match the read. "
+        "Inspect a few reads vs. your `protospacer_pattern_regex` / flanks."
+    ),
+    GuideCountErrorType.NO_SURROGATE_MATCH_MISSING_INFO: (
+        "Surrogate extraction returned None. Inspect reads vs. your surrogate pattern."
+    ),
+    GuideCountErrorType.NO_BARCODE_MATCH_MISSING_INFO: (
+        "Barcode extraction returned None. Inspect reads vs. your barcode pattern."
+    ),
+    GuideCountErrorType.MULTIPLE_MATCH_EXACT: (
+        "Multiple whitelist rows share an exact sequence — deduplicate the whitelist or disable truncation."
+    ),
+}
+
+
 @dataclass
 class GuideCountError:
     guide_count_error_type: GuideCountErrorType
     miscellaneous_info_dict: dict = None
+
+    @property
+    def suggestion(self) -> str:
+        """User-facing remediation hint for this error type.
+
+        §4.10: errors now expose a `suggestion` property instead of printing a
+        generic enum description — pair error-type filtering downstream with a
+        human-readable next step.
+        """
+        return _DEFAULT_SUGGESTIONS.get(self.guide_count_error_type, "")
 
 @dataclass
 class InsufficientLengthGuideCountError(GuideCountError):
