@@ -22,11 +22,13 @@ from concurrent.futures import ProcessPoolExecutor
 
 from . import crispr_sequence_encoding
 from ..models.mapping_models import CompleteInferenceMatchResult, MatchSetSingleInferenceMatchResult, MatchSetSingleInferenceMatchResultValue, SurrogateProtospacerMismatchSingleInferenceMatchResult, SurrogateProtospacerMismatchSingleInferenceMatchResultValue
-from ..models.error_models import (GuideCountError, GuideCountErrorType, 
+from ..models.error_models import (GuideCountError, GuideCountErrorType,
                                    ProtospacerHammingThresholdGuideCountError, SurrogateHammingThresholdGuideCountError, BarcodeHammingThresholdGuideCountError,
-                                   MissingInfoGuideCountError, InsufficientLengthGuideCountError, 
-                                   ProtospacerMissingInfoGuideCountError, SurrogateMissingInfoGuideCountError, BarcodeMissingInfoGuideCountError, 
+                                   MissingInfoGuideCountError, InsufficientLengthGuideCountError,
+                                   ProtospacerMissingInfoGuideCountError, SurrogateMissingInfoGuideCountError, BarcodeMissingInfoGuideCountError,
                                    ProtospacerInsufficientLengthGuideCountError, SurrogateInsufficientLengthGuideCountError, BarcodeInsufficientLengthGuideCountError)
+import logging
+_log = logging.getLogger(__name__)
 
 
 @typechecked
@@ -474,7 +476,7 @@ def determine_hamming_threshold(whitelist_sequences_series: Union[List[str],pd.S
             try:
                 current_guide_sequence_encoded = crispr_sequence_encoding.encode_DNA_sequence_observed(current_guide_sequence) 
             except Exception as e:
-                print(e)
+                _log.error(e)
                 raise Exception(f"Error encoding surrogate sequence: {current_guide_sequence}")
             # Calculate the hamming distance of the mutated guide to all other guides
             hamming_distances =  crispr_sequence_encoding.retrieve_hamming_distance_whitelist(current_guide_sequence_encoded, encoded_whitelist_sequences_series)

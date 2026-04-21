@@ -25,6 +25,9 @@ from ..processing import crispr_sequence_encoding
 from ..processing import crispr_guide_counting
 from ..parsing import reporter_standard_fastq_parsing
 from ..models.mapping_models import WhitelistReporterCountsResult, GeneralGuideCountType
+import logging
+_log = logging.getLogger(__name__)
+
 
 # §8: get_whitelist_reporter_counts_from_umitools_output was removed. It was
 # marked # Deprecated in master and relied on the removed
@@ -127,10 +130,10 @@ def get_whitelist_reporter_counts_from_fastq(whitelist_guide_reporter_df: Option
     sample_barcode_left_flank = preprocess_sequence(sample_barcode_left_flank)
     sample_barcode_right_flank = preprocess_sequence(sample_barcode_right_flank)
 
-    print(f"Contains surrogate: {contains_surrogate}")
-    print(f"Contains guide barcode: {contains_guide_barcode}")
-    print(f"Contains guide UMI: {contains_guide_umi}")
-    print(f"Contains sample barcode: {contains_sample_barcode}")
+    _log.info(f"Contains surrogate: {contains_surrogate}")
+    _log.info(f"Contains guide barcode: {contains_guide_barcode}")
+    _log.info(f"Contains guide UMI: {contains_guide_umi}")
+    _log.info(f"Contains sample barcode: {contains_sample_barcode}")
     #
     # Get counts of observed FASTQ sequences
     #
@@ -197,7 +200,7 @@ def get_whitelist_reporter_counts_from_fastq(whitelist_guide_reporter_df: Option
                                             contains_guide_umi=contains_guide_umi,
                                             contains_sample_barcode=contains_sample_barcode)
 
-    print(f"Number of unique observed parsed sequences: {len(observed_guide_reporter_umi_counts.keys())}")
+    _log.info(f"Number of unique observed parsed sequences: {len(observed_guide_reporter_umi_counts.keys())}")
 
     #   
     # Map the observed sequences to the true whitelist sequence
