@@ -258,7 +258,12 @@ def get_standard_observed_sequence_counts(  fastq_r1_fns: List[str],
     def parse_fastq(fastq_r1_filehandler, fastq_r2_filehandler, sequence_counter: Optional[GeneralGuideCountType] = None):
         NestedDict = lambda: defaultdict(lambda: Counter())
 
-        if fastq_r2_fn is None: # ONLY R1
+        # FIX: the original line referenced `fastq_r2_fn` (singular), which is a
+        # name left over from the master API and only assigned inside the
+        # caller's fastq_index loop when fastq_r2_fns is not None — raising
+        # NameError when the caller passes fastq_r2_fns=None (surrogate-off
+        # mode). Use the file handler object instead, which is always defined.
+        if fastq_r2_filehandler is None: # ONLY R1
             
             print("Only R1 FASTQ is provided, R2 NOT provided")
             fastq_single_read_grouper = grouper(fastq_r1_filehandler)
