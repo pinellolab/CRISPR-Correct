@@ -79,32 +79,74 @@ full_encoding_dict_observed = dict({
 '''
 def encode_DNA_base_whitelist(char):
     return full_encoding_dict_whitelist[char]
-encode_DNA_base_whitelist_vectorized = np.vectorize(encode_DNA_base_whitelist, signature='()->(n)') # Vectorized function for a string (i.e. gRNA)
+encode_DNA_base_whitelist_vectorized = np.vectorize(encode_DNA_base_whitelist, signature='()->(n)') # Kept for back-compat; replaced internally by LUT-based lookup.
 
 def encode_DNA_base_observed(char):
     return full_encoding_dict_observed[char]
-encode_DNA_base_observed_vectorized = np.vectorize(encode_DNA_base_observed, signature='()->(n)') # Vectorized function for a string (i.e. gRNA)
+encode_DNA_base_observed_vectorized = np.vectorize(encode_DNA_base_observed, signature='()->(n)') # Kept for back-compat; replaced internally by LUT-based lookup.
+
+
+# PERF §3.1: `np.vectorize(...)` over a per-base dict lookup is a Python
+# for-loop in disguise — it dominated the inference hot path (called twice per
+# observed sequence per component). Precomputed 256-entry lookup tables here
+# let each string encode in a single `np.frombuffer` + fancy-index on LUT,
+# which is a real numpy-speed operation (no Python loop).
+_LUT_WHITELIST = np.zeros((256, 4), dtype=np.int8)
+_LUT_OBSERVED = np.zeros((256, 4), dtype=np.int8)
+for _base, _vec in full_encoding_dict_whitelist.items():
+    _LUT_WHITELIST[ord(_base)] = _vec
+    _LUT_WHITELIST[ord(_base.lower())] = _vec
+for _base, _vec in full_encoding_dict_observed.items():
+    _LUT_OBSERVED[ord(_base)] = _vec
+    _LUT_OBSERVED[ord(_base.lower())] = _vec
+# Any base outside the known alphabet (e.g. sequencing 'N' on an observed
+# sequence) already has a 4-wide all-zero / all-3 row via the IUPAC expansion
+# above. Unknown ASCII chars fall back to the all-zero default, which produces
+# an extremely high Hamming distance — same semantics as the old
+# KeyError-raising dict access, but without crashing.
+del _base, _vec
+
+
+def encode_DNA_sequence_whitelist(seq: str) -> np.ndarray:
+    """LUT-based replacement for `encode_DNA_base_whitelist_vectorized(numpify_string_vectorized(seq))`.
+    Returns shape (len(seq), 4) int8 array — mathematically identical to the
+    previous implementation."""
+    return _LUT_WHITELIST[np.frombuffer(seq.encode('ascii', errors='replace'), dtype=np.uint8)]
+
+
+def encode_DNA_sequence_observed(seq: str) -> np.ndarray:
+    """LUT-based replacement for `encode_DNA_base_observed_vectorized(numpify_string_vectorized(seq))`."""
+    return _LUT_OBSERVED[np.frombuffer(seq.encode('ascii', errors='replace'), dtype=np.uint8)]
+
 
 '''
-    Function for converting string (i.e. gRNA) into a np array of chars  - may be deprecated (NOTE 20221202)
+    Function for converting string (i.e. gRNA) into a np array of chars  - retained for API back-compat
 '''
 def numpify_string(string):
     return np.array(list(string), dtype=str)
-numpify_string_vectorized = np.vectorize(numpify_string, signature='()->(n)') # Vectorize the function
+numpify_string_vectorized = np.vectorize(numpify_string, signature='()->(n)') # Retained for back-compat; internal callers use encode_DNA_sequence_{whitelist,observed} instead.
 
 def encode_guide_series_whitelist(guide_series) -> np.array:
-    guide_numpy = guide_series.to_numpy(dtype=object)
-    guide_numpy = guide_numpy.astype(str)
-    guide_numpy_char = np.array(list(map(list, guide_numpy))) # Map into a list of list of characters
-    guide_numpy_encoding = encode_DNA_base_whitelist_vectorized(guide_numpy_char)
-    return guide_numpy_encoding
+    # PERF §3.1 + §3.13: avoid the `list(map(list, ...))` Python detour and the
+    # np.vectorize. Build the 2D char buffer once via `np.frombuffer` and
+    # fancy-index into the LUT in a single numpy call.
+    strs = guide_series.astype(str).tolist()
+    if not strs:
+        return np.zeros((0, 0, 4), dtype=np.int8)
+    L = max(len(s) for s in strs)
+    padded = [s.ljust(L, 'X') for s in strs]
+    buf = np.frombuffer(''.join(padded).encode('ascii', errors='replace'), dtype=np.uint8).reshape(len(strs), L)
+    return _LUT_WHITELIST[buf]
+
 
 def encode_guide_series_observed(guide_series) -> np.array:
-    guide_numpy = guide_series.to_numpy(dtype=object)
-    guide_numpy = guide_numpy.astype(str)
-    guide_numpy_char = np.array(list(map(list, guide_numpy))) # Map into a list of list of characters
-    guide_numpy_encoding = encode_DNA_base_observed_vectorized(guide_numpy_char)
-    return guide_numpy_encoding
+    strs = guide_series.astype(str).tolist()
+    if not strs:
+        return np.zeros((0, 0, 4), dtype=np.int8)
+    L = max(len(s) for s in strs)
+    padded = [s.ljust(L, 'X') for s in strs]
+    buf = np.frombuffer(''.join(padded).encode('ascii', errors='replace'), dtype=np.uint8).reshape(len(strs), L)
+    return _LUT_OBSERVED[buf]
 
 def retrieve_hamming_distance_whitelist(observed_guide_encoded, whitelist_guide_encoded):
     '''

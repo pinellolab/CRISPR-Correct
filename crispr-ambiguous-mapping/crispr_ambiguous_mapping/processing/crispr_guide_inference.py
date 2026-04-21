@@ -127,7 +127,7 @@ def infer_whitelist_sequence(observed_guide_reporter_sequence_input: Union[str, 
             # FIND BARCODE MATCHES
             #
             try:
-                observed_barcode_sequence_encoded = crispr_sequence_encoding.encode_DNA_base_observed_vectorized(crispr_sequence_encoding.numpify_string_vectorized(observed_guide_reporter_sequence["barcode"]))  # Encode the observed barcode
+                observed_barcode_sequence_encoded = crispr_sequence_encoding.encode_DNA_sequence_observed(observed_guide_reporter_sequence["barcode"])  # Encode the observed barcode
             
                 observed_barcode_sequence_dists = crispr_sequence_encoding.retrieve_hamming_distance_whitelist(observed_barcode_sequence_encoded, encoded_whitelist_barcode_sequences_series) # Retrieve hamming distance with whitelist barcode
                 observed_barcode_sequence_dists_min = observed_barcode_sequence_dists.min() # Get the barcode with the minimum  hamming distance
@@ -160,7 +160,7 @@ def infer_whitelist_sequence(observed_guide_reporter_sequence_input: Union[str, 
     if protospacer_error_result is None:
         encoding_protospacer_error_result = None
         try:
-            observed_protospacer_sequence_encoded = crispr_sequence_encoding.encode_DNA_base_observed_vectorized(crispr_sequence_encoding.numpify_string_vectorized(observed_guide_reporter_sequence["protospacer"]))  # Encode the observed protospacer
+            observed_protospacer_sequence_encoded = crispr_sequence_encoding.encode_DNA_sequence_observed(observed_guide_reporter_sequence["protospacer"])  # Encode the observed protospacer
             observed_protospacer_sequence_dists = crispr_sequence_encoding.retrieve_hamming_distance_whitelist(observed_protospacer_sequence_encoded, encoded_whitelist_protospacer_sequences_series) # Hamming distance among all whitelist protospacers
             observed_protospacer_sequence_dists_min = observed_protospacer_sequence_dists.min() # Get minimum hamming distance
             protospacer_hamming_threshold_met = (observed_protospacer_sequence_dists_min < protospacer_hamming_threshold)
@@ -209,7 +209,7 @@ def infer_whitelist_sequence(observed_guide_reporter_sequence_input: Union[str, 
                                 encoding_surrogate_error_result = None
                                 try:
                                     encoded_whitelist_surrogate_sequences_series_barcode_match_protospacer_match = encoded_whitelist_surrogate_sequences_series_barcode_match[barcode_match_protospacer_match_indices] # Subset the surrogate encodings with the protospacer and encoding matches for later
-                                    observed_surrogate_sequence_encoded = crispr_sequence_encoding.encode_DNA_base_observed_vectorized(crispr_sequence_encoding.numpify_string_vectorized(observed_guide_reporter_sequence["surrogate"]))  # Encode the observed protospacer
+                                    observed_surrogate_sequence_encoded = crispr_sequence_encoding.encode_DNA_sequence_observed(observed_guide_reporter_sequence["surrogate"])  # Encode the observed protospacer
                                     observed_surrogate_sequence_dists_barcode_match_protospacer_match = crispr_sequence_encoding.retrieve_hamming_distance_whitelist(observed_surrogate_sequence_encoded, encoded_whitelist_surrogate_sequences_series_barcode_match_protospacer_match) # Hamming distance among all whitelist sub-selected surrogates
                                     observed_surrogate_sequence_dists_barcode_match_protospacer_match_min = observed_surrogate_sequence_dists_barcode_match_protospacer_match.min()
                                     barcode_match_protospacer_match_surrogate_hamming_threshold_met = (observed_surrogate_sequence_dists_barcode_match_protospacer_match_min < surrogate_hamming_threshold)
@@ -262,7 +262,7 @@ def infer_whitelist_sequence(observed_guide_reporter_sequence_input: Union[str, 
                     encoding_surrogate_error_result = None
                     try:
                         encoded_whitelist_surrogate_sequences_series_protospacer_match = encoded_whitelist_surrogate_sequences_series[protospacer_matches_indices]
-                        observed_surrogate_sequence_encoded = crispr_sequence_encoding.encode_DNA_base_observed_vectorized(crispr_sequence_encoding.numpify_string_vectorized(observed_guide_reporter_sequence["surrogate"]))  # Encode the observed protospacer
+                        observed_surrogate_sequence_encoded = crispr_sequence_encoding.encode_DNA_sequence_observed(observed_guide_reporter_sequence["surrogate"])  # Encode the observed protospacer
                         observed_surrogate_sequence_dists_protospacer_match = crispr_sequence_encoding.retrieve_hamming_distance_whitelist(observed_surrogate_sequence_encoded, encoded_whitelist_surrogate_sequences_series_protospacer_match) # TODO: This should be on the protospacer-match array
                         observed_surrogate_sequence_dists_protospacer_match_min = observed_surrogate_sequence_dists_protospacer_match.min()
                         protospacer_match_surrogate_hamming_threshold_met = (observed_surrogate_sequence_dists_protospacer_match_min < surrogate_hamming_threshold)
@@ -303,7 +303,7 @@ def infer_whitelist_sequence(observed_guide_reporter_sequence_input: Union[str, 
                             #
                             encoding_surrogate_error_result = None
                             try:
-                                observed_surrogate_sequence_encoded = crispr_sequence_encoding.encode_DNA_base_observed_vectorized(crispr_sequence_encoding.numpify_string_vectorized(observed_guide_reporter_sequence["surrogate"]))  # Encode the observed protospacer
+                                observed_surrogate_sequence_encoded = crispr_sequence_encoding.encode_DNA_sequence_observed(observed_guide_reporter_sequence["surrogate"])  # Encode the observed protospacer
                                 observed_surrogate_sequence_dists_barcode_match = crispr_sequence_encoding.retrieve_hamming_distance_whitelist(observed_surrogate_sequence_encoded, encoded_whitelist_surrogate_sequences_series_barcode_match) # Hamming distance among barcode-match protospacers
                                 observed_surrogate_sequence_dists_barcode_match_min = observed_surrogate_sequence_dists_barcode_match.min() # Get minimum hamming distance
                                 barcode_match_surrogate_hamming_threshold_met = (observed_surrogate_sequence_dists_barcode_match_min < surrogate_hamming_threshold)
@@ -345,7 +345,7 @@ def infer_whitelist_sequence(observed_guide_reporter_sequence_input: Union[str, 
                     #
                     encoding_surrogate_error_result = None
                     try:
-                        observed_surrogate_sequence_encoded = crispr_sequence_encoding.encode_DNA_base_observed_vectorized(crispr_sequence_encoding.numpify_string_vectorized(observed_guide_reporter_sequence["surrogate"]))  # Encode the observed protospacer
+                        observed_surrogate_sequence_encoded = crispr_sequence_encoding.encode_DNA_sequence_observed(observed_guide_reporter_sequence["surrogate"])  # Encode the observed protospacer
                         observed_surrogate_sequence_dists = crispr_sequence_encoding.retrieve_hamming_distance_whitelist(observed_surrogate_sequence_encoded, encoded_whitelist_surrogate_sequences_series) # Hamming distance among  all whitelist surrogates
                         observed_surrogate_sequence_dists_min = observed_surrogate_sequence_dists.min()
                         surrogate_hamming_threshold_met = (observed_surrogate_sequence_dists_min < surrogate_hamming_threshold)
@@ -443,7 +443,7 @@ def determine_hamming_threshold(whitelist_sequences_series: Union[List[str],pd.S
             current_guide_sequence_separated[position] = new_nt
             current_guide_sequence = "".join(current_guide_sequence_separated)
             try:
-                current_guide_sequence_encoded = crispr_sequence_encoding.encode_DNA_base_observed_vectorized(crispr_sequence_encoding.numpify_string_vectorized(current_guide_sequence)) 
+                current_guide_sequence_encoded = crispr_sequence_encoding.encode_DNA_sequence_observed(current_guide_sequence) 
             except Exception as e:
                 print(e)
                 raise Exception(f"Error encoding surrogate sequence: {current_guide_sequence}")
