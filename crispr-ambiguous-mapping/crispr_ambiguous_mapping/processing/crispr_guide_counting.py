@@ -158,11 +158,17 @@ def get_whitelist_reporter_counts_with_umi(observed_guide_reporter_umi_counts: G
     before_inference_time = datetime.now()
     if cores > 1:
         print(f"Running inference parallelized on {len(observed_guide_reporter_list)} observed seqeunces with cores {cores}")
+        # PERF §3.2: pool.map's default chunksize=1 means one IPC round-trip
+        # per observed sequence, which dominates wall time for small
+        # per-call work. Amortize by chunking; aim for ~4 chunks per core so
+        # the pool stays busy while keeping per-chunk overhead low.
+        chunksize = max(1, len(observed_guide_reporter_list) // (cores * 4))
         with Pool(cores) as pool:
-            inferred_true_reporter_sequences = pool.map(
-            infer_whitelist_sequence_p,
-            observed_guide_reporter_list
-           )
+            inferred_true_reporter_sequences = list(pool.imap(
+                infer_whitelist_sequence_p,
+                observed_guide_reporter_list,
+                chunksize=chunksize,
+            ))
     else:
         print(f"Running inference on {len(observed_guide_reporter_list)} observed seqeunces non-parallelized")
         inferred_true_reporter_sequences = [infer_whitelist_sequence_p(observed_guide_reporter) for observed_guide_reporter in observed_guide_reporter_list]
