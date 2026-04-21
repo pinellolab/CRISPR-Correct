@@ -320,8 +320,12 @@ def infer_whitelist_sequence(observed_guide_reporter_sequence_input: Union[str, 
                                 complete_match_result.protospacer_mismatch_surrogate_match_barcode_match = SurrogateProtospacerMismatchSingleInferenceMatchResult(
                                     error=encoding_surrogate_error_result)
                             if barcode_match_surrogate_hamming_threshold_met: # If the surrogate matches are below the surrogate hamming threshold
-                                # See if there are identical matches between protospacer-only matches and surrogate-only matches
-                                whitelist_guide_reporter_df_hamming_barcode_match_surrogate_match_protospacer_match = pd.merge(whitelist_guide_reporter_df_hamming_barcode_match_surrogate_match, whitelist_guide_reporter_df_hamming_protospacer_match, how='inner')
+                                # PERF §3.4: replace pd.merge (heavy pandas overhead, per observed sequence) with a
+                                # hash-based row intersection — the merge was an inner-join that only needed to
+                                # identify shared rows between the two small DataFrames.
+                                _proto_match_set = {tuple(r) for r in whitelist_guide_reporter_df_hamming_protospacer_match.itertuples(index=False, name=None)}
+                                _mask = [tuple(r) in _proto_match_set for r in whitelist_guide_reporter_df_hamming_barcode_match_surrogate_match.itertuples(index=False, name=None)]
+                                whitelist_guide_reporter_df_hamming_barcode_match_surrogate_match_protospacer_match = whitelist_guide_reporter_df_hamming_barcode_match_surrogate_match[_mask]
                                 
                                 complete_match_result.protospacer_mismatch_surrogate_match_barcode_match = SurrogateProtospacerMismatchSingleInferenceMatchResult(value=SurrogateProtospacerMismatchSingleInferenceMatchResultValue(
                                     mismatched=whitelist_guide_reporter_df_hamming_barcode_match_surrogate_match_protospacer_match.empty, 
@@ -361,8 +365,10 @@ def infer_whitelist_sequence(observed_guide_reporter_sequence_input: Union[str, 
                             error=encoding_surrogate_error_result)
                     elif surrogate_hamming_threshold_met: # IF SURROGATE MATCHED
 
-                        # See if there are identical matches between protospacer-only matches and surrogate-only matches
-                        whitelist_guide_reporter_df_hamming_surrogate_match_protospacer_match = pd.merge(whitelist_guide_reporter_df_hamming_surrogate_match, whitelist_guide_reporter_df_hamming_protospacer_match, how='inner')
+                        # PERF §3.4: same hash-intersection replacement for pd.merge.
+                        _proto_match_set = {tuple(r) for r in whitelist_guide_reporter_df_hamming_protospacer_match.itertuples(index=False, name=None)}
+                        _mask = [tuple(r) in _proto_match_set for r in whitelist_guide_reporter_df_hamming_surrogate_match.itertuples(index=False, name=None)]
+                        whitelist_guide_reporter_df_hamming_surrogate_match_protospacer_match = whitelist_guide_reporter_df_hamming_surrogate_match[_mask]
                         complete_match_result.protospacer_mismatch_surrogate_match = SurrogateProtospacerMismatchSingleInferenceMatchResult(value=SurrogateProtospacerMismatchSingleInferenceMatchResultValue(
                             mismatched=whitelist_guide_reporter_df_hamming_surrogate_match_protospacer_match.empty, 
                             surrogate_matches=whitelist_guide_reporter_df_hamming_surrogate_match, 
