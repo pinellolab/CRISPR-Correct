@@ -54,6 +54,36 @@ def _require_inference_dict(observed_guide_reporter_umi_counts_inferred, caller:
 
 
 def get_matchset_alleleseries(observed_guide_reporter_umi_counts_inferred: GeneralMappingInferenceDict, attribute_name: str, contains_surrogate: bool, contains_guide_barcode: bool, contains_guide_umi: bool):
+    """Build per-tier observed-allele count Series from a full (retained) mapping result.
+
+    For each whitelist guide, aggregates the observed protospacer/surrogate/barcode
+    alleles that mapped to it under the chosen tier, across nine (ambiguity x UMI)
+    counting strategies. Required input for downstream mutation profiling.
+
+    Parameters
+    ----------
+    observed_guide_reporter_umi_counts_inferred
+        The per-observation inference dict — i.e. ``result.observed_guide_reporter_umi_counts_inferred``
+        from a mapping call made with ``retain_inference_results=True``. A slim
+        result (default) passes ``None`` here and raises ``ValueError``.
+    attribute_name
+        Match tier to extract. Pass a ``MatchTier`` enum member (or its string
+        value). Typical: ``MatchTier.PM_SM_BM`` for full-triplet screens.
+    contains_surrogate, contains_guide_barcode, contains_guide_umi
+        Must match what was configured during mapping (these drive the output
+        DataFrame column shape).
+
+    Returns
+    -------
+    MatchSetWhitelistReporterObservedSequenceCounterSeriesResults
+        Dataclass with 9 alleledict + 9 alleleseries_dict + 9 allele_df fields,
+        one per (ambiguity, UMI) strategy.
+
+    Raises
+    ------
+    ValueError
+        If called on a slim mapping result (re-run with ``retain_inference_results=True``).
+    """
     _require_inference_dict(observed_guide_reporter_umi_counts_inferred, "get_matchset_alleleseries")
     #
     #   DEFINE THE DEFAULTDICTS FOR COUNTING
@@ -264,8 +294,36 @@ def determine_mutations_in_sequence(true_sequence, observed_sequence):
     return observed_sequence_mutation_df
 
 
-def get_mutation_profile(match_set_whitelist_reporter_observed_sequence_counter_series_results: MatchSetWhitelistReporterObservedSequenceCounterSeriesResults, whitelist_reporter_df: pd.DataFrame, contains_surrogate: bool, contains_guide_barcode: bool) -> MatchSetWhitelistReporterObservedSequenceMutationProfiles: 
-    
+def get_mutation_profile(match_set_whitelist_reporter_observed_sequence_counter_series_results: MatchSetWhitelistReporterObservedSequenceCounterSeriesResults, whitelist_reporter_df: pd.DataFrame, contains_surrogate: bool, contains_guide_barcode: bool) -> MatchSetWhitelistReporterObservedSequenceMutationProfiles:
+    """Compute per-position mutation profiles from allele count series.
+
+    Given the allele Series built by ``get_matchset_alleleseries``, this walks
+    each (whitelist, observed_allele) pair and records per-base mutations
+    against the whitelist reference, producing both linked (allele-level) and
+    unlinked (position-level) mutation tables for all nine counting strategies.
+
+    Parameters
+    ----------
+    match_set_whitelist_reporter_observed_sequence_counter_series_results
+        Return value of ``get_matchset_alleleseries``.
+    whitelist_reporter_df
+        The same DataFrame that was passed into the mapping call. Used as the
+        reference sequence for computing mutations.
+    contains_surrogate, contains_guide_barcode
+        Must match the mapping configuration.
+
+    Returns
+    -------
+    MatchSetWhitelistReporterObservedSequenceMutationProfiles
+        Mutation tables per strategy. Consume via
+        ``tally_linked_mutation_count_per_sequence`` for aggregate counters, or
+        drive ``visualization.plot_mutation_count_histogram`` /
+        ``plot_trinucleotide_mutational_signature`` directly.
+
+    See Also
+    --------
+    tally_linked_mutation_count_per_sequence
+    """
     # Function to generate unlinked mutations for particular count type
     def generate_mutations_results(alleleseries: Optional[GeneralAlleleCountSeriesDict], whitelist_reporter_df: pd.DataFrame, contains_surrogate: bool, contains_guide_barcode: bool) -> Optional[ObservedSequenceMutationProfile]:
         if alleleseries is not None:

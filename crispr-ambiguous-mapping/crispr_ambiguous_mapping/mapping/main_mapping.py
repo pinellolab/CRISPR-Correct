@@ -107,6 +107,74 @@ def get_whitelist_reporter_counts_from_fastq(whitelist_guide_reporter_df: Option
 
                                                        retain_inference_results: bool = False,
                                                        cores: int=1) -> WhitelistReporterCountsResult:
+    """Map observed CRISPR reads from FASTQs to a whitelist guide library via per-base Hamming distance.
+
+    This is the canonical entry point for the multi-sample-support branch. It
+    parses the configured components (protospacer, optional surrogate, guide
+    barcode, guide UMI, sample/cell barcode) from R1/R2/header, runs Hamming
+    inference in parallel, builds the per-tier count series, and returns a
+    `WhitelistReporterCountsResult` dataclass.
+
+    Parameters
+    ----------
+    whitelist_guide_reporter_df
+        DataFrame with one row per guide. Required column: ``protospacer``. If
+        ``contains_guide_surrogate`` is inferred from the parsing kwargs, add a
+        ``surrogate`` column; if ``contains_guide_barcode`` is inferred, add a
+        ``barcode`` column.
+    fastq_r1_fns
+        List of R1 FASTQ paths (gzipped accepted). Single-end calls still pass
+        a single-element list.
+    fastq_r2_fns
+        List of R2 FASTQ paths or ``None`` for single-end.
+    protospacer_* / surrogate_* / guide_barcode_* / guide_umi_* / sample_barcode_*
+        Per-component extraction knobs. Provide one of:
+        ``*_pattern_regex`` (capture-group-1 parsed from sequence or header),
+        ``*_left_flank`` / ``*_right_flank`` (flank-based extraction), or
+        ``*_start_position`` + ``*_length`` / ``*_end_position`` (fixed offset).
+        ``is_*_r1`` / ``is_*_header`` selects source; ``revcomp_*`` reverse-
+        complements the extracted fragment.
+    protospacer_hamming_threshold_strict, surrogate_hamming_threshold_strict, guide_barcode_hamming_threshold_strict
+        Strict-less-than thresholds. A value of 7 means distances ``<= 6`` are
+        matches — the ``_strict`` suffix is deliberate. Typical: 7 for 20bp
+        protospacers, 10 for 32bp surrogates, 2 for 4bp barcodes. Pass ``None``
+        to auto-determine from the library (5th percentile of pairwise Hamming
+        distances, sample=100).
+    retain_inference_results
+        Default ``False`` — the slim result drops the per-observation
+        inference dict (15x smaller pickle, ~45% smaller peak RSS). Set to
+        ``True`` if you plan to call ``get_matchset_alleleseries`` /
+        ``get_mutation_profile`` / ``tally_linked_mutation_count_per_sequence``
+        downstream (they raise ``ValueError`` on a slim result with a clear
+        remediation message).
+    cores
+        Number of worker processes for inference. FASTQ parsing is single-
+        threaded (§3.12 streaming is a future upgrade).
+
+    Returns
+    -------
+    WhitelistReporterCountsResult
+        Fields of note:
+        - ``all_match_set_whitelist_reporter_counter_series_results`` — six tiers
+          (protospacer_match, PM+SM, PM+BM, PM+SM+BM, PM_mismatch_SM, PM_mismatch_SM_BM),
+          each with 9 Series (3 ambiguity strategies x 3 UMI strategies).
+        - ``quality_control_result`` — per-tier error counts (``num_total_*``, ``num_non_error_*``).
+        - ``count_input`` — echo of parsing flags (``contains_guide_surrogate``, etc.).
+        - ``observed_guide_reporter_umi_counts_inferred`` — raw per-observation
+          inference dict, present only when ``retain_inference_results=True``.
+
+    Raises
+    ------
+    ValueError
+        If ``whitelist_guide_reporter_df`` is missing required columns for
+        the configured components.
+
+    See Also
+    --------
+    crispr_ambiguous_mapping.processing.get_matchset_alleleseries
+    crispr_ambiguous_mapping.processing.get_mutation_profile
+    crispr_ambiguous_mapping.models.MatchTier
+    """
     # Input parameter validation checks
 
     protospacer_pattern_regex = None if ((protospacer_pattern_regex is not None) and  (protospacer_pattern_regex.strip() == "")) else protospacer_pattern_regex
