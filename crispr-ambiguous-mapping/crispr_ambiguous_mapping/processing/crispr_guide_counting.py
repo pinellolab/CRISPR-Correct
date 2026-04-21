@@ -41,6 +41,7 @@ def get_whitelist_reporter_counts_with_umi(observed_guide_reporter_umi_counts: G
                                            surrogate_hamming_threshold_strict: Optional[int] = 2, 
                                            guide_barcode_hamming_threshold_strict: Optional[int] = 2, 
                                            store_intermediates: bool = False,
+                                           retain_inference_results: bool = False,
                                            cores: int=1) -> WhitelistReporterCountsResult:
     
     # Generate whitelist dataframe based on all observed sequences if none provided
@@ -205,10 +206,17 @@ def get_whitelist_reporter_counts_with_umi(observed_guide_reporter_umi_counts: G
             surrogate_hamming_threshold_strict=surrogate_hamming_threshold,
             guide_barcode_hamming_threshold_strict=guide_barcode_hamming_threshold)
         
-        return WhitelistReporterCountsResult(all_match_set_whitelist_reporter_counter_series_results=all_match_set_whitelist_reporter_counter_series_results, 
-                                             observed_guide_reporter_umi_counts_inferred=observed_guide_reporter_umi_counts_inferred_all_samples, 
-                                             quality_control_result=quality_control_result, 
-                                             count_input=count_input)
+        # MEM: by default drop the heavyweight per-observation inference dict —
+        # it is only needed by allele/mutation post-processing, which users
+        # opt into by passing retain_inference_results=True.
+        return WhitelistReporterCountsResult(
+            all_match_set_whitelist_reporter_counter_series_results=all_match_set_whitelist_reporter_counter_series_results,
+            observed_guide_reporter_umi_counts_inferred=(
+                observed_guide_reporter_umi_counts_inferred_all_samples if retain_inference_results else None
+            ),
+            quality_control_result=quality_control_result,
+            count_input=count_input,
+        )
     else:    
         
         observed_guide_reporter_umi_counts_inferred: GeneralMappingInferenceDict = defaultdict(dict)
@@ -246,4 +254,12 @@ def get_whitelist_reporter_counts_with_umi(observed_guide_reporter_umi_counts: G
                 surrogate_hamming_threshold_strict=surrogate_hamming_threshold,
                 guide_barcode_hamming_threshold_strict=guide_barcode_hamming_threshold)
         
-        return WhitelistReporterCountsResult(all_match_set_whitelist_reporter_counter_series_results=all_match_set_whitelist_reporter_counter_series_results, observed_guide_reporter_umi_counts_inferred=observed_guide_reporter_umi_counts_inferred, quality_control_result=quality_control_result, count_input=count_input)
+        # MEM: drop the inference dict by default — see note above.
+        return WhitelistReporterCountsResult(
+            all_match_set_whitelist_reporter_counter_series_results=all_match_set_whitelist_reporter_counter_series_results,
+            observed_guide_reporter_umi_counts_inferred=(
+                observed_guide_reporter_umi_counts_inferred if retain_inference_results else None
+            ),
+            quality_control_result=quality_control_result,
+            count_input=count_input,
+        )

@@ -11,6 +11,13 @@ import pandas as pd
 
 @typechecked
 def helper_get_observed_values_given_whitelist_value(whitelist_sequence_list: List[Tuple[str, Optional[str], Optional[str]]], observed_guide_reporter_umi_counts_inferred: GeneralMappingInferenceDict, attribute_name:str, contains_umi: bool, ambiguous_accepted:bool = True) -> WhitelistReporterObservedSequenceMapping:
+    if observed_guide_reporter_umi_counts_inferred is None:
+        raise ValueError(
+            "helper_get_observed_values_given_whitelist_value requires "
+            "`observed_guide_reporter_umi_counts_inferred` but the result was built "
+            "with `retain_inference_results=False` (the default). Re-run mapping with "
+            "`retain_inference_results=True` to enable allele post-processing."
+        )
     """
     Provides the set of observed sequences for a given whitelist sequence
 

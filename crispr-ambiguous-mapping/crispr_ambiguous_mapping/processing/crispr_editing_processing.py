@@ -40,7 +40,21 @@ def get_non_error_dict(observed_guide_reporter_umi_counts_inferred: Union[Genera
 # another datastructure that contains the observed alleles (protospacer/surrogate/barcode) for each whitelist reporter in either a dictionary or dataframe format.
 # This is the foundational datastructure used for analyzing the mutations for each whitelist reporter.
 #
-def get_matchset_alleleseries(observed_guide_reporter_umi_counts_inferred: GeneralMappingInferenceDict, attribute_name: str, contains_surrogate: bool, contains_barcode: bool, contains_umi: bool): 
+def _require_inference_dict(observed_guide_reporter_umi_counts_inferred, caller: str):
+    """Raise a clear error if the slim (retain_inference_results=False)
+    result's inference dict is None. Saves users from a cryptic AttributeError
+    deep inside the allele-building loop."""
+    if observed_guide_reporter_umi_counts_inferred is None:
+        raise ValueError(
+            f"{caller} requires `observed_guide_reporter_umi_counts_inferred` but the "
+            f"result object was built with `retain_inference_results=False` (the default). "
+            f"Re-run the mapping call with `retain_inference_results=True` to enable "
+            f"allele / mutation post-processing."
+        )
+
+
+def get_matchset_alleleseries(observed_guide_reporter_umi_counts_inferred: GeneralMappingInferenceDict, attribute_name: str, contains_surrogate: bool, contains_barcode: bool, contains_umi: bool):
+    _require_inference_dict(observed_guide_reporter_umi_counts_inferred, "get_matchset_alleleseries")
     #
     #   DEFINE THE DEFAULTDICTS FOR COUNTING
     #

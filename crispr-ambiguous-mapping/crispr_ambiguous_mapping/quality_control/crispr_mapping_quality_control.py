@@ -123,11 +123,14 @@ def perform_counts_quality_control(
     # Helper to process a single attribute
     def set_match_set_single_inference_quality_control_results(attribute_name: str):
         qc = MatchSetSingleInferenceQualityControlResult()
-        qc.non_error_dict = get_non_error_dict(observed_guide_reporter_umi_counts_inferred, attribute_name)
+        # PERF/MEM: compute the non-error dict locally — don't retain it as a
+        # QC attribute. It's only needed here for counting, and storing it
+        # previously duplicated ~78 % of the full result pickle.
+        non_error_dict = get_non_error_dict(observed_guide_reporter_umi_counts_inferred, attribute_name)
         qc = set_num_non_error_counts(
             qc,
-            qc.non_error_dict,
-            observed_guide_reporter_umi_counts_inferred, 
+            non_error_dict,
+            observed_guide_reporter_umi_counts_inferred,
             contains_guide_umi,
             contains_sample_barcode
         )

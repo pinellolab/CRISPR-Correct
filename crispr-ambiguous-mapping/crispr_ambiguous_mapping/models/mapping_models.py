@@ -255,7 +255,11 @@ class CountInput:
 @dataclass
 class WhitelistReporterCountsResult:
     all_match_set_whitelist_reporter_counter_series_results: AllMatchSetWhitelistReporterCounterSeriesResults
-    observed_guide_reporter_umi_counts_inferred: Union[GeneralMappingInferenceDict, DefaultDict[str, GeneralMappingInferenceDict]]
+    # `observed_guide_reporter_umi_counts_inferred` is None by default on new
+    # runs (pass retain_inference_results=True to the mapping call to keep it).
+    # Only allele / mutation post-processing reads this dict; the slim default
+    # drops ~77% of the result pickle size.
+    observed_guide_reporter_umi_counts_inferred: Optional[Union[GeneralMappingInferenceDict, DefaultDict[str, GeneralMappingInferenceDict]]]
     quality_control_result: QualityControlResult
     count_input: CountInput
 

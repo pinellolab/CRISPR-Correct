@@ -121,10 +121,10 @@ def infer_whitelist_sequence(observed_guide_reporter_sequence_input: Union[str, 
                 else: # NO BARCODE MATCH, ERROR
                     barcode_available = False
                     barcode_error_result = BarcodeHammingThresholdGuideCountError(
-                        hamming_min=observed_barcode_sequence_dists_min, 
+                        hamming_min=observed_barcode_sequence_dists_min,
                         hamming_threshold=barcode_hamming_threshold,
-                        original_df=whitelist_guide_reporter_df,
-                        hamming_min_match_df=whitelist_guide_reporter_df_barcode_match)
+                        n_whitelist_candidates=len(whitelist_guide_reporter_df),
+                        n_hamming_min_match=len(whitelist_guide_reporter_df_barcode_match))
             except Exception as e:
                 barcode_available = False
                 barcode_error_result = GuideCountError(guide_count_error_type=GuideCountErrorType.BARCODE_MISC, miscellaneous_info_dict={"message": f"Error encoding barcode sequence: {observed_guide_reporter_sequence['barcode']}; Exception message = {str(e)}"})
@@ -211,8 +211,8 @@ def infer_whitelist_sequence(observed_guide_reporter_sequence_input: Union[str, 
                                         error=SurrogateHammingThresholdGuideCountError(
                                             hamming_min=observed_surrogate_sequence_dists_barcode_match_protospacer_match_min, 
                                             hamming_threshold=surrogate_hamming_threshold,
-                                            original_df=whitelist_guide_reporter_df_hamming_barcode_match_protospacer_match,
-                                            hamming_min_match_df=whitelist_guide_reporter_df_hamming_barcode_match_protospacer_match_surrogate_match,
+                                            n_whitelist_candidates=len(whitelist_guide_reporter_df_hamming_barcode_match_protospacer_match),
+                                            n_hamming_min_match=len(whitelist_guide_reporter_df_hamming_barcode_match_protospacer_match_surrogate_match),
                                             barcode_subsetted=True))
                             else: # PARSED SURROGATE HAS SOME UNEXPECTED ISSUE 
                                 complete_match_result.protospacer_match_surrogate_match_barcode_match = MatchSetSingleInferenceMatchResult(error=surrogate_error_result)
@@ -221,8 +221,8 @@ def infer_whitelist_sequence(observed_guide_reporter_sequence_input: Union[str, 
                                         error=ProtospacerHammingThresholdGuideCountError(
                                             hamming_min=observed_protospacer_sequence_dists_barcode_match_min, 
                                             hamming_threshold=protospacer_hamming_threshold,
-                                            original_df=whitelist_guide_reporter_df_barcode_match,
-                                            hamming_min_match_df=whitelist_guide_reporter_df_hamming_barcode_match_protospacer_match,
+                                            n_whitelist_candidates=len(whitelist_guide_reporter_df_barcode_match),
+                                            n_hamming_min_match=len(whitelist_guide_reporter_df_hamming_barcode_match_protospacer_match),
                                             barcode_subsetted=True))
                 else: # NO BARCODE MATCH, SET ERROR TO THE RESULTS REQUIREING A BARCODE MATCH
                     complete_match_result.protospacer_match_barcode_match = MatchSetSingleInferenceMatchResult(error=barcode_error_result)
@@ -261,8 +261,8 @@ def infer_whitelist_sequence(observed_guide_reporter_sequence_input: Union[str, 
                                         error=SurrogateHammingThresholdGuideCountError(
                                             hamming_min=observed_surrogate_sequence_dists_protospacer_match_min, 
                                             hamming_threshold=surrogate_hamming_threshold,
-                                            original_df=whitelist_guide_reporter_df_hamming_protospacer_match,
-                                            hamming_min_match_df=whitelist_guide_reporter_df_hamming_protospacer_match_surrogate_match,
+                                            n_whitelist_candidates=len(whitelist_guide_reporter_df_hamming_protospacer_match),
+                                            n_hamming_min_match=len(whitelist_guide_reporter_df_hamming_protospacer_match_surrogate_match),
                                             barcode_subsetted=False))
                 else: # SURROGATE PARSING ISSUE, ERROR
                     complete_match_result.protospacer_match_surrogate_match = MatchSetSingleInferenceMatchResult(error=surrogate_error_result)
@@ -312,8 +312,8 @@ def infer_whitelist_sequence(observed_guide_reporter_sequence_input: Union[str, 
                                     error=SurrogateHammingThresholdGuideCountError(
                                         hamming_min=observed_surrogate_sequence_dists_barcode_match_min,
                                         hamming_threshold=surrogate_hamming_threshold,
-                                        original_df=whitelist_guide_reporter_df_barcode_match,
-                                        hamming_min_match_df=whitelist_guide_reporter_df_hamming_barcode_match_surrogate_match,
+                                        n_whitelist_candidates=len(whitelist_guide_reporter_df_barcode_match),
+                                        n_hamming_min_match=len(whitelist_guide_reporter_df_hamming_barcode_match_surrogate_match),
                                         barcode_subsetted=True,
                                     ))
                         else: # BARCODE PARSING ISSUE OR NO MATCH, ERROR OUT
@@ -352,8 +352,8 @@ def infer_whitelist_sequence(observed_guide_reporter_sequence_input: Union[str, 
                             error=SurrogateHammingThresholdGuideCountError(
                                 hamming_min=observed_surrogate_sequence_dists_min,
                                 hamming_threshold=surrogate_hamming_threshold,
-                                original_df=whitelist_guide_reporter_df,
-                                hamming_min_match_df=whitelist_guide_reporter_df_hamming_surrogate_match,
+                                n_whitelist_candidates=len(whitelist_guide_reporter_df),
+                                n_hamming_min_match=len(whitelist_guide_reporter_df_hamming_surrogate_match),
                                 barcode_subsetted=False
                             ))
                 else: # SURROGATE PARSING ISSUE, ERROR
@@ -364,8 +364,8 @@ def infer_whitelist_sequence(observed_guide_reporter_sequence_input: Union[str, 
             error_result = ProtospacerHammingThresholdGuideCountError(
                 hamming_min=observed_protospacer_sequence_dists_min,
                 hamming_threshold=protospacer_hamming_threshold,
-                original_df=whitelist_guide_reporter_df,
-                hamming_min_match_df=whitelist_guide_reporter_df_hamming_protospacer_match,
+                n_whitelist_candidates=len(whitelist_guide_reporter_df),
+                n_hamming_min_match=len(whitelist_guide_reporter_df_hamming_protospacer_match),
                 barcode_subsetted=False
             )
             complete_match_result.protospacer_match = MatchSetSingleInferenceMatchResult(error=error_result)

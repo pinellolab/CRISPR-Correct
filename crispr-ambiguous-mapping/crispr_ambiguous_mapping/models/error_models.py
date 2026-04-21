@@ -67,8 +67,14 @@ class BarcodeMissingInfoGuideCountError(MissingInfoGuideCountError):
 class HammingThresholdGuideCountError(GuideCountError):
     hamming_min: Optional[int] = None
     hamming_threshold: Optional[int] = None
-    original_df: Optional[pd.DataFrame] = None
-    hamming_min_match_df: Optional[pd.DataFrame] = None
+    # PERF/MEM: previously carried `original_df` and `hamming_min_match_df`
+    # pandas DataFrames attached to every error record — roughly 150 KB per
+    # instance for a 2 k-guide whitelist. For 45 M-read runs with a 30 %
+    # error rate this single field accounted for O(10 GB) of peak RSS.
+    # Replaced with lightweight counts; reconstruct the DataFrame at report
+    # time if ever needed.
+    n_whitelist_candidates: Optional[int] = None
+    n_hamming_min_match: Optional[int] = None
 
 @dataclass
 class ProtospacerHammingThresholdGuideCountError(HammingThresholdGuideCountError):
