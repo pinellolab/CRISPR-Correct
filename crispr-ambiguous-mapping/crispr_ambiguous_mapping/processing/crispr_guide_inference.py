@@ -41,7 +41,6 @@ def infer_whitelist_sequence(observed_guide_reporter_sequence_input: Union[str, 
         protospacer_hamming_threshold: int = 7,
         surrogate_hamming_threshold: Optional[int] = 10,
         barcode_hamming_threshold: Optional[int] = 2,
-        store_intermediates: bool = False,
         # PERF §3.6: accept precomputed library-column minimum lengths from the
         # caller so we don't redo `whitelist_df[col].apply(len).min()` for
         # every observed sequence (it's a run-wide constant).

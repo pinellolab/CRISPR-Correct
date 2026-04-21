@@ -97,7 +97,6 @@ def get_whitelist_reporter_counts_from_fastq(whitelist_guide_reporter_df: Option
                                                        guide_barcode_hamming_threshold_strict: Optional[int] = None, 
                                                        protospacer_hamming_threshold_strict: Optional[int] = None, 
 
-                                                       store_intermediates: bool = False,
                                                        retain_inference_results: bool = False,
                                                        cores: int=1) -> WhitelistReporterCountsResult:
     # Input parameter validation checks
@@ -213,7 +212,6 @@ def get_whitelist_reporter_counts_from_fastq(whitelist_guide_reporter_df: Option
         protospacer_hamming_threshold_strict=protospacer_hamming_threshold_strict,
         surrogate_hamming_threshold_strict=surrogate_hamming_threshold_strict,
         guide_barcode_hamming_threshold_strict=guide_barcode_hamming_threshold_strict,
-        store_intermediates=store_intermediates,
         retain_inference_results=retain_inference_results,
         cores=cores
     )

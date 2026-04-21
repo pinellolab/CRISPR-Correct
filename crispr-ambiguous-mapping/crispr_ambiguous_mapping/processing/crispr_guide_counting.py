@@ -49,7 +49,6 @@ def get_whitelist_reporter_counts_with_umi(observed_guide_reporter_umi_counts: G
                                            protospacer_hamming_threshold_strict: Optional[int] = 7, 
                                            surrogate_hamming_threshold_strict: Optional[int] = 10,
                                            guide_barcode_hamming_threshold_strict: Optional[int] = 2, 
-                                           store_intermediates: bool = False,
                                            retain_inference_results: bool = False,
                                            cores: int=1) -> WhitelistReporterCountsResult:
     
@@ -156,7 +155,6 @@ def get_whitelist_reporter_counts_with_umi(observed_guide_reporter_umi_counts: G
             protospacer_hamming_threshold=protospacer_hamming_threshold,
             surrogate_hamming_threshold=surrogate_hamming_threshold,
             barcode_hamming_threshold=guide_barcode_hamming_threshold,
-            store_intermediates=store_intermediates,
             protospacer_min_len=protospacer_min_len,
             surrogate_min_len=surrogate_min_len,
             barcode_min_len=barcode_min_len)
