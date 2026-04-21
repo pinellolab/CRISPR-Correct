@@ -10,7 +10,7 @@ from .crispr_editing_processing import check_match_result_non_error, get_non_err
 import pandas as pd
 
 @typechecked
-def helper_get_observed_values_given_whitelist_value(whitelist_sequence_list: List[Tuple[str, Optional[str], Optional[str]]], observed_guide_reporter_umi_counts_inferred: GeneralMappingInferenceDict, attribute_name:str, contains_umi: bool, ambiguous_accepted:bool = True) -> WhitelistReporterObservedSequenceMapping:
+def helper_get_observed_values_given_whitelist_value(whitelist_sequence_list: List[Tuple[str, Optional[str], Optional[str]]], observed_guide_reporter_umi_counts_inferred: GeneralMappingInferenceDict, attribute_name:str, contains_guide_umi: bool, ambiguous_accepted:bool = True) -> WhitelistReporterObservedSequenceMapping:
     if observed_guide_reporter_umi_counts_inferred is None:
         raise ValueError(
             "helper_get_observed_values_given_whitelist_value requires "
@@ -25,7 +25,7 @@ def helper_get_observed_values_given_whitelist_value(whitelist_sequence_list: Li
         whitelist_sequence_list (List[Tuple[str, Optional[str], Optional[str]]]): List of whitelist sequence to retrieve observed sequences
         observed_guide_reporter_umi_counts_inferred (GeneralMappingInferenceDict): Datastructure contain the observed sequence to mapped whitelist sequence
         attribute_name (str): string specifying white mapping match type to consider.
-        contains_umi (bool): specifying whether UMI is used
+        contains_guide_umi (bool): specifying whether UMI is used
         ambiguous_accepted (bool): specifying whether to consider ambiguous mapping
 
     Returns:
@@ -62,7 +62,7 @@ def helper_get_observed_values_given_whitelist_value(whitelist_sequence_list: Li
                     all_match_sequences = _all_match_tuples
                     total_match_counts = len(all_match_sequences)
 
-                    if contains_umi:
+                    if contains_guide_umi:
                         assert isinstance(observed_value_counts, Counter), f"For UMI, expecting observed value is a Counter, but type is {type(observed_value_counts)}"
 
                         # Calculate both UMI noncollapsed and collapsed count
