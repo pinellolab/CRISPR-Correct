@@ -86,10 +86,8 @@ def get_matchset_alleleseries(observed_guide_reporter_umi_counts_inferred: Gener
 
         matches: pd.DataFrame = match_set_single_inference_match_result.value.matches
         if not matches.empty:
-            # ITERATE THROUGH MATCHE(S) TO PERFORM COUNTS
-            for whitelist_reporter_series in matches.iterrows(): 
-                # UMI-BASED COUNTING
-                whitelist_sequence_index = tuple(whitelist_reporter_series[1])
+            # PERF §3.7: itertuples over numpy values is 5-10x faster than iterrows
+            for whitelist_sequence_index in matches.itertuples(index=False, name=None):
                 observed_sequence_index = tuple(observed_sequence)
                 if contains_umi:
                     assert isinstance(observed_value_counts, Counter), f"For UMI, expecting observed value is a Counter, but type is {type(observed_value_counts)}"

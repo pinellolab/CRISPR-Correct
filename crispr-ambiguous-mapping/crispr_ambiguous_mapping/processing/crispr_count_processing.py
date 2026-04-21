@@ -49,18 +49,17 @@ def helper_get_observed_values_given_whitelist_value(whitelist_sequence_list: Li
         matches: pd.DataFrame = match_set_single_inference_match_result.value.matches # Get the list of ambiguous
         
         if not matches.empty:
-            
-            # Skip observed sequence if there are multiple matches when not accepting ambiguous mapping 
+
+            # Skip observed sequence if there are multiple matches when not accepting ambiguous mapping
             if (ambiguous_accepted is False) and (matches.shape[0] > 1):
                 continue
-            
-            
-            for whitelist_reporter_series in matches.iterrows(): 
-                # UMI-BASED COUNTING
-                dict_index = tuple(whitelist_reporter_series[1])
-                if dict_index in whitelist_sequence_list: # If the match is in the requested whitelist sequences, proceed
-                    # Get match info to add to result
-                    all_match_sequences = [tuple(whitelist_reporter_series[1]) for whitelist_reporter_series in matches.iterrows()]
+
+            # PERF §3.7: itertuples over the underlying numpy values is 5-10x
+            # faster than iterrows (no per-row Series construction).
+            _all_match_tuples = [tuple(row) for row in matches.itertuples(index=False, name=None)]
+            for dict_index in _all_match_tuples:
+                if dict_index in whitelist_sequence_list:
+                    all_match_sequences = _all_match_tuples
                     total_match_counts = len(all_match_sequences)
 
                     if contains_umi:
