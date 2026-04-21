@@ -38,7 +38,7 @@ def get_whitelist_reporter_counts_with_umi(observed_guide_reporter_umi_counts: G
                                            contains_guide_umi:bool = False, 
                                            contains_sample_barcode:bool = False, 
                                            protospacer_hamming_threshold_strict: Optional[int] = 7, 
-                                           surrogate_hamming_threshold_strict: Optional[int] = 2, 
+                                           surrogate_hamming_threshold_strict: Optional[int] = 10,
                                            guide_barcode_hamming_threshold_strict: Optional[int] = 2, 
                                            store_intermediates: bool = False,
                                            retain_inference_results: bool = False,
@@ -129,6 +129,13 @@ def get_whitelist_reporter_counts_with_umi(observed_guide_reporter_umi_counts: G
     #
     print("Inferring the true guides from observed guides")
 
+    # PERF §3.6: precompute the whitelist per-column min lengths once so
+    # infer_whitelist_sequence doesn't recompute via
+    # `whitelist_df[col].apply(len).min()` on every observed sequence.
+    protospacer_min_len = int(whitelist_guide_reporter_df["protospacer"].apply(len).min())
+    surrogate_min_len = int(whitelist_guide_reporter_df["surrogate"].apply(len).min()) if contains_guide_surrogate else None
+    barcode_min_len = int(whitelist_guide_reporter_df["barcode"].apply(len).min()) if contains_guide_barcode else None
+
     infer_whitelist_sequence_p = partial(crispr_guide_inference.infer_whitelist_sequence,
             whitelist_guide_reporter_df=whitelist_guide_reporter_df,
             contains_guide_surrogate=contains_guide_surrogate,
@@ -137,10 +144,13 @@ def get_whitelist_reporter_counts_with_umi(observed_guide_reporter_umi_counts: G
             encoded_whitelist_protospacer_sequences_series=encoded_whitelist_protospacer_sequences_series,
             encoded_whitelist_surrogate_sequences_series=encoded_whitelist_surrogate_sequences_series,
             encoded_whitelist_barcode_sequences_series=encoded_whitelist_barcode_sequences_series,
-            protospacer_hamming_threshold=protospacer_hamming_threshold, 
-            surrogate_hamming_threshold=surrogate_hamming_threshold, 
+            protospacer_hamming_threshold=protospacer_hamming_threshold,
+            surrogate_hamming_threshold=surrogate_hamming_threshold,
             barcode_hamming_threshold=guide_barcode_hamming_threshold,
-            store_intermediates=store_intermediates)
+            store_intermediates=store_intermediates,
+            protospacer_min_len=protospacer_min_len,
+            surrogate_min_len=surrogate_min_len,
+            barcode_min_len=barcode_min_len)
 
     # Perform inference: frpom the observed sequences (previously parsed), infer the true sequence from the whitelist DF.
     observed_guide_reporter_list = observed_guide_reporter_umi_counts.keys()

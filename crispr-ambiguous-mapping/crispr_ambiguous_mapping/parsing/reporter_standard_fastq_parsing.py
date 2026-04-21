@@ -101,7 +101,13 @@ def get_standard_observed_sequence_counts(  fastq_r1_fns: List[str],
             """
                 Parse entirely by regex
             """
-            sequence = re.search(sequence_pattern_regex, template_sequence).group(1).rstrip()  
+            # FIX §1.3: previously `re.search(...).group(1)` raised
+            # AttributeError on no-match (opaque to users); return None so the
+            # caller treats it as a parse failure and moves on.
+            _m = re.search(sequence_pattern_regex, template_sequence)
+            if _m is None:
+                return None
+            sequence = _m.group(1).rstrip()
         else:
             """
                 Get sequence position start

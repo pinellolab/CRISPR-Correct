@@ -38,10 +38,16 @@ def infer_whitelist_sequence(observed_guide_reporter_sequence_input: Union[str, 
         encoded_whitelist_protospacer_sequences_series: np.ndarray, 
         encoded_whitelist_surrogate_sequences_series: Optional[np.ndarray] = None, 
         encoded_whitelist_barcode_sequences_series: Optional[np.ndarray] = None, 
-        protospacer_hamming_threshold: int = 7, 
-        surrogate_hamming_threshold: Optional[int] = 10, 
+        protospacer_hamming_threshold: int = 7,
+        surrogate_hamming_threshold: Optional[int] = 10,
         barcode_hamming_threshold: Optional[int] = 2,
-        store_intermediates:bool = False
+        store_intermediates: bool = False,
+        # PERF §3.6: accept precomputed library-column minimum lengths from the
+        # caller so we don't redo `whitelist_df[col].apply(len).min()` for
+        # every observed sequence (it's a run-wide constant).
+        protospacer_min_len: Optional[int] = None,
+        surrogate_min_len: Optional[int] = None,
+        barcode_min_len: Optional[int] = None,
         ):
 
     #
@@ -67,29 +73,45 @@ def infer_whitelist_sequence(observed_guide_reporter_sequence_input: Union[str, 
         
         return None
         
-    protospacer_error_result = validate_observed_sequence(sequence_name="protospacer", encoded_whitelist_sequence_series=encoded_whitelist_protospacer_sequences_series, missing_info_error=ProtospacerMissingInfoGuideCountError(sequence_value=observed_guide_reporter_sequence), insufficient_length_error=ProtospacerInsufficientLengthGuideCountError(sequence_length=len(observed_guide_reporter_sequence["protospacer"]), minimum_length=whitelist_guide_reporter_df["protospacer"].apply(len).min()))
+    # PERF §3.6: fall back to per-call recomputation only if the caller didn't
+    # pre-compute the min (e.g. direct callers outside the main mapping path).
+    if protospacer_min_len is None:
+        protospacer_min_len = int(whitelist_guide_reporter_df["protospacer"].apply(len).min())
+    if contains_guide_surrogate and surrogate_min_len is None:
+        surrogate_min_len = int(whitelist_guide_reporter_df["surrogate"].apply(len).min())
+    if contains_guide_barcode and barcode_min_len is None:
+        barcode_min_len = int(whitelist_guide_reporter_df["barcode"].apply(len).min())
+
+    protospacer_error_result = validate_observed_sequence(sequence_name="protospacer", encoded_whitelist_sequence_series=encoded_whitelist_protospacer_sequences_series, missing_info_error=ProtospacerMissingInfoGuideCountError(sequence_value=observed_guide_reporter_sequence), insufficient_length_error=ProtospacerInsufficientLengthGuideCountError(sequence_length=len(observed_guide_reporter_sequence["protospacer"]), minimum_length=protospacer_min_len))
     surrogate_error_result = None
     if contains_guide_surrogate:
-        surrogate_error_result = validate_observed_sequence(sequence_name="surrogate", encoded_whitelist_sequence_series=encoded_whitelist_surrogate_sequences_series, missing_info_error=SurrogateMissingInfoGuideCountError(sequence_value=observed_guide_reporter_sequence), insufficient_length_error=SurrogateInsufficientLengthGuideCountError(sequence_length=len(observed_guide_reporter_sequence["surrogate"]), minimum_length=whitelist_guide_reporter_df["surrogate"].apply(len).min()))
+        surrogate_error_result = validate_observed_sequence(sequence_name="surrogate", encoded_whitelist_sequence_series=encoded_whitelist_surrogate_sequences_series, missing_info_error=SurrogateMissingInfoGuideCountError(sequence_value=observed_guide_reporter_sequence), insufficient_length_error=SurrogateInsufficientLengthGuideCountError(sequence_length=len(observed_guide_reporter_sequence["surrogate"]), minimum_length=surrogate_min_len))
     barcode_error_result = None
     if contains_guide_barcode:
-        barcode_error_result = validate_observed_sequence(sequence_name="barcode", encoded_whitelist_sequence_series=encoded_whitelist_barcode_sequences_series, missing_info_error=BarcodeMissingInfoGuideCountError(sequence_value=observed_guide_reporter_sequence), insufficient_length_error=BarcodeInsufficientLengthGuideCountError(sequence_length=len(observed_guide_reporter_sequence["barcode"]), minimum_length=whitelist_guide_reporter_df["barcode"].apply(len).min()))
+        barcode_error_result = validate_observed_sequence(sequence_name="barcode", encoded_whitelist_sequence_series=encoded_whitelist_barcode_sequences_series, missing_info_error=BarcodeMissingInfoGuideCountError(sequence_value=observed_guide_reporter_sequence), insufficient_length_error=BarcodeInsufficientLengthGuideCountError(sequence_length=len(observed_guide_reporter_sequence["barcode"]), minimum_length=barcode_min_len))
 
     # CHANGE SHAPE OF ENCODINGS TO BE SAME LENGTH
     if protospacer_error_result is None:
         observed_guide_reporter_sequence["protospacer"] = observed_guide_reporter_sequence["protospacer"][:encoded_whitelist_protospacer_sequences_series.shape[1]]
         encoded_whitelist_protospacer_sequences_series = encoded_whitelist_protospacer_sequences_series[:, :len(observed_guide_reporter_sequence["protospacer"]), :] # Change shape of whitelist library encodings
     if contains_guide_surrogate and (surrogate_error_result is None):
-        #print(len(observed_guide_reporter_sequence["surrogate"]))
-        #print(len(encoded_whitelist_surrogate_sequences_series.shape))
-        observed_guide_reporter_sequence["surrogate"] = observed_guide_reporter_sequence["surrogate"][:encoded_whitelist_protospacer_sequences_series.shape[1]]
-        encoded_whitelist_surrogate_sequences_series = encoded_whitelist_surrogate_sequences_series[:, :len(observed_guide_reporter_sequence["surrogate"]), :] # Change shape of whitelist library encodings
-        #print(len(observed_guide_reporter_sequence["surrogate"]))
-        #print(len(encoded_whitelist_surrogate_sequences_series.shape))
-        #print("Done")
+        # FIX §1.1: previously clamped observed surrogate to the *protospacer*
+        # library length (20 bp) instead of the surrogate length (32 bp),
+        # silently discarding 12 bp of every surrogate observation. The
+        # consequence was that surrogate Hamming was computed only over
+        # positions 0-19 (= 6 bp upstream + first 14 bp of the embedded
+        # protospacer) instead of the full 32 bp. Use the correct tensor's
+        # shape here and for the barcode clamp below.
+        observed_guide_reporter_sequence["surrogate"] = observed_guide_reporter_sequence["surrogate"][:encoded_whitelist_surrogate_sequences_series.shape[1]]
+        encoded_whitelist_surrogate_sequences_series = encoded_whitelist_surrogate_sequences_series[:, :len(observed_guide_reporter_sequence["surrogate"]), :]
     if contains_guide_barcode and (barcode_error_result is None):
-        observed_guide_reporter_sequence["barcode"] = observed_guide_reporter_sequence["barcode"][:encoded_whitelist_protospacer_sequences_series.shape[1]]
-        encoded_whitelist_barcode_sequences_series = encoded_whitelist_barcode_sequences_series[:, :len(observed_guide_reporter_sequence["barcode"]), :] # Change shape of whitelist library encodings
+        # FIX §1.1: same bug as above for the barcode clamp. In practice this
+        # was a no-op because barcodes (4 bp) are always shorter than
+        # protospacers (20 bp), but fix the cross-reference for consistency
+        # and to avoid latent breakage if barcode length ever exceeds the
+        # protospacer length.
+        observed_guide_reporter_sequence["barcode"] = observed_guide_reporter_sequence["barcode"][:encoded_whitelist_barcode_sequences_series.shape[1]]
+        encoded_whitelist_barcode_sequences_series = encoded_whitelist_barcode_sequences_series[:, :len(observed_guide_reporter_sequence["barcode"]), :]
     
     # PERFORM MAPPPING ON BOTH THE PROTOSPACER-ONLY, FULL, AND SURROGATE MISMAPPED-PROTOSPACER.
     complete_match_result = CompleteInferenceMatchResult()
