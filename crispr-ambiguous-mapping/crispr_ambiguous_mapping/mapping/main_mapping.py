@@ -37,8 +37,13 @@ _log = logging.getLogger(__name__)
 
 
 # TODO 11/20/2024: Implement UMI parsing via sequence or via R1 header
-#@typechecked
-def get_whitelist_reporter_counts_from_fastq(whitelist_guide_reporter_df: Optional[pd.DataFrame], 
+# §3.11: `@typechecked` was commented out because the runtime annotations on
+# this 50-kwarg signature didn't match actual call sites. Leave it off here —
+# downstream functions (`get_standard_observed_sequence_counts`,
+# `get_whitelist_reporter_counts_with_umi`) still have typeguard active, so
+# type errors are caught one layer in. Full-path re-enable requires an
+# annotation audit that's deferred to the 0.1.0 API redesign (§4.1).
+def get_whitelist_reporter_counts_from_fastq(whitelist_guide_reporter_df: Optional[pd.DataFrame],
                                                        fastq_r1_fns: List[str], 
                                                        fastq_r2_fns: Optional[List[str]] = None, 
                                                        
