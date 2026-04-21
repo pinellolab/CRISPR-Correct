@@ -1,0 +1,13 @@
+# §5.5: stop committing generated wheels — 26 version-bumped artifacts were
+# being carried in `dist/` on multi-sample-support. Let a release pipeline
+# publish them to PyPI; they don't belong in git.
+crispr-ambiguous-mapping/dist/
+**/__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ipynb_checkpoints/
+tests/simulation/test_local.run.ipynb
+tests/simulation/bench_simulation.run.ipynb
+tests/benchmarks/benchmark_demos.run.ipynb
