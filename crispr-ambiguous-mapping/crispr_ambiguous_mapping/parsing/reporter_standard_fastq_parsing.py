@@ -13,8 +13,22 @@ from functools import partial
 from datetime import datetime
 import gzip
 import re
-from Bio.Seq import Seq
+from functools import lru_cache
 from collections import Counter, defaultdict
+
+# PERF §3.10: Bio.Seq.reverse_complement goes through a per-base Seq alphabet
+# pipeline — ~20× slower than a translate-based revcomp on ACGTN strings. This
+# table covers the IUPAC bases that actually appear in FASTQ reads.
+_RCMAP = str.maketrans("ACGTNacgtn", "TGCANtgcan")
+
+# PERF §3.9: Python's re module has a built-in 512-entry compiled-pattern
+# cache, but it's keyed on the raw pattern string and only checked on every
+# `re.search` call. A module-local lru_cache on `re.compile` is faster on the
+# parsing hot path because the pattern is passed through as an argument every
+# iteration.
+@lru_cache(maxsize=64)
+def _compile_cached(pattern: str) -> "re.Pattern":
+    return re.compile(pattern)
 
 # This is for grouping the FASTQ lines in 1 tuple.
 def grouper(iterable, n=4):
@@ -84,7 +98,8 @@ def get_standard_observed_sequence_counts(  fastq_r1_fns: List[str],
                                             contains_guide_barcode: bool,
                                             contains_guide_umi: bool,
                                             contains_sample_barcode: bool,) -> GeneralGuideCountType:
-    revcomp = lambda sequence, do_revcomp: str(Seq(sequence).reverse_complement()) if do_revcomp else sequence
+    def revcomp(sequence, do_revcomp):
+        return sequence.translate(_RCMAP)[::-1] if do_revcomp else sequence
 
     def parse_sequence(
             template_sequence: str,
@@ -104,7 +119,7 @@ def get_standard_observed_sequence_counts(  fastq_r1_fns: List[str],
             # FIX §1.3: previously `re.search(...).group(1)` raised
             # AttributeError on no-match (opaque to users); return None so the
             # caller treats it as a parse failure and moves on.
-            _m = re.search(sequence_pattern_regex, template_sequence)
+            _m = _compile_cached(sequence_pattern_regex).search(template_sequence)
             if _m is None:
                 return None
             sequence = _m.group(1).rstrip()
