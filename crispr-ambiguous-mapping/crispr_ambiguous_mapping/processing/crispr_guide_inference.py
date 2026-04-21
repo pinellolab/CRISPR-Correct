@@ -58,7 +58,11 @@ def infer_whitelist_sequence(observed_guide_reporter_sequence_input: Union[str, 
         observed_reporter_sequences_indices.append("surrogate")
     if contains_guide_barcode:
         observed_reporter_sequences_indices.append("barcode")
-    observed_guide_reporter_sequence = pd.Series(observed_guide_reporter_sequence_input, index=observed_reporter_sequences_indices)
+    # PERF §3.5: replace per-observation `pd.Series(..., index=...)` construction
+    # with a plain dict. Access pattern is by-name only (`seq["protospacer"]`
+    # etc.) so Series infrastructure adds no value and constructs a new one per
+    # observed read.
+    observed_guide_reporter_sequence = dict(zip(observed_reporter_sequences_indices, observed_guide_reporter_sequence_input))
     
 
     #

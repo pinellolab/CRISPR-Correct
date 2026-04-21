@@ -23,6 +23,15 @@ from concurrent.futures import ProcessPoolExecutor
 
 from . import crispr_sequence_encoding
 from . import crispr_guide_inference
+
+
+# PERF §2.9: a module-level factory avoids `defaultdict(lambda: defaultdict(dict))`
+# — the outer lambda closes over the inner lambda, so each missing key call
+# constructs a fresh lambda stack. A named factory is equivalent but also
+# pickleable (the previous lambda broke pickling if the outer dict was ever
+# persisted directly).
+def _inference_dict_factory():
+    return defaultdict(dict)
 from .crispr_count_processing import get_counterseries_all_results
 from ..quality_control.crispr_mapping_quality_control import perform_counts_quality_control
 from ..models.mapping_models import GeneralGuideCountType, GeneralMappingInferenceDict
@@ -184,7 +193,7 @@ def get_whitelist_reporter_counts_with_umi(observed_guide_reporter_umi_counts: G
 
     # NOTE 20251031: This may be able to be removed
     if contains_sample_barcode:
-        observed_guide_reporter_umi_counts_inferred_all_samples: DefaultDict[str, GeneralMappingInferenceDict] = defaultdict(lambda: defaultdict(dict))
+        observed_guide_reporter_umi_counts_inferred_all_samples: DefaultDict[str, GeneralMappingInferenceDict] = defaultdict(_inference_dict_factory)
         
         # Add all cell_barcodes
         for observed_guide_reporter_key_index, observed_guide_reporter_key in enumerate(observed_guide_reporter_list): # Iterate through each observed guide key
