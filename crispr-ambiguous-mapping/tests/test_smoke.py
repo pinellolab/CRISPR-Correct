@@ -109,6 +109,33 @@ def test_count_input_contains_surrogate_backcompat():
     assert ci.contains_surrogate is True  # deprecated alias
 
 
+def test_cli_help_runs():
+    # §4.5: basic CLI smoke — the map subcommand's --help renders.
+    from click.testing import CliRunner
+    from crispr_ambiguous_mapping.cli import main
+    runner = CliRunner()
+    r = runner.invoke(main, ["map", "--help"])
+    assert r.exit_code == 0, r.output
+    # Flat-arg design check: every ParsingConfig field has a flag.
+    assert "--protospacer-start-position" in r.output
+    assert "--is-protospacer-r1 / --no-is-protospacer-r1" in r.output
+    assert "--retain-inference-results" in r.output
+
+
+def test_cli_parsingconfig_option_count_matches_fields():
+    # Regression: every ParsingConfig field should become a CLI flag.
+    from dataclasses import fields as _f
+    from click.testing import CliRunner
+    from crispr_ambiguous_mapping.cli import main
+    from crispr_ambiguous_mapping.api import ParsingConfig
+    runner = CliRunner()
+    r = runner.invoke(main, ["map", "--help"])
+    # At least one --flag per ParsingConfig field (boolean ones produce --flag/--no-flag).
+    for f in _f(ParsingConfig):
+        flag = "--" + f.name.replace("_", "-")
+        assert flag in r.output, f"missing CLI flag for ParsingConfig field `{f.name}`"
+
+
 def test_revcomp_translate_matches_biopython():
     # §3.10: translate-based revcomp must produce the same result as the
     # previous Bio.Seq.reverse_complement() on IUPAC bases we actually see.
