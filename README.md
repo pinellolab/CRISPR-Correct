@@ -286,6 +286,41 @@ Intermediate save utilities (e.g. `cam.utility.save_or_load_pickle`) remain avai
 
 ---
 
+## Command-line interface (v0.1.0)
+
+The package registers a `crispr-correct` console script with two subcommands. All flags mirror the Python `ParsingConfig` fields 1:1 (field names with `_` → `-`) — no config file, no YAML.
+
+```bash
+# Map
+crispr-correct map \
+    --r1 R1.fq.gz \
+    --r2 R2.fq.gz \
+    --library library.tsv \
+    --out result.pickle \
+    --protospacer-start-position 0 --protospacer-length 20 \
+    --is-protospacer-r1 --no-revcomp-protospacer \
+    --protospacer-hamming-threshold-strict 7 \
+    --surrogate-start-position 0 --surrogate-length 32 \
+    --no-is-surrogate-r1 --revcomp-surrogate \
+    --surrogate-hamming-threshold-strict 10 \
+    --guide-barcode-pattern-regex '_([^_ ]+)[\s+]' \
+    --is-guide-barcode-header --revcomp-guide-barcode \
+    --guide-barcode-hamming-threshold-strict 2 \
+    --retain-inference-results \
+    --cores 4
+
+# Emit one tier's count Series as TSV
+crispr-correct count \
+    --in result.pickle \
+    --out counts.tsv \
+    --tier protospacer_match_surrogate_match_barcode_match \
+    --strategy ambiguous_accepted_umi_noncollapsed_counterseries
+```
+
+Repeat `--r1` / `--r2` for multi-file input. Boolean flags use `--flag/--no-flag` convention. Run `crispr-correct map --help` for the full flag list.
+
+---
+
 ## Testing
 
 This repository ships with a test suite under `../tests/` (one directory up from the package). Three layers of coverage:
