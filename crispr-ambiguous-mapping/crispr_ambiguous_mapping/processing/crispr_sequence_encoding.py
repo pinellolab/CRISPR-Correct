@@ -74,16 +74,11 @@ full_encoding_dict_observed = dict({
     "N": (ambiguity_encoder(["A", "C", "G", "T"])^1)*3,
 })
 
-'''
-    Main function to encode a single base
-'''
-def encode_DNA_base_whitelist(char):
-    return full_encoding_dict_whitelist[char]
-encode_DNA_base_whitelist_vectorized = np.vectorize(encode_DNA_base_whitelist, signature='()->(n)') # Kept for back-compat; replaced internally by LUT-based lookup.
-
-def encode_DNA_base_observed(char):
-    return full_encoding_dict_observed[char]
-encode_DNA_base_observed_vectorized = np.vectorize(encode_DNA_base_observed, signature='()->(n)') # Kept for back-compat; replaced internally by LUT-based lookup.
+# §5.4: removed legacy `encode_DNA_base_{whitelist,observed}` +
+# `_vectorized` wrappers and `numpify_string{,_vectorized}` — all superseded
+# by the LUT-based `encode_DNA_sequence_{whitelist,observed}` below. Last
+# in-tree callers migrated in Phase 1 (LUT rewrite); no external callers
+# found in project drivers.
 
 
 # PERF §3.1: `np.vectorize(...)` over a per-base dict lookup is a Python
@@ -108,23 +103,14 @@ del _base, _vec
 
 
 def encode_DNA_sequence_whitelist(seq: str) -> np.ndarray:
-    """LUT-based replacement for `encode_DNA_base_whitelist_vectorized(numpify_string_vectorized(seq))`.
-    Returns shape (len(seq), 4) int8 array — mathematically identical to the
-    previous implementation."""
+    """LUT-based whitelist encoding. Returns shape (len(seq), 4) int8."""
     return _LUT_WHITELIST[np.frombuffer(seq.encode('ascii', errors='replace'), dtype=np.uint8)]
 
 
 def encode_DNA_sequence_observed(seq: str) -> np.ndarray:
-    """LUT-based replacement for `encode_DNA_base_observed_vectorized(numpify_string_vectorized(seq))`."""
+    """LUT-based observed encoding. Returns shape (len(seq), 4) int8."""
     return _LUT_OBSERVED[np.frombuffer(seq.encode('ascii', errors='replace'), dtype=np.uint8)]
 
-
-'''
-    Function for converting string (i.e. gRNA) into a np array of chars  - retained for API back-compat
-'''
-def numpify_string(string):
-    return np.array(list(string), dtype=str)
-numpify_string_vectorized = np.vectorize(numpify_string, signature='()->(n)') # Retained for back-compat; internal callers use encode_DNA_sequence_{whitelist,observed} instead.
 
 def encode_guide_series_whitelist(guide_series) -> np.array:
     # PERF §3.1 + §3.13: avoid the `list(map(list, ...))` Python detour and the
