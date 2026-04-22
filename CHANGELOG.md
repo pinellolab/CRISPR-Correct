@@ -24,6 +24,13 @@ Flat-arg command-line entry point `crispr-correct` (§4.5). Every `ParsingConfig
 - `crispr-correct save` / `load` — round-trip a mapping result through a parquet/JSON directory.
 - `crispr-correct alleles` — post-processing allele extraction to parquet.
 
+### Added — validation + demo
+
+- `tests/test_simulation_e2e.py` — 11-stage end-to-end sweep exercising every public surface (Python `map_fastq` / `count` / `alleles` / `save` / `load` + the five CLI subcommands) on the simulation fixtures with bit-equality and ground-truth assertions at every stage.
+- `tests/simulation/phase8_validation_and_demo.ipynb` (wrapper folder) — 35-cell validation report + feature demo + guided tour of Phase 1-7 improvements with `git show --stat` snippets. Runs in ~90 s on the sim fixture. Outputs committed so it renders as a report on GitHub without running locally.
+- **Fixed**: `MatchTier.__str__` was returning the Enum repr (`"MatchTier.PM_SM_BM"`) instead of the underlying string value, breaking `getattr(result, str(tier))`. Added `__str__` override returning `self.value`. Equality with plain strings via the `str` subclass is unaffected.
+- **Fixed**: `crispr-correct alleles` built the strategy attribute name without the `ambiguous_` prefix, causing subprocess failures.
+
 ### Added — testing / CI
 
 - GitHub Actions workflow `.github/workflows/ci.yml` runs smoke tests + 135-mode simulation regression (§7.7). Fast subset (~30 s) on push, full matrix on PR.
