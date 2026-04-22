@@ -158,5 +158,57 @@ def count_cmd(in_path, out_path, tier, strategy):
     click.echo(f"Wrote {len(df)} rows to {out_path}.", err=True)
 
 
+@main.command("save")
+@click.option("--in", "in_path", type=click.Path(exists=True, dir_okay=False), required=True, help="Source pickle produced by `crispr-correct map`.")
+@click.option("--out-dir", "out_dir", type=click.Path(file_okay=False), required=True, help="Directory to write parquet + JSON artifacts.")
+@click.option("--overwrite", is_flag=True, default=False, help="Overwrite non-empty --out-dir.")
+def save_cmd(in_path, out_dir, overwrite):
+    """§7.4: write a mapping result to a directory as parquet + JSON (cross-language durable)."""
+    from .api import save as api_save
+    with open(in_path, "rb") as fh:
+        result = pickle.load(fh)
+    api_save(result, out_dir, overwrite=overwrite)
+    click.echo(f"Saved mapping-result directory to {out_dir}.", err=True)
+
+
+@main.command("load")
+@click.option("--in-dir", "in_dir", type=click.Path(exists=True, file_okay=False), required=True, help="Directory produced by `crispr-correct save`.")
+@click.option("--out", "out_path", type=click.Path(dir_okay=False), required=True, help="Destination pickle path.")
+def load_cmd(in_dir, out_path):
+    """§7.4: reconstruct a mapping result pickle from a save-directory."""
+    from .api import load as api_load
+    result = api_load(in_dir)
+    with open(out_path, "wb") as fh:
+        pickle.dump(result, fh)
+    click.echo(f"Loaded mapping-result directory {in_dir} -> {out_path}.", err=True)
+
+
+@main.command("alleles")
+@click.option("--in", "in_path", type=click.Path(exists=True, dir_okay=False), required=True, help="Pickle produced by `crispr-correct map --retain-inference-results`.")
+@click.option("--out", "out_path", type=click.Path(dir_okay=False), required=True, help="Parquet destination for the first non-empty allele table.")
+@click.option("--tier", "tier", type=str, default="protospacer_match_surrogate_match_barcode_match", show_default=True, help="MatchTier attribute to extract.")
+@click.option("--ambiguity", "amb", type=click.Choice(["ignored", "accepted", "spread"]), default="accepted", show_default=True)
+@click.option("--umi-strategy", "umi_strat", type=click.Choice(["", "collapsed", "noncollapsed"]), default="noncollapsed", show_default=True)
+def alleles_cmd(in_path, out_path, tier, amb, umi_strat):
+    """§4.5: run post-processing allele extraction on a retained mapping result."""
+    import pandas as pd
+    from .api import alleles as api_alleles
+    with open(in_path, "rb") as fh:
+        result = pickle.load(fh)
+    ms = api_alleles(
+        result,
+        tier=tier,
+        contains_guide_surrogate=result.count_input.contains_guide_surrogate,
+        contains_guide_barcode=result.count_input.contains_guide_barcode,
+        contains_guide_umi=result.count_input.contains_guide_umi,
+    )
+    strat_attr = amb + ("_umi_" + umi_strat if umi_strat else "") + "_allele_df"
+    df = getattr(ms, strat_attr, None)
+    if df is None:
+        raise click.ClickException(f"allele attribute `{strat_attr}` is None on the match-set result.")
+    df.to_parquet(out_path)
+    click.echo(f"Wrote {len(df)} allele rows to {out_path}.", err=True)
+
+
 if __name__ == "__main__":
     main()

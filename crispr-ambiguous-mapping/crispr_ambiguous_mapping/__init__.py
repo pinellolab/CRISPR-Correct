@@ -18,4 +18,4 @@ from . import postprocessing
 
 # §4.5 / §7.1: v0.1.0 public API surface (map / count / alleles + ParsingConfig).
 from . import api
-from .api import map_fastq, count, alleles, ParsingConfig
+from .api import map_fastq, count, alleles, ParsingConfig, save, load

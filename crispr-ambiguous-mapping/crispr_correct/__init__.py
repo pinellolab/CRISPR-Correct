@@ -15,5 +15,5 @@ The existing `crispr_ambiguous_mapping` package stays available through 0.1.x
 for existing drivers; it'll be deprecated in 0.2.0 and removed in 0.3.0.
 """
 from crispr_ambiguous_mapping import mapping, utility, models, processing, visualization, quality_control, postprocessing  # noqa: F401
-from crispr_ambiguous_mapping.api import map_fastq, count, alleles, ParsingConfig  # noqa: F401
+from crispr_ambiguous_mapping.api import map_fastq, count, alleles, ParsingConfig, save, load  # noqa: F401
 from crispr_ambiguous_mapping.models.mapping_models import MatchTier  # noqa: F401

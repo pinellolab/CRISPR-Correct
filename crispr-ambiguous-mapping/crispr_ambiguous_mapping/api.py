@@ -32,13 +32,23 @@ allele_df = alleles(result, tier=MatchTier.PM_SM_BM, contains_guide_surrogate=Tr
 """
 from __future__ import annotations
 from dataclasses import dataclass, asdict, fields
+from pathlib import Path
 from typing import Any, Dict, List, Optional
+import json
 import pandas as pd
 
 from .models.mapping_models import (
     WhitelistReporterCountsResult,
     AllMatchSetWhitelistReporterCounterSeriesResults,
+    MatchSetWhitelistReporterCounterSeriesResults,
+    SurrogateProtospacerMismatchSetWhitelistReporterCounterSeriesResults,
+    CountInput,
     MatchTier,
+)
+from .models.quality_control_models import (
+    QualityControlResult,
+    MatchSetSingleInferenceQualityControlResult,
+    SurrogateProtospacerMismatchSingleInferenceQualityControlResult,
 )
 
 
@@ -210,4 +220,243 @@ def alleles(
         contains_guide_surrogate=contains_guide_surrogate,
         contains_guide_barcode=contains_guide_barcode,
         contains_guide_umi=contains_guide_umi,
+    )
+
+
+# ---------------------------------------------------------------------------
+# §7.4 / §7.1: parquet-backed save/load (cross-language durable serialization)
+# ---------------------------------------------------------------------------
+
+_MATCH_STRATEGY_ATTRS = [
+    ("ambiguous_ignored", ""),
+    ("ambiguous_ignored", "umi_collapsed"),
+    ("ambiguous_ignored", "umi_noncollapsed"),
+    ("ambiguous_accepted", ""),
+    ("ambiguous_accepted", "umi_collapsed"),
+    ("ambiguous_accepted", "umi_noncollapsed"),
+    ("ambiguous_spread", ""),
+    ("ambiguous_spread", "umi_collapsed"),
+    ("ambiguous_spread", "umi_noncollapsed"),
+]
+
+_MATCH_TIERS = ["protospacer_match", "protospacer_match_surrogate_match",
+                "protospacer_match_barcode_match", "protospacer_match_surrogate_match_barcode_match"]
+_MISMATCH_TIERS = ["protospacer_mismatch_surrogate_match", "protospacer_mismatch_surrogate_match_barcode_match"]
+
+
+def _strategy_attr(amb: str, umi: str, kind: str = "") -> str:
+    """Resolve (ambiguity, umi_strategy, kind) to the tier-object attribute name.
+
+    kind in {'', 'match', 'mismatch'} — empty for the non-mismatch tiers;
+    'match' / 'mismatch' for SurrogateProtospacerMismatch tiers.
+    """
+    pieces = [amb]
+    if umi:
+        pieces.append(umi)
+    if kind:
+        pieces.append(kind)
+    pieces.append("counterseries")
+    return "_".join(pieces)
+
+
+def _tier_to_dataframe(tier_obj, kind: str = "") -> pd.DataFrame:
+    """Convert a tier dataclass (9 Series) into a single DataFrame (strategies = columns)."""
+    series_by_col: Dict[str, pd.Series] = {}
+    for amb, umi in _MATCH_STRATEGY_ATTRS:
+        attr = _strategy_attr(amb, umi, kind)
+        s = getattr(tier_obj, attr, None)
+        if s is None:
+            continue
+        col = f"{amb}" + (f"__{umi}" if umi else "")
+        series_by_col[col] = s
+    if not series_by_col:
+        return pd.DataFrame()
+    # pandas aligns on a union of indices automatically.
+    return pd.DataFrame(series_by_col)
+
+
+def _column_to_series(col_values: pd.Series) -> pd.Series:
+    """Normalize one DataFrame column back to a Series the package expects:
+    drop NaN (from the alignment union), downcast to int64 when every value
+    is whole (parquet widens to float64 when any NaN is present), strip the
+    column name so callers aren't suprised by dtype / name drift."""
+    s = col_values.dropna()
+    if s.empty:
+        return s
+    # If all values are whole, restore int64 — matches the pre-save dtype of
+    # the non-spread counters. Ambiguous-spread can produce fractional
+    # counts (/N_matches) so we keep those as float.
+    vals = s.values
+    try:
+        if (vals == vals.astype("int64")).all():
+            s = s.astype("int64")
+    except (TypeError, ValueError):
+        pass
+    s.name = None
+    return s
+
+
+def _dataframe_to_tier(df: pd.DataFrame, tier_class, kind: str = ""):
+    """Reverse of `_tier_to_dataframe`: populate a tier dataclass from a DataFrame."""
+    obj = tier_class()
+    if df.empty:
+        return obj
+    for col in df.columns:
+        amb, _, umi = col.partition("__")
+        attr = _strategy_attr(amb, umi, kind)
+        # The __setattr__ guard on the tier class nulls all-zero Series.
+        setattr(obj, attr, _column_to_series(df[col]))
+    return obj
+
+
+def _qc_tier_to_dict(qc_tier) -> Dict[str, Any]:
+    """Serialize one QC tier to a JSON-friendly dict. Enum error keys → .name."""
+    out: Dict[str, Any] = {}
+    for f in fields(qc_tier):
+        v = getattr(qc_tier, f.name)
+        if v is None:
+            out[f.name] = None
+        elif f.name.startswith("guide_count_error_type") and hasattr(v, "items"):
+            out[f.name] = {str(k): int(cnt) for k, cnt in v.items()}
+        else:
+            out[f.name] = v
+    return out
+
+
+def save(result: WhitelistReporterCountsResult, directory: str | Path, *, overwrite: bool = False) -> Path:
+    """Write a mapping result to a directory as parquet + JSON.
+
+    §7.4 / §7.1: cross-language durable serialization. The directory ends up with:
+
+        result_dir/
+            manifest.json           # schema version + tier list + timestamp
+            counts_<tier>.parquet   # match tiers: 1 file; mismatch tiers: _match + _mismatch
+            qc.json                 # QualityControlResult summary counts
+            count_input.json        # echo of parsing flags (whitelist DF not round-tripped)
+
+    Complement to pickling — does NOT include the per-observation inference
+    dict. If you need that, keep a pickle alongside.
+
+    Returns the directory path.
+    """
+    directory = Path(directory)
+    if directory.exists():
+        if not overwrite and any(directory.iterdir()):
+            raise FileExistsError(f"{directory} is not empty; pass overwrite=True to replace.")
+    directory.mkdir(parents=True, exist_ok=True)
+
+    allw = result.all_match_set_whitelist_reporter_counter_series_results
+    manifest = {
+        "schema_version": "1",
+        "match_tiers": [],
+        "mismatch_tiers": [],
+    }
+
+    # Match tiers.
+    for tier_name in _MATCH_TIERS:
+        t = getattr(allw, tier_name, None)
+        if t is None:
+            continue
+        df = _tier_to_dataframe(t)
+        if df.empty:
+            continue
+        path = directory / f"counts_{tier_name}.parquet"
+        df.to_parquet(path)
+        manifest["match_tiers"].append(tier_name)
+
+    # Mismatch tiers — two DataFrames per tier.
+    for tier_name in _MISMATCH_TIERS:
+        t = getattr(allw, tier_name, None)
+        if t is None:
+            continue
+        wrote_any = False
+        for kind in ("match", "mismatch"):
+            df = _tier_to_dataframe(t, kind=kind)
+            if df.empty:
+                continue
+            path = directory / f"counts_{tier_name}_{kind}.parquet"
+            df.to_parquet(path)
+            wrote_any = True
+        if wrote_any:
+            manifest["mismatch_tiers"].append(tier_name)
+
+    # QC.
+    qc_obj = result.quality_control_result
+    qc_out = {}
+    for f in fields(qc_obj):
+        tier_qc = getattr(qc_obj, f.name)
+        qc_out[f.name] = _qc_tier_to_dict(tier_qc) if tier_qc is not None else None
+    (directory / "qc.json").write_text(json.dumps(qc_out, indent=2, default=str))
+
+    # CountInput (drop the DataFrame — user can reload the library separately).
+    ci = result.count_input
+    ci_out = {f.name: getattr(ci, f.name) for f in fields(ci) if f.name != "whitelist_guide_reporter_df"}
+    (directory / "count_input.json").write_text(json.dumps(ci_out, indent=2, default=str))
+
+    (directory / "manifest.json").write_text(json.dumps(manifest, indent=2))
+    return directory
+
+
+def load(directory: str | Path) -> WhitelistReporterCountsResult:
+    """Reconstruct a mapping result from a directory written by `save`.
+
+    §7.4 / §7.1: pairs with `save`. Reconstructs `all_match_set_whitelist_reporter_counter_series_results`,
+    `quality_control_result` summary counts, and `count_input`. The per-
+    observation inference dict (`observed_guide_reporter_umi_counts_inferred`)
+    is left as `None` — it is not round-tripped (use pickle for that).
+    """
+    directory = Path(directory)
+    manifest_path = directory / "manifest.json"
+    if not manifest_path.exists():
+        raise FileNotFoundError(f"No manifest.json in {directory}; not a mapping-result directory.")
+    manifest = json.loads(manifest_path.read_text())
+
+    allw = AllMatchSetWhitelistReporterCounterSeriesResults()
+    for tier_name in manifest.get("match_tiers", []):
+        path = directory / f"counts_{tier_name}.parquet"
+        df = pd.read_parquet(path)
+        setattr(allw, tier_name, _dataframe_to_tier(df, MatchSetWhitelistReporterCounterSeriesResults))
+    for tier_name in manifest.get("mismatch_tiers", []):
+        obj = SurrogateProtospacerMismatchSetWhitelistReporterCounterSeriesResults()
+        for kind in ("match", "mismatch"):
+            path = directory / f"counts_{tier_name}_{kind}.parquet"
+            if path.exists():
+                df = pd.read_parquet(path)
+                for col in df.columns:
+                    amb, _, umi = col.partition("__")
+                    attr = _strategy_attr(amb, umi, kind)
+                    setattr(obj, attr, _column_to_series(df[col]))
+        setattr(allw, tier_name, obj)
+
+    # QC — reconstruct the tier objects from the dict.
+    qc_raw = json.loads((directory / "qc.json").read_text())
+    qc_obj = QualityControlResult()
+    for f in fields(qc_obj):
+        raw = qc_raw.get(f.name)
+        if raw is None:
+            continue
+        cls = SurrogateProtospacerMismatchSingleInferenceQualityControlResult if f.name.startswith("protospacer_mismatch") else MatchSetSingleInferenceQualityControlResult
+        inst = cls()
+        for sub_f in fields(inst):
+            setattr(inst, sub_f.name, raw.get(sub_f.name))
+        setattr(qc_obj, f.name, inst)
+
+    # CountInput (whitelist DF intentionally None — caller can reload separately).
+    ci_raw = json.loads((directory / "count_input.json").read_text())
+    count_input = CountInput(
+        whitelist_guide_reporter_df=pd.DataFrame(),  # stub; user reloads if needed
+        contains_guide_surrogate=ci_raw.get("contains_guide_surrogate", False),
+        contains_guide_barcode=ci_raw.get("contains_guide_barcode", False),
+        contains_guide_umi=ci_raw.get("contains_guide_umi", False),
+        contains_sample_barcode=ci_raw.get("contains_sample_barcode", False),
+        protospacer_hamming_threshold_strict=ci_raw.get("protospacer_hamming_threshold_strict"),
+        surrogate_hamming_threshold_strict=ci_raw.get("surrogate_hamming_threshold_strict"),
+        guide_barcode_hamming_threshold_strict=ci_raw.get("guide_barcode_hamming_threshold_strict"),
+    )
+
+    return WhitelistReporterCountsResult(
+        all_match_set_whitelist_reporter_counter_series_results=allw,
+        observed_guide_reporter_umi_counts_inferred=None,
+        quality_control_result=qc_obj,
+        count_input=count_input,
     )

@@ -1,6 +1,8 @@
 """Smoke tests that run in CI — they cover the API surface but don't require
 real FASTQ fixtures. Full ground-truth regression lives in the wrapper folder
 (`CRISPR-Correct-Folder/tests/simulation/`) and is run out-of-band."""
+from pathlib import Path
+
 import pandas as pd
 import pytest
 
@@ -163,6 +165,95 @@ def test_sample_barcode_inferred_value_is_shared():
                         "two cells saw the same observed tuple but got independent inferred_value objects"
                     return
     pytest.skip("no cross-cell shared observed tuple found in sampled cells")
+
+
+def test_save_load_roundtrip_bit_equal(tmp_path):
+    """§7.4: map -> save -> load round-trip must preserve count Series values +
+    index across every non-None tier × strategy."""
+    from collections import Counter
+    import pandas as pd
+    import crispr_ambiguous_mapping as cam
+
+    HERE = Path(__file__).parent
+    library = pd.read_csv(HERE / "fixtures" / "library.tsv", sep="\t")[["protospacer", "surrogate", "barcode"]]
+    r1 = str(HERE / "fixtures" / "simulated_R1.fastq")
+    r2 = str(HERE / "fixtures" / "simulated_R2.fastq")
+    cfg = cam.ParsingConfig(
+        protospacer_start_position=0, protospacer_length=20,
+        is_protospacer_r1=True, is_protospacer_header=False, revcomp_protospacer=False,
+        protospacer_hamming_threshold_strict=7,
+        cores=2,
+    )
+    r = cam.map_fastq(library, [r1], [r2], config=cfg)
+    out_dir = tmp_path / "result"
+    cam.save(r, out_dir)
+    r2_loaded = cam.load(out_dir)
+
+    a1 = r.all_match_set_whitelist_reporter_counter_series_results
+    a2 = r2_loaded.all_match_set_whitelist_reporter_counter_series_results
+    compared = 0
+    for tn in ("protospacer_match", "protospacer_match_surrogate_match", "protospacer_match_barcode_match",
+               "protospacer_match_surrogate_match_barcode_match"):
+        t1 = getattr(a1, tn, None); t2 = getattr(a2, tn, None)
+        if t1 is None or t2 is None:
+            continue
+        for fname in dir(t1):
+            if not fname.endswith("counterseries") or fname.startswith("_"):
+                continue
+            s1 = getattr(t1, fname, None); s2 = getattr(t2, fname, None)
+            if s1 is None and s2 is None:
+                continue
+            compared += 1
+            s1s = s1.sort_index(); s2s = s2.sort_index()
+            assert s1s.index.equals(s2s.index), f"{tn}.{fname}: index mismatch"
+            # Compare values loosely on dtype — parquet can widen int64→float64
+            # when NaN alignment is involved; values themselves must match.
+            if s1s.dtype == s2s.dtype:
+                assert (s1s.values == s2s.values).all(), f"{tn}.{fname}: value mismatch"
+            else:
+                assert s1s.astype(float).equals(s2s.astype(float)), f"{tn}.{fname}: value mismatch"
+    assert compared > 0
+
+
+def test_cli_save_load_roundtrip(tmp_path):
+    """§7.4: `crispr-correct save` + `crispr-correct load` preserve the result."""
+    import pickle
+    from click.testing import CliRunner
+    from crispr_ambiguous_mapping.cli import main
+    import crispr_ambiguous_mapping as cam
+
+    HERE = Path(__file__).parent
+    library = pd.read_csv(HERE / "fixtures" / "library.tsv", sep="\t")[["protospacer", "surrogate", "barcode"]]
+    r1 = str(HERE / "fixtures" / "simulated_R1.fastq")
+    r2 = str(HERE / "fixtures" / "simulated_R2.fastq")
+    cfg = cam.ParsingConfig(protospacer_start_position=0, protospacer_length=20,
+                            is_protospacer_r1=True, is_protospacer_header=False,
+                            revcomp_protospacer=False, protospacer_hamming_threshold_strict=7, cores=2)
+    result = cam.map_fastq(library, [r1], [r2], config=cfg)
+
+    src_pkl = tmp_path / "src.pkl"
+    with open(src_pkl, "wb") as fh:
+        pickle.dump(result, fh)
+
+    save_dir = tmp_path / "saved"
+    runner = CliRunner()
+    r_save = runner.invoke(main, ["save", "--in", str(src_pkl), "--out-dir", str(save_dir)])
+    assert r_save.exit_code == 0, r_save.output
+    manifest = save_dir / "manifest.json"
+    assert manifest.exists()
+
+    dst_pkl = tmp_path / "dst.pkl"
+    r_load = runner.invoke(main, ["load", "--in-dir", str(save_dir), "--out", str(dst_pkl)])
+    assert r_load.exit_code == 0, r_load.output
+    assert dst_pkl.exists()
+    with open(dst_pkl, "rb") as fh:
+        loaded = pickle.load(fh)
+    # Verify one Series matches after the CLI round-trip.
+    s1 = result.all_match_set_whitelist_reporter_counter_series_results.protospacer_match.ambiguous_accepted_counterseries
+    s2 = loaded.all_match_set_whitelist_reporter_counter_series_results.protospacer_match.ambiguous_accepted_counterseries
+    if s1 is not None:
+        assert s2 is not None
+        assert s1.sort_index().index.equals(s2.sort_index().index)
 
 
 def test_revcomp_translate_matches_biopython():
