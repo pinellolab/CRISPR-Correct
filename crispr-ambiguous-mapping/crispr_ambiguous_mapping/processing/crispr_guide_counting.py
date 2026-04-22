@@ -55,6 +55,20 @@ def get_whitelist_reporter_counts_with_umi(observed_guide_reporter_umi_counts: G
                                            retain_inference_results: bool = False,
                                            cores: int=1) -> WhitelistReporterCountsResult:
     
+    # §4.3 (K.2): accept the consistent `guide_`-prefixed column names
+    # (`guide_surrogate`, `guide_barcode`) as aliases for the legacy
+    # `surrogate`/`barcode`. Normalize to the legacy names internally so the
+    # ~40 downstream references don't need to churn; full rename deferred.
+    if whitelist_guide_reporter_df is not None:
+        _alias_renames = {}
+        if "guide_surrogate" in whitelist_guide_reporter_df.columns and "surrogate" not in whitelist_guide_reporter_df.columns:
+            _alias_renames["guide_surrogate"] = "surrogate"
+        if "guide_barcode" in whitelist_guide_reporter_df.columns and "barcode" not in whitelist_guide_reporter_df.columns:
+            _alias_renames["guide_barcode"] = "barcode"
+        if _alias_renames:
+            whitelist_guide_reporter_df = whitelist_guide_reporter_df.rename(columns=_alias_renames)
+            _log.info(f"Accepted guide_-prefixed whitelist columns {list(_alias_renames)}; normalized to legacy names for internal use.")
+
     # §4.4: validate whitelist DF columns up front so misnamed columns fail
     # with a clear message instead of deep inside the encoding loop.
     if whitelist_guide_reporter_df is not None:
