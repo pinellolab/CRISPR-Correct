@@ -136,6 +136,35 @@ def test_cli_parsingconfig_option_count_matches_fields():
         assert flag in r.output, f"missing CLI flag for ParsingConfig field `{f.name}`"
 
 
+def test_sample_barcode_inferred_value_is_shared():
+    """§2.6: in sample-barcode (cell-barcode) mode, two cells that saw the
+    same observed guide should share the `inferred_value` by reference — not
+    get independent CompleteInferenceMatchResult copies. Verifies on the real
+    scCRISPR result if available; otherwise skips."""
+    import pickle
+    import os
+    golden = "tests/golden/sccrispr_cell_barcode.pkl"  # built by test_sccrispr_cell_barcode.py on first run
+    if not os.path.exists(golden):
+        pytest.skip("scCRISPR golden pickle not built yet")
+    with open(golden, "rb") as fh:
+        result = pickle.load(fh)
+    inf = getattr(result, "observed_guide_reporter_umi_counts_inferred", None)
+    if inf is None:
+        pytest.skip("golden pickle was built with retain_inference_results=False")
+    # Nested dict: {cell: {observed_tuple: InferenceResult}}. Find two cells that share an observed.
+    cells = list(inf.keys())[:500]
+    for c1 in cells:
+        for obs in inf[c1]:
+            for c2 in cells:
+                if c2 == c1:
+                    continue
+                if obs in inf[c2]:
+                    assert id(inf[c1][obs].inferred_value) == id(inf[c2][obs].inferred_value), \
+                        "two cells saw the same observed tuple but got independent inferred_value objects"
+                    return
+    pytest.skip("no cross-cell shared observed tuple found in sampled cells")
+
+
 def test_revcomp_translate_matches_biopython():
     # §3.10: translate-based revcomp must produce the same result as the
     # previous Bio.Seq.reverse_complement() on IUPAC bases we actually see.

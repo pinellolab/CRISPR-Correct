@@ -226,18 +226,25 @@ def get_whitelist_reporter_counts_with_umi(observed_guide_reporter_umi_counts: G
     
 
 
-    # NOTE 20251031: This may be able to be removed
     if contains_sample_barcode:
         observed_guide_reporter_umi_counts_inferred_all_samples: DefaultDict[str, GeneralMappingInferenceDict] = defaultdict(_inference_dict_factory)
-        
-        # Add all cell_barcodes
-        for observed_guide_reporter_key_index, observed_guide_reporter_key in enumerate(observed_guide_reporter_list): # Iterate through each observed guide key
+
+        # MEM §2.6: every (cell_barcode, observed_guide) pair gets its own
+        # InferenceResult wrapper, but the `inferred_value` (the expensive
+        # CompleteInferenceMatchResult) is shared by reference across all
+        # cells with the same observed guide — we just reuse the entry from
+        # `inferred_true_reporter_sequences` rather than re-running inference
+        # per cell. For 1.8 M cells × 100 observed guides this collapses
+        # ~180 M inference results into ~100 actual objects held by
+        # reference, at the cost of the (small) InferenceResult wrapper per
+        # (cell, observed) pair.
+        for observed_guide_reporter_key_index, observed_guide_reporter_key in enumerate(observed_guide_reporter_list):
             observed_guide_reporter_cell_counts = observed_guide_reporter_umi_counts[observed_guide_reporter_key]
-            observed_cell_barcodes = observed_guide_reporter_cell_counts.keys()
-            for cell_barcode in observed_cell_barcodes:
+            inferred_value_shared = inferred_true_reporter_sequences[observed_guide_reporter_key_index]
+            for cell_barcode in observed_guide_reporter_cell_counts.keys():
                 observed_guide_reporter_umi_counts_inferred_all_samples[cell_barcode][observed_guide_reporter_key] = InferenceResult(
-                    observed_value=observed_guide_reporter_cell_counts[cell_barcode], # Add the count to the cell_barcode for the particular guide
-                    inferred_value=inferred_true_reporter_sequences[observed_guide_reporter_key_index]
+                    observed_value=observed_guide_reporter_cell_counts[cell_barcode],
+                    inferred_value=inferred_value_shared,
                 )
 
         observed_guide_reporter_umi_counts_inferred_per_sample: GeneralMappingInferenceDict = defaultdict(dict)
