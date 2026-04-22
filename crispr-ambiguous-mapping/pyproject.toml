@@ -32,6 +32,11 @@ click = "^8.1"
 # `crispr-correct` console script on PATH.
 crispr-correct = "crispr_ambiguous_mapping.cli:main"
 
+[tool.pytest.ini_options]
+markers = [
+    "slow: heavy simulation modes (full triplet + UMI); skipped in CI-fast via -m 'not slow'.",
+]
+
 [build-system]
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"

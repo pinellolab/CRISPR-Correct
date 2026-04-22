@@ -31,5 +31,10 @@ jobs:
           pip install -e .
           pip install pytest
 
-      - name: Run smoke tests
+      - name: Run smoke + CI-fast simulation regression (push)
+        if: github.event_name == 'push'
+        run: pytest tests/ -v -m "not slow"
+
+      - name: Run smoke + full 135-mode simulation regression (PR)
+        if: github.event_name == 'pull_request'
         run: pytest tests/ -v
