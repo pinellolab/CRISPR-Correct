@@ -12,6 +12,8 @@ CRISPR-Correct also handles guide-RNA **sensor / surrogate constructs**, **UMIs*
 
 If you are mapping many large samples that would take too long on a personal computer, CRISPR-Correct can also run on the [Broad Institute's Terra Platform](https://terra.bio/). The workflow file is at the [Terra Firecloud repository](https://portal.firecloud.org/?return=terra#methods/pinellolab/CrisprSelfEditMappingOrchestratorWorkflowSampleEntity/2).
 
+> **Migrating from 0.0.x?** See `../USAGE.md §6` for the CountInput rename + post-processing kwarg rename table, and `../CHANGELOG.md` for the accumulated 0.0.236 → `Unreleased` changes (new API surface, CLI, parquet save/load, memory + performance deltas).
+
 ## Installation
 
 ```bash
@@ -318,6 +320,40 @@ crispr-correct count \
 ```
 
 Repeat `--r1` / `--r2` for multi-file input. Boolean flags use `--flag/--no-flag` convention. Run `crispr-correct map --help` for the full flag list.
+
+### Save/load — parquet + JSON (cross-language durable)
+
+```bash
+# Convert a pickle into a parquet directory (portable across Python/R/Julia)
+crispr-correct save --in result.pickle --out-dir result/
+# Inspect in pandas:
+#   pd.read_parquet("result/counts_protospacer_match_surrogate_match_barcode_match.parquet")
+
+# Reconstruct a pickle from the directory
+crispr-correct load --in-dir result/ --out result.pickle
+```
+
+Save/load via Python:
+
+```python
+import crispr_ambiguous_mapping as cam
+cam.save(result, "result/")      # writes parquet + manifest.json + qc.json + count_input.json
+result2 = cam.load("result/")    # reconstructs the result (without the inference dict)
+```
+
+The per-observation inference dict (`observed_guide_reporter_umi_counts_inferred`) is not round-tripped through parquet — pickle it if you need it.
+
+### Post-processing — `alleles` subcommand
+
+```bash
+crispr-correct alleles \
+    --in result.pickle \
+    --tier protospacer_match_surrogate_match_barcode_match \
+    --ambiguity accepted --umi-strategy noncollapsed \
+    --out alleles.parquet
+```
+
+Requires the source pickle to have been produced with `--retain-inference-results`; otherwise emits a clear error pointing at the flag.
 
 ---
 
