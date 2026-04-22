@@ -202,7 +202,7 @@ def alleles_cmd(in_path, out_path, tier, amb, umi_strat):
         contains_guide_barcode=result.count_input.contains_guide_barcode,
         contains_guide_umi=result.count_input.contains_guide_umi,
     )
-    strat_attr = amb + ("_umi_" + umi_strat if umi_strat else "") + "_allele_df"
+    strat_attr = "ambiguous_" + amb + ("_umi_" + umi_strat if umi_strat else "") + "_allele_df"
     df = getattr(ms, strat_attr, None)
     if df is None:
         raise click.ClickException(f"allele attribute `{strat_attr}` is None on the match-set result.")

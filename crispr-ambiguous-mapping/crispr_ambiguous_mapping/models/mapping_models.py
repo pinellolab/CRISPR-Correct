@@ -27,6 +27,13 @@ class MatchTier(str, Enum):
     PM_MISMATCH_SM = "protospacer_mismatch_surrogate_match"
     PM_MISMATCH_SM_BM = "protospacer_mismatch_surrogate_match_barcode_match"
 
+    def __str__(self) -> str:
+        # str(MatchTier.PM_SM_BM) returns the underlying tier string, not "MatchTier.PM_SM_BM".
+        # Without this override `getattr(result, str(tier))` would raise AttributeError because
+        # str() on an Enum defaults to `ClassName.MEMBER_NAME`. Equality with plain strings is
+        # unaffected (str subclass already ensures `MatchTier.PM_SM_BM == "protospacer_..."`).
+        return self.value
+
 from typing import Union, List, Mapping, Tuple, Optional, Any, DefaultDict, Dict
 from typing import Counter as CounterType
 import pandas as pd
