@@ -59,7 +59,7 @@ def test_slim_result_raises_on_postproc():
         get_matchset_alleleseries(
             observed_guide_reporter_umi_counts_inferred=None,
             attribute_name="protospacer_match",
-            contains_surrogate=False,
+            contains_guide_surrogate=False,
             contains_guide_barcode=False,
             contains_guide_umi=False,
         )

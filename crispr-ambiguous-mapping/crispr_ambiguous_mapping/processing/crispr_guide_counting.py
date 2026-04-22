@@ -244,7 +244,7 @@ def get_whitelist_reporter_counts_with_umi(observed_guide_reporter_umi_counts: G
         quality_control_result: QualityControlResult = perform_counts_quality_control(observed_guide_reporter_umi_counts_inferred_all_samples, contains_guide_umi, contains_guide_surrogate, contains_guide_barcode, contains_sample_barcode)
 
         count_input= CountInput(whitelist_guide_reporter_df=whitelist_guide_reporter_df,
-            contains_surrogate=contains_guide_surrogate,
+            contains_guide_surrogate=contains_guide_surrogate,
             contains_guide_barcode=contains_guide_barcode,
             contains_guide_umi=contains_guide_umi,
             contains_sample_barcode=contains_sample_barcode,
@@ -292,7 +292,7 @@ def get_whitelist_reporter_counts_with_umi(observed_guide_reporter_umi_counts: G
         _log.info(f"{(after_qualitycontrol_time-after_counterseries_time).seconds} seconds for quality control")
 
         count_input = CountInput(whitelist_guide_reporter_df=whitelist_guide_reporter_df,
-                contains_surrogate=contains_guide_surrogate,
+                contains_guide_surrogate=contains_guide_surrogate,
                 contains_guide_barcode=contains_guide_barcode,
                 contains_guide_umi=contains_guide_umi,
                 contains_sample_barcode=contains_sample_barcode,

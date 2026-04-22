@@ -87,7 +87,7 @@ def log_count_series_warnings(match_type_string: str,
 
 def count_series_result_quality_control_stats(count_series_result: MatchSetWhitelistReporterCounterSeriesResults,
                                               contains_guide_umi: bool, 
-                                              contains_surrogate: bool, 
+                                              contains_guide_surrogate: bool, 
                                               contains_guide_barcode: bool, 
                                               display_visualizations: bool = True,
                                               gini_index_threshold: float = 0.4,
@@ -191,7 +191,7 @@ def count_series_result_quality_control_stats(count_series_result: MatchSetWhite
                                       umidups_upper_threshold=umidups_upper_threshold)
 
 
-        if contains_surrogate:
+        if contains_guide_surrogate:
                 # PROTOSPACER+SURROGATE vs. PROTOSPACER - COLLAPSED
                 protospacer_match_gt_protospacer_surrogate_match_collapsed_total = sum(count_series_result.protospacer_match.ambiguous_accepted_umi_collapsed_counterseries >= count_series_result.protospacer_match_surrogate_match.ambiguous_accepted_umi_collapsed_counterseries)
                 protospacer_surrogate_match_vs_protospacer_match_collapsed_total_ratio_threshold = sum(count_series_result.protospacer_match_surrogate_match.ambiguous_accepted_umi_collapsed_counterseries) / sum(count_series_result.protospacer_match.ambiguous_accepted_umi_collapsed_counterseries)
@@ -514,7 +514,7 @@ def count_series_result_quality_control_stats(count_series_result: MatchSetWhite
                             lower_quantile_coverage_threshold=lower_quantile_coverage_threshold,
                             coverage_mean=protospacer_match_noumi_coverage_mean,
                             mean_coverage_threshold=mean_coverage_threshold)
-        if contains_surrogate:
+        if contains_guide_surrogate:
             # PROTOSPACER+SURROGATE vs. PROTOSPACER
             protospacer_match_gt_protospacer_surrogate_match_noumi_total = sum(count_series_result.protospacer_match.ambiguous_accepted_counterseries >= count_series_result.protospacer_match_surrogate_match.ambiguous_accepted_counterseries)
             protospacer_surrogate_match_vs_protospacer_match_noumi_total_ratio_threshold = sum(count_series_result.protospacer_match_surrogate_match.ambiguous_accepted_counterseries) / sum(count_series_result.protospacer_match.ambiguous_accepted_counterseries)
@@ -637,9 +637,9 @@ def count_series_result_quality_control_stats(count_series_result: MatchSetWhite
     return count_series_result_quality_control_stats_dict
     
 
-def plot_match_type_comparisons(all_count_series_result: AllMatchSetWhitelistReporterCounterSeriesResults, contains_guide_umi: bool, contains_surrogate: bool, contains_guide_barcode: bool, collapsed:bool=False, alpha: float=0.3):
+def plot_match_type_comparisons(all_count_series_result: AllMatchSetWhitelistReporterCounterSeriesResults, contains_guide_umi: bool, contains_guide_surrogate: bool, contains_guide_barcode: bool, collapsed:bool=False, alpha: float=0.3):
     if contains_guide_umi:
-        if contains_surrogate:
+        if contains_guide_surrogate:
             if collapsed:
                 # PROTOSPACER+SURROGATE vs. PROTOSPACER - COLLAPSED
                 plt.scatter(all_count_series_result.protospacer_match_surrogate_match.ambiguous_accepted_umi_collapsed_counterseries,
@@ -700,7 +700,7 @@ def plot_match_type_comparisons(all_count_series_result: AllMatchSetWhitelistRep
                     plt.show()
     else:
 
-        if contains_surrogate:
+        if contains_guide_surrogate:
             # PROTOSPACER+SURROGATE vs. PROTOSPACER
             plt.scatter(all_count_series_result.protospacer_match_surrogate_match.ambiguous_accepted_counterseries,
                     all_count_series_result.protospacer_match.ambiguous_accepted_counterseries,

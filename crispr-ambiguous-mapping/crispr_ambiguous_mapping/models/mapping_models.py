@@ -262,14 +262,27 @@ class AllMatchSetWhitelistReporterCounterSeriesResults:
 
 @dataclass
 class CountInput:
+    """Echo of the parsing/threshold configuration used to produce a mapping result.
+
+    §4.3: the canonical field name for the surrogate flag is
+    `contains_guide_surrogate` (aligning with the other `contains_guide_*` and
+    `contains_sample_*` fields). `contains_guide_surrogate` remains as a read-only
+    alias for back-compat through 0.1.x; it will be removed in 0.2.0.
+    """
     whitelist_guide_reporter_df: pd.DataFrame
-    contains_surrogate:bool
-    contains_guide_barcode:bool
-    contains_guide_umi:bool
-    contains_sample_barcode:bool
+    contains_guide_surrogate: bool
+    contains_guide_barcode: bool
+    contains_guide_umi: bool
+    contains_sample_barcode: bool
     protospacer_hamming_threshold_strict: Optional[int]
     surrogate_hamming_threshold_strict: Optional[int]
     guide_barcode_hamming_threshold_strict: Optional[int]
+
+    @property
+    def contains_surrogate(self) -> bool:
+        """Deprecated alias for `contains_guide_surrogate`. Kept for back-compat
+        with Phase 1-3 callers; removed in 0.2.0."""
+        return self.contains_guide_surrogate
 
 @dataclass
 class WhitelistReporterCountsResult:

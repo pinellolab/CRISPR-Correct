@@ -182,7 +182,7 @@ def get_whitelist_reporter_counts_from_fastq(whitelist_guide_reporter_df: Option
     guide_barcode_pattern_regex = None if ((guide_barcode_pattern_regex is not None) and  (guide_barcode_pattern_regex.strip() == "")) else guide_barcode_pattern_regex
     guide_umi_pattern_regex = None if ((guide_umi_pattern_regex is not None) and (guide_umi_pattern_regex.strip() == "")) else guide_umi_pattern_regex
 
-    contains_surrogate = (surrogate_pattern_regex is not None) or (surrogate_left_flank is not None) or (surrogate_right_flank is not None) or (surrogate_start_position is not None) or (surrogate_end_position is not None) or (surrogate_length is not None)
+    contains_guide_surrogate = (surrogate_pattern_regex is not None) or (surrogate_left_flank is not None) or (surrogate_right_flank is not None) or (surrogate_start_position is not None) or (surrogate_end_position is not None) or (surrogate_length is not None)
     contains_guide_barcode = (guide_barcode_pattern_regex is not None) or (guide_barcode_left_flank is not None) or (guide_barcode_right_flank is not None) or (guide_barcode_start_position is not None) or (guide_barcode_end_position is not None) or (guide_barcode_length is not None)
     contains_guide_umi = (guide_umi_pattern_regex is not None) or (guide_umi_left_flank is not None) or (guide_umi_right_flank is not None) or (guide_umi_start_position is not None) or (guide_barcode_end_position is not None) or (guide_barcode_length is not None)
     contains_sample_barcode = (sample_barcode_pattern_regex is not None) or (sample_barcode_left_flank is not None) or (sample_barcode_right_flank is not None) or (sample_barcode_start_position is not None) or (sample_barcode_end_position is not None) or (sample_barcode_length is not None)
@@ -203,7 +203,7 @@ def get_whitelist_reporter_counts_from_fastq(whitelist_guide_reporter_df: Option
     sample_barcode_left_flank = preprocess_sequence(sample_barcode_left_flank)
     sample_barcode_right_flank = preprocess_sequence(sample_barcode_right_flank)
 
-    _log.info(f"Contains surrogate: {contains_surrogate}")
+    _log.info(f"Contains surrogate: {contains_guide_surrogate}")
     _log.info(f"Contains guide barcode: {contains_guide_barcode}")
     _log.info(f"Contains guide UMI: {contains_guide_umi}")
     _log.info(f"Contains sample barcode: {contains_sample_barcode}")
@@ -268,7 +268,7 @@ def get_whitelist_reporter_counts_from_fastq(whitelist_guide_reporter_df: Option
                                             revcomp_guide_umi=revcomp_guide_umi,
                                             revcomp_sample_barcode=revcomp_sample_barcode,
                                             
-                                            contains_guide_surrogate=contains_surrogate,
+                                            contains_guide_surrogate=contains_guide_surrogate,
                                             contains_guide_barcode=contains_guide_barcode,
                                             contains_guide_umi=contains_guide_umi,
                                             contains_sample_barcode=contains_sample_barcode)
@@ -281,7 +281,7 @@ def get_whitelist_reporter_counts_from_fastq(whitelist_guide_reporter_df: Option
     return crispr_guide_counting.get_whitelist_reporter_counts_with_umi(
         observed_guide_reporter_umi_counts=observed_guide_reporter_umi_counts,
         whitelist_guide_reporter_df=whitelist_guide_reporter_df,
-        contains_guide_surrogate=contains_surrogate, 
+        contains_guide_surrogate=contains_guide_surrogate, 
         contains_guide_barcode=contains_guide_barcode, 
         contains_guide_umi = contains_guide_umi,
         contains_sample_barcode=contains_sample_barcode, 
