@@ -65,6 +65,50 @@ def test_slim_result_raises_on_postproc():
         )
 
 
+def test_v0_1_0_public_api_importable():
+    # §4.5 / §7.1: map_fastq / count / alleles / ParsingConfig exposed at
+    # package root via api.py.
+    import crispr_ambiguous_mapping as cam
+    assert callable(cam.map_fastq)
+    assert callable(cam.count)
+    assert callable(cam.alleles)
+    assert cam.ParsingConfig is not None
+
+    cfg = cam.ParsingConfig(protospacer_length=20, cores=2)
+    kw = cfg.to_kwargs()
+    assert kw["protospacer_length"] == 20
+    assert kw["cores"] == 2
+    # None fields are dropped.
+    assert "protospacer_pattern_regex" not in kw
+
+
+def test_crispr_correct_shim_package():
+    # §4.11: `import crispr_correct as cc` aliases the canonical name.
+    import crispr_correct as cc
+    assert callable(cc.map_fastq)
+    assert cc.ParsingConfig is not None
+    assert cc.MatchTier.PM_SM_BM == "protospacer_match_surrogate_match_barcode_match"
+
+
+def test_count_input_contains_surrogate_backcompat():
+    # §4.3 / K.1: legacy `contains_surrogate` attribute still reads the new
+    # `contains_guide_surrogate` field.
+    import pandas as pd
+    from crispr_ambiguous_mapping.models.mapping_models import CountInput
+    ci = CountInput(
+        whitelist_guide_reporter_df=pd.DataFrame(),
+        contains_guide_surrogate=True,
+        contains_guide_barcode=False,
+        contains_guide_umi=False,
+        contains_sample_barcode=False,
+        protospacer_hamming_threshold_strict=7,
+        surrogate_hamming_threshold_strict=10,
+        guide_barcode_hamming_threshold_strict=2,
+    )
+    assert ci.contains_guide_surrogate is True
+    assert ci.contains_surrogate is True  # deprecated alias
+
+
 def test_revcomp_translate_matches_biopython():
     # §3.10: translate-based revcomp must produce the same result as the
     # previous Bio.Seq.reverse_complement() on IUPAC bases we actually see.
