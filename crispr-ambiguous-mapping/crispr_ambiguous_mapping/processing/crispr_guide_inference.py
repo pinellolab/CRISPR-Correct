@@ -212,7 +212,7 @@ def infer_whitelist_sequence(observed_guide_reporter_sequence_input: Union[str, 
             #
             # PERF §3.3: subset tensor no longer needed (all Hamming subsets
             # are index-gathered from the full distance vectors).
-            complete_match_result.protospacer_match = MatchSetSingleInferenceMatchResult(value=MatchSetSingleInferenceMatchResultValue(matches=whitelist_guide_reporter_df_hamming_protospacer_match))
+            complete_match_result.protospacer_match = MatchSetSingleInferenceMatchResult(value=MatchSetSingleInferenceMatchResultValue(matches=tuple(map(tuple, whitelist_guide_reporter_df_hamming_protospacer_match.values.tolist()))))
             
             if contains_guide_barcode: # IF BARCODE IS PARSED, PROCEED TO BARCODE-MATCHING INFERENCE
                 if barcode_available: # IF BARCODE IS MATCHED, PROCEED TO BARCODE-MATCHING INFERENCE
@@ -233,7 +233,7 @@ def infer_whitelist_sequence(observed_guide_reporter_sequence_input: Union[str, 
                         # SET PROTOSPACER-MATCH, BARCODE-MATCH
                         #
                         
-                        complete_match_result.protospacer_match_barcode_match = MatchSetSingleInferenceMatchResult(value=MatchSetSingleInferenceMatchResultValue(matches=whitelist_guide_reporter_df_hamming_barcode_match_protospacer_match))
+                        complete_match_result.protospacer_match_barcode_match = MatchSetSingleInferenceMatchResult(value=MatchSetSingleInferenceMatchResultValue(matches=tuple(map(tuple, whitelist_guide_reporter_df_hamming_barcode_match_protospacer_match.values.tolist()))))
                         if contains_guide_surrogate: # IF SURROGATE IS PARSED, PROCEED TO SURROGATE-MATCHING INFERENCE
                             if surrogate_error_result is None:
                                 #
@@ -261,7 +261,7 @@ def infer_whitelist_sequence(observed_guide_reporter_sequence_input: Union[str, 
                                     #
                                     # SET PROTOSPACER-MATCH, BARCODE-MATCH, SURROGATE-MATCH
                                     #
-                                    complete_match_result.protospacer_match_surrogate_match_barcode_match = MatchSetSingleInferenceMatchResult(value=MatchSetSingleInferenceMatchResultValue(matches=whitelist_guide_reporter_df_hamming_barcode_match_protospacer_match_surrogate_match))
+                                    complete_match_result.protospacer_match_surrogate_match_barcode_match = MatchSetSingleInferenceMatchResult(value=MatchSetSingleInferenceMatchResultValue(matches=tuple(map(tuple, whitelist_guide_reporter_df_hamming_barcode_match_protospacer_match_surrogate_match.values.tolist()))))
                                 else: # NO SURROGATE MATCH, ERROR
                                     complete_match_result.protospacer_match_surrogate_match_barcode_match = MatchSetSingleInferenceMatchResult(
                                         error=SurrogateHammingThresholdGuideCountError(
@@ -308,7 +308,7 @@ def infer_whitelist_sequence(observed_guide_reporter_sequence_input: Union[str, 
                         complete_match_result.protospacer_match_surrogate_match = MatchSetSingleInferenceMatchResult(
                                         error=encoding_surrogate_error_result)
                     elif protospacer_match_surrogate_hamming_threshold_met: # IF SURROGATE MATCH
-                        complete_match_result.protospacer_match_surrogate_match = MatchSetSingleInferenceMatchResult(value=MatchSetSingleInferenceMatchResultValue(matches=whitelist_guide_reporter_df_hamming_protospacer_match_surrogate_match))
+                        complete_match_result.protospacer_match_surrogate_match = MatchSetSingleInferenceMatchResult(value=MatchSetSingleInferenceMatchResultValue(matches=tuple(map(tuple, whitelist_guide_reporter_df_hamming_protospacer_match_surrogate_match.values.tolist()))))
                     else: # NO SURROGATE MATCH, ERROR OUT
                         complete_match_result.protospacer_match_surrogate_match = MatchSetSingleInferenceMatchResult(
                                         error=SurrogateHammingThresholdGuideCountError(

@@ -144,7 +144,13 @@ class SingleInferenceMatchResultValue:
 
 @dataclass
 class MatchSetSingleInferenceMatchResultValue(SingleInferenceMatchResultValue):
-    matches: Optional[pd.DataFrame] = None
+    # §2.4: was Optional[pd.DataFrame] holding a per-observation iloc-slice of
+    # the whitelist; now a tuple of positional row tuples. Downstream consumers
+    # already iterate via .itertuples(index=False, name=None) and key on the
+    # resulting positional tuple, so the migration is iteration-equivalent.
+    # Column order matches whitelist_guide_reporter_df: protospacer
+    # [, surrogate] [, barcode].
+    matches: Optional[Tuple[Tuple[Any, ...], ...]] = None
 
 @dataclass
 class SurrogateProtospacerMismatchSingleInferenceMatchResultValue(SingleInferenceMatchResultValue):

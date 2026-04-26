@@ -46,17 +46,16 @@ def helper_get_observed_values_given_whitelist_value(whitelist_sequence_list: Li
         match_set_single_inference_match_result : Optional[MatchSetSingleInferenceMatchResult] = getattr(inferred_value_result, attribute_name) # Get inference result for specific mapping strategy
         assert match_set_single_inference_match_result is not None, "match_set_single_inference_match_result should not be none since this is from the non error list. Developer error."
         
-        matches: pd.DataFrame = match_set_single_inference_match_result.value.matches # Get the list of ambiguous
-        
-        if not matches.empty:
+        # §2.4: matches is now a tuple-of-tuples (was Optional[pd.DataFrame]).
+        matches: Optional[Tuple[Tuple[Any, ...], ...]] = match_set_single_inference_match_result.value.matches
+
+        if matches:
 
             # Skip observed sequence if there are multiple matches when not accepting ambiguous mapping
-            if (ambiguous_accepted is False) and (matches.shape[0] > 1):
+            if (ambiguous_accepted is False) and (len(matches) > 1):
                 continue
 
-            # PERF §3.7: itertuples over the underlying numpy values is 5-10x
-            # faster than iterrows (no per-row Series construction).
-            _all_match_tuples = [tuple(row) for row in matches.itertuples(index=False, name=None)]
+            _all_match_tuples = matches
             for dict_index in _all_match_tuples:
                 if dict_index in whitelist_sequence_list:
                     all_match_sequences = _all_match_tuples
@@ -143,11 +142,12 @@ def get_matchset_counterseries(
             match_set_single_inference_match_result : Optional[MatchSetSingleInferenceMatchResult] = getattr(inferred_value_result, attribute_name)
             assert match_set_single_inference_match_result is not None, "match_set_single_inference_match_result should not be none since this is from the non error list. Developer error."
             
-            matches: pd.DataFrame = match_set_single_inference_match_result.value.matches
-            if not matches.empty:
+            # §2.4: matches is a tuple-of-tuples; len()/truthiness/iteration replace .shape[0]/.empty/.itertuples.
+            matches: Optional[Tuple[Tuple[Any, ...], ...]] = match_set_single_inference_match_result.value.matches
+            if matches:
+                num_matches_int = len(matches)
                 # ITERATE THROUGH MATCHE(S) TO PERFORM COUNTS
-                # PERF: itertuples is 5-10x faster than iterrows
-                for dict_index in matches.itertuples(index=False, name=None):
+                for dict_index in matches:
 
                     # Helper for incrementing either flat or nested dicts
                     def add_count(counterdict, value, spread=False):
@@ -167,7 +167,7 @@ def get_matchset_counterseries(
                         assert isinstance(observed_value_counts, Counter), f"For UMI, expecting observed value is a Counter, but type is {type(observed_value_counts)}"
                         total_reads = sum(observed_value_counts.values())
                         collapsed = len(observed_value_counts.values())
-                        num_matches = float(matches.shape[0])
+                        num_matches = float(num_matches_int)
 
                         add_count(ambiguous_accepted_umi_noncollapsed_counterdict, total_reads)
                         add_count(ambiguous_accepted_umi_collapsed_counterdict, collapsed)
@@ -175,19 +175,19 @@ def get_matchset_counterseries(
                         add_count(ambiguous_spread_umi_collapsed_counterdict, collapsed / num_matches, spread=True)
 
                         # If there is no ambiguous matches, then add to ambiguous_ignored counter
-                        if matches.shape[0] == 1:
+                        if num_matches_int == 1:
                             add_count(ambiguous_ignored_umi_noncollapsed_counterdict, total_reads)
                             add_count(ambiguous_ignored_umi_collapsed_counterdict, collapsed)
 
                     # STANDARD NON-UMI BASED COUNTING
                     else:
                         assert isinstance(observed_value_counts, int), f"For non UMI, expecting observed value is an int, but type is {type(observed_value_counts)}"
-                        num_matches = float(matches.shape[0])
+                        num_matches = float(num_matches_int)
                         add_count(ambiguous_accepted_counterdict, observed_value_counts)
                         add_count(ambiguous_spread_counterdict, observed_value_counts / num_matches, spread=True)
-                        
+
                         # If there is no ambiguous matches, then add to ambiguous_ignored counter
-                        if matches.shape[0] == 1:
+                        if num_matches_int == 1:
                             add_count(ambiguous_ignored_counterdict, observed_value_counts)
 
     # Process all samples

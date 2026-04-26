@@ -1,6 +1,6 @@
 from collections import Counter, defaultdict
 from dataclasses import dataclass
-from typing import Optional, DefaultDict, Union, Tuple, List
+from typing import Optional, DefaultDict, Union, Tuple, List, Any
 import pandas as pd
 from typing import Counter as CounterType
 from ..models.mapping_models import GeneralMappingInferenceDict, GeneralAlleleDict, GeneralAlleleCountSeriesDict
@@ -114,21 +114,22 @@ def get_matchset_alleleseries(observed_guide_reporter_umi_counts_inferred: Gener
         match_set_single_inference_match_result : Optional[MatchSetSingleInferenceMatchResult] = getattr(inferred_value_result, attribute_name)
         assert match_set_single_inference_match_result is not None, "match_set_single_inference_match_result should not be none since this is from the non error list. Developer error."
 
-        matches: pd.DataFrame = match_set_single_inference_match_result.value.matches
-        if not matches.empty:
-            # PERF §3.7: itertuples over numpy values is 5-10x faster than iterrows
-            for whitelist_sequence_index in matches.itertuples(index=False, name=None):
+        # §2.4: matches is now a tuple-of-tuples (was Optional[pd.DataFrame]).
+        matches: Optional[Tuple[Tuple[Any, ...], ...]] = match_set_single_inference_match_result.value.matches
+        if matches:
+            num_matches = len(matches)
+            for whitelist_sequence_index in matches:
                 observed_sequence_index = tuple(observed_sequence)
                 if contains_guide_umi:
                     assert isinstance(observed_value_counts, Counter), f"For UMI, expecting observed value is a Counter, but type is {type(observed_value_counts)}"
                     ambiguous_accepted_umi_noncollapsed_alleledict[whitelist_sequence_index][observed_sequence_index] += sum(observed_value_counts.values())
                     ambiguous_accepted_umi_collapsed_alleledict[whitelist_sequence_index][observed_sequence_index] += len(observed_value_counts.values())
 
-                    ambiguous_spread_umi_noncollapsed_alleledict[whitelist_sequence_index][observed_sequence_index] += sum(observed_value_counts.values()) / float(matches.shape[0])
-                    ambiguous_spread_umi_collapsed_alleledict[whitelist_sequence_index][observed_sequence_index] += len(observed_value_counts.values()) / float(matches.shape[0])
-                    
+                    ambiguous_spread_umi_noncollapsed_alleledict[whitelist_sequence_index][observed_sequence_index] += sum(observed_value_counts.values()) / float(num_matches)
+                    ambiguous_spread_umi_collapsed_alleledict[whitelist_sequence_index][observed_sequence_index] += len(observed_value_counts.values()) / float(num_matches)
+
                     # If there is no ambiguous matches, then add to ambiguous_ignored counter
-                    if matches.shape[0] == 1:
+                    if num_matches == 1:
                         ambiguous_ignored_umi_noncollapsed_alleledict[whitelist_sequence_index][observed_sequence_index] += sum(observed_value_counts.values())
                         ambiguous_ignored_umi_collapsed_alleledict[whitelist_sequence_index][observed_sequence_index] += len(observed_value_counts.values())
 
@@ -136,10 +137,10 @@ def get_matchset_alleleseries(observed_guide_reporter_umi_counts_inferred: Gener
                 else:
                     assert isinstance(observed_value_counts, int), f"For non UMI, expecting observed value is an int, but type is {type(observed_value_counts)}"
                     ambiguous_accepted_alleledict[whitelist_sequence_index][observed_sequence_index] += observed_value_counts
-                    ambiguous_spread_alleledict[whitelist_sequence_index][observed_sequence_index] += observed_value_counts / float(matches.shape[0])
+                    ambiguous_spread_alleledict[whitelist_sequence_index][observed_sequence_index] += observed_value_counts / float(num_matches)
 
                     # If there is no ambiguous matches, then add to ambiguous_ignored counter
-                    if matches.shape[0] == 1:
+                    if num_matches == 1:
                         ambiguous_ignored_alleledict[whitelist_sequence_index][observed_sequence_index] += observed_value_counts
 
                         
