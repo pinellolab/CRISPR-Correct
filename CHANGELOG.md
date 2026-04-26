@@ -40,6 +40,8 @@ Flat-arg command-line entry point `crispr-correct` (§4.5). Every `ParsingConfig
 
 ### Changed
 
+- **`MatchSetSingleInferenceMatchResultValue.matches`** is now `Optional[Tuple[Tuple[Any, ...], ...]]` (§2.4). Was `Optional[pd.DataFrame]` holding a per-observation iloc slice of the whitelist; now stores a plain tuple of positional row tuples. Per-match footprint drops ~0.8 KB → ~100 B; only matters when `retain_inference_results=True`. Column order matches whitelist registration (`protospacer` [, `surrogate`] [, `barcode`]). No compat shim — readers of `result.<tier>.matches` as a DataFrame must adapt.
+- Padded whitelist DataFrame is released immediately after encoding (§2.7); was kept alive through the whole inference loop, duplicating the whitelist for the multiprocessing pool.
 - **`retain_inference_results: bool = False` is the default** on `get_whitelist_reporter_counts_from_fastq` (§2.2). Result pickle shrinks ~15× (default) / ~93% at sim scale. Post-processing functions raise `ValueError` with an actionable message when called on a slim result.
 - **`contains_surrogate` → `contains_guide_surrogate`** on `CountInput` and throughout post-processing kwargs (§4.3). Legacy `contains_surrogate` remains as a deprecated `@property` alias through the next release; removed after.
 - **`contains_barcode` / `contains_umi` → `contains_guide_barcode` / `contains_guide_umi`** on `get_matchset_alleleseries`, `get_mutation_profile`, `tally_linked_mutation_count_per_sequence` (§1.4). No compat shim.

@@ -124,9 +124,12 @@ def get_whitelist_reporter_counts_with_umi(observed_guide_reporter_umi_counts: G
     if contains_guide_barcode:
         encoded_whitelist_barcode_sequences_series = crispr_sequence_encoding.encode_guide_series_whitelist(padded_whitelist_guide_reporter_df["barcode"])
 
-    
+    # §2.7: padded copy is only needed for encoding above; release it before
+    # the inference loop so peak RSS doesn't carry a duplicate of the
+    # whitelist through the multiprocessing pool. The unpadded
+    # whitelist_guide_reporter_df is still in scope for downstream slicing.
+    del padded_whitelist_guide_reporter_df
 
-    
     #
     #    SET THE PROTOSPACER HAMMING THRESHOLD
     #
