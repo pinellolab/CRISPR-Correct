@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from enum import Enum
 from typing import Union, List, Mapping, Tuple, Optional, Any, DefaultDict, Dict
 from typing import Counter as CounterType
 
@@ -7,6 +8,31 @@ import pandas as pd
 
 from .error_models import GuideCountError
 from .quality_control_models import QualityControlResult
+
+
+class MatchTier(str, Enum):
+    """Type-safe names for the six mapping tiers exposed by `CompleteInferenceMatchResult`.
+
+    §4.2 / §7.5: previously users passed magic strings like
+    ``"protospacer_match_surrogate_match_barcode_match"`` to post-processing
+    functions. The enum subclasses ``str`` so existing magic-string callers
+    keep working (``MatchTier.PM_SM_BM == "protospacer_match_surrogate_match_barcode_match"``
+    is True); new code can use the typed members for IDE autocompletion and
+    static checking.
+    """
+    PM = "protospacer_match"
+    PM_SM = "protospacer_match_surrogate_match"
+    PM_BM = "protospacer_match_barcode_match"
+    PM_SM_BM = "protospacer_match_surrogate_match_barcode_match"
+    PM_MISMATCH_SM = "protospacer_mismatch_surrogate_match"
+    PM_MISMATCH_SM_BM = "protospacer_mismatch_surrogate_match_barcode_match"
+
+    def __str__(self) -> str:
+        # str(MatchTier.PM_SM_BM) returns the underlying tier string, not "MatchTier.PM_SM_BM".
+        # Without this override `getattr(result, str(tier))` would raise AttributeError because
+        # str() on an Enum defaults to `ClassName.MEMBER_NAME`. Equality with plain strings is
+        # unaffected (str subclass already ensures `MatchTier.PM_SM_BM == "protospacer_..."`).
+        return self.value
 
 from typing import Union, List, Mapping, Tuple, Optional, Any, DefaultDict, Dict
 from typing import Counter as CounterType
@@ -118,7 +144,13 @@ class SingleInferenceMatchResultValue:
 
 @dataclass
 class MatchSetSingleInferenceMatchResultValue(SingleInferenceMatchResultValue):
-    matches: Optional[pd.DataFrame] = None
+    # §2.4: was Optional[pd.DataFrame] holding a per-observation iloc-slice of
+    # the whitelist; now a tuple of positional row tuples. Downstream consumers
+    # already iterate via .itertuples(index=False, name=None) and key on the
+    # resulting positional tuple, so the migration is iteration-equivalent.
+    # Column order matches whitelist_guide_reporter_df: protospacer
+    # [, surrogate] [, barcode].
+    matches: Optional[Tuple[Tuple[Any, ...], ...]] = None
 
 @dataclass
 class SurrogateProtospacerMismatchSingleInferenceMatchResultValue(SingleInferenceMatchResultValue):
@@ -243,19 +275,36 @@ class AllMatchSetWhitelistReporterCounterSeriesResults:
 
 @dataclass
 class CountInput:
+    """Echo of the parsing/threshold configuration used to produce a mapping result.
+
+    §4.3: the canonical field name for the surrogate flag is
+    `contains_guide_surrogate` (aligning with the other `contains_guide_*` and
+    `contains_sample_*` fields). `contains_guide_surrogate` remains as a read-only
+    alias for back-compat through 0.1.x; it will be removed in 0.2.0.
+    """
     whitelist_guide_reporter_df: pd.DataFrame
-    contains_surrogate:bool
-    contains_guide_barcode:bool
-    contains_guide_umi:bool
-    contains_sample_barcode:bool
+    contains_guide_surrogate: bool
+    contains_guide_barcode: bool
+    contains_guide_umi: bool
+    contains_sample_barcode: bool
     protospacer_hamming_threshold_strict: Optional[int]
     surrogate_hamming_threshold_strict: Optional[int]
     guide_barcode_hamming_threshold_strict: Optional[int]
 
+    @property
+    def contains_surrogate(self) -> bool:
+        """Deprecated alias for `contains_guide_surrogate`. Kept for back-compat
+        with Phase 1-3 callers; removed in 0.2.0."""
+        return self.contains_guide_surrogate
+
 @dataclass
 class WhitelistReporterCountsResult:
     all_match_set_whitelist_reporter_counter_series_results: AllMatchSetWhitelistReporterCounterSeriesResults
-    observed_guide_reporter_umi_counts_inferred: Union[GeneralMappingInferenceDict, DefaultDict[str, GeneralMappingInferenceDict]]
+    # `observed_guide_reporter_umi_counts_inferred` is None by default on new
+    # runs (pass retain_inference_results=True to the mapping call to keep it).
+    # Only allele / mutation post-processing reads this dict; the slim default
+    # drops ~77% of the result pickle size.
+    observed_guide_reporter_umi_counts_inferred: Optional[Union[GeneralMappingInferenceDict, DefaultDict[str, GeneralMappingInferenceDict]]]
     quality_control_result: QualityControlResult
     count_input: CountInput
 

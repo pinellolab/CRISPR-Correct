@@ -10,7 +10,14 @@ from .crispr_editing_processing import check_match_result_non_error, get_non_err
 import pandas as pd
 
 @typechecked
-def helper_get_observed_values_given_whitelist_value(whitelist_sequence_list: List[Tuple[str, Optional[str], Optional[str]]], observed_guide_reporter_umi_counts_inferred: GeneralMappingInferenceDict, attribute_name:str, contains_umi: bool, ambiguous_accepted:bool = True) -> WhitelistReporterObservedSequenceMapping:
+def helper_get_observed_values_given_whitelist_value(whitelist_sequence_list: List[Tuple[str, Optional[str], Optional[str]]], observed_guide_reporter_umi_counts_inferred: GeneralMappingInferenceDict, attribute_name:str, contains_guide_umi: bool, ambiguous_accepted:bool = True) -> WhitelistReporterObservedSequenceMapping:
+    if observed_guide_reporter_umi_counts_inferred is None:
+        raise ValueError(
+            "helper_get_observed_values_given_whitelist_value requires "
+            "`observed_guide_reporter_umi_counts_inferred` but the result was built "
+            "with `retain_inference_results=False` (the default). Re-run mapping with "
+            "`retain_inference_results=True` to enable allele post-processing."
+        )
     """
     Provides the set of observed sequences for a given whitelist sequence
 
@@ -18,7 +25,7 @@ def helper_get_observed_values_given_whitelist_value(whitelist_sequence_list: Li
         whitelist_sequence_list (List[Tuple[str, Optional[str], Optional[str]]]): List of whitelist sequence to retrieve observed sequences
         observed_guide_reporter_umi_counts_inferred (GeneralMappingInferenceDict): Datastructure contain the observed sequence to mapped whitelist sequence
         attribute_name (str): string specifying white mapping match type to consider.
-        contains_umi (bool): specifying whether UMI is used
+        contains_guide_umi (bool): specifying whether UMI is used
         ambiguous_accepted (bool): specifying whether to consider ambiguous mapping
 
     Returns:
@@ -39,24 +46,22 @@ def helper_get_observed_values_given_whitelist_value(whitelist_sequence_list: Li
         match_set_single_inference_match_result : Optional[MatchSetSingleInferenceMatchResult] = getattr(inferred_value_result, attribute_name) # Get inference result for specific mapping strategy
         assert match_set_single_inference_match_result is not None, "match_set_single_inference_match_result should not be none since this is from the non error list. Developer error."
         
-        matches: pd.DataFrame = match_set_single_inference_match_result.value.matches # Get the list of ambiguous
-        
-        if not matches.empty:
-            
-            # Skip observed sequence if there are multiple matches when not accepting ambiguous mapping 
-            if (ambiguous_accepted is False) and (matches.shape[0] > 1):
+        # §2.4: matches is now a tuple-of-tuples (was Optional[pd.DataFrame]).
+        matches: Optional[Tuple[Tuple[Any, ...], ...]] = match_set_single_inference_match_result.value.matches
+
+        if matches:
+
+            # Skip observed sequence if there are multiple matches when not accepting ambiguous mapping
+            if (ambiguous_accepted is False) and (len(matches) > 1):
                 continue
-            
-            
-            for whitelist_reporter_series in matches.iterrows(): 
-                # UMI-BASED COUNTING
-                dict_index = tuple(whitelist_reporter_series[1])
-                if dict_index in whitelist_sequence_list: # If the match is in the requested whitelist sequences, proceed
-                    # Get match info to add to result
-                    all_match_sequences = [tuple(whitelist_reporter_series[1]) for whitelist_reporter_series in matches.iterrows()]
+
+            _all_match_tuples = matches
+            for dict_index in _all_match_tuples:
+                if dict_index in whitelist_sequence_list:
+                    all_match_sequences = _all_match_tuples
                     total_match_counts = len(all_match_sequences)
 
-                    if contains_umi:
+                    if contains_guide_umi:
                         assert isinstance(observed_value_counts, Counter), f"For UMI, expecting observed value is a Counter, but type is {type(observed_value_counts)}"
 
                         # Calculate both UMI noncollapsed and collapsed count
@@ -137,11 +142,12 @@ def get_matchset_counterseries(
             match_set_single_inference_match_result : Optional[MatchSetSingleInferenceMatchResult] = getattr(inferred_value_result, attribute_name)
             assert match_set_single_inference_match_result is not None, "match_set_single_inference_match_result should not be none since this is from the non error list. Developer error."
             
-            matches: pd.DataFrame = match_set_single_inference_match_result.value.matches
-            if not matches.empty:
+            # §2.4: matches is a tuple-of-tuples; len()/truthiness/iteration replace .shape[0]/.empty/.itertuples.
+            matches: Optional[Tuple[Tuple[Any, ...], ...]] = match_set_single_inference_match_result.value.matches
+            if matches:
+                num_matches_int = len(matches)
                 # ITERATE THROUGH MATCHE(S) TO PERFORM COUNTS
-                for whitelist_reporter_series in matches.iterrows(): 
-                    dict_index = tuple(whitelist_reporter_series[1])
+                for dict_index in matches:
 
                     # Helper for incrementing either flat or nested dicts
                     def add_count(counterdict, value, spread=False):
@@ -161,7 +167,7 @@ def get_matchset_counterseries(
                         assert isinstance(observed_value_counts, Counter), f"For UMI, expecting observed value is a Counter, but type is {type(observed_value_counts)}"
                         total_reads = sum(observed_value_counts.values())
                         collapsed = len(observed_value_counts.values())
-                        num_matches = float(matches.shape[0])
+                        num_matches = float(num_matches_int)
 
                         add_count(ambiguous_accepted_umi_noncollapsed_counterdict, total_reads)
                         add_count(ambiguous_accepted_umi_collapsed_counterdict, collapsed)
@@ -169,19 +175,19 @@ def get_matchset_counterseries(
                         add_count(ambiguous_spread_umi_collapsed_counterdict, collapsed / num_matches, spread=True)
 
                         # If there is no ambiguous matches, then add to ambiguous_ignored counter
-                        if matches.shape[0] == 1:
+                        if num_matches_int == 1:
                             add_count(ambiguous_ignored_umi_noncollapsed_counterdict, total_reads)
                             add_count(ambiguous_ignored_umi_collapsed_counterdict, collapsed)
 
                     # STANDARD NON-UMI BASED COUNTING
                     else:
                         assert isinstance(observed_value_counts, int), f"For non UMI, expecting observed value is an int, but type is {type(observed_value_counts)}"
-                        num_matches = float(matches.shape[0])
+                        num_matches = float(num_matches_int)
                         add_count(ambiguous_accepted_counterdict, observed_value_counts)
                         add_count(ambiguous_spread_counterdict, observed_value_counts / num_matches, spread=True)
-                        
+
                         # If there is no ambiguous matches, then add to ambiguous_ignored counter
-                        if matches.shape[0] == 1:
+                        if num_matches_int == 1:
                             add_count(ambiguous_ignored_counterdict, observed_value_counts)
 
     # Process all samples
@@ -205,9 +211,21 @@ def get_matchset_counterseries(
             df = pd.DataFrame.from_records(records, columns=columns)
             return df.set_index(["CellBarcode"] + list(whitelist_guide_reporter_df.columns))["value"]
         else:
-            counterseries: pd.Series = whitelist_guide_reporter_df.apply(lambda reporter: counterdict[tuple(reporter)], axis=1)
-            counterseries.index = pd.MultiIndex.from_frame(whitelist_guide_reporter_df)
-            return counterseries
+            # PERF: build directly from counterdict.items() instead of iterating
+            # every whitelist row via .apply(axis=1) (O(N_guides) per series ×
+            # 9 series per tier was dominating the run, especially since
+            # defaultdict access on a miss inserts a zero entry). Only non-zero
+            # keys end up in the Series; mapping_models.__setattr__ already
+            # coerces all-zero Series to None, so downstream is unaffected.
+            cols = list(whitelist_guide_reporter_df.columns)
+            if not counterdict:
+                return pd.Series(
+                    dtype=float,
+                    index=pd.MultiIndex.from_frame(whitelist_guide_reporter_df.iloc[0:0]),
+                )
+            records = [(*key, value) for key, value in counterdict.items()]
+            df = pd.DataFrame.from_records(records, columns=cols + ["value"])
+            return df.set_index(cols)["value"]
 
 
     #
@@ -324,9 +342,10 @@ def get_mismatchset_counterseries(observed_guide_reporter_umi_counts_inferred: U
                 assert not protospacer_matches.empty, "Developer error: to be called a mismatch, there must be both separate protospacer and surrogate. No surrogate match (possible no protospacer match)"
                 assert protospacer_surrogate_matches.empty, "Developer error: to be called a mismatch, matches dataframe must be empty."
 
-                for protospacer_matched_whitelist_reporter_series in protospacer_matches.iterrows():
-                    for surrogate_matched_whitelist_reporter_series in surrogate_matches.iterrows():
-                        dict_index = (tuple(protospacer_matched_whitelist_reporter_series[1]), tuple(surrogate_matched_whitelist_reporter_series[1]))
+                # PERF: itertuples is 5-10x faster than iterrows
+                for proto_row in protospacer_matches.itertuples(index=False, name=None):
+                    for surr_row in surrogate_matches.itertuples(index=False, name=None):
+                        dict_index = (proto_row, surr_row)
                         
                         if contains_guide_umi:
                             assert isinstance(observed_value_counts, Counter), f"For UMI, expecting observed value is a Counter, but type is {type(observed_value_counts)}"
@@ -356,8 +375,8 @@ def get_mismatchset_counterseries(observed_guide_reporter_umi_counts_inferred: U
                 assert not protospacer_surrogate_matches.empty, f"mismatched==false, but the match dataframe is empty, unexpected paradox. Developer error"
                 
                 matches = protospacer_surrogate_matches
-                for whitelist_reporter_series in matches.iterrows():
-                    dict_index = tuple(whitelist_reporter_series[1])
+                # PERF: itertuples is 5-10x faster than iterrows
+                for dict_index in matches.itertuples(index=False, name=None):
                     if contains_guide_umi:
                         assert isinstance(observed_value_counts, Counter), f"For UMI, expecting observed value is a Counter, but type is {type(observed_value_counts)}"
                         total_reads = sum(observed_value_counts.values())
@@ -401,33 +420,49 @@ def get_mismatchset_counterseries(observed_guide_reporter_umi_counts_inferred: U
             df = pd.DataFrame.from_records(records, columns=columns)
             return df.set_index(["CellBarcode"] + list(whitelist_guide_reporter_df.columns))["value"]
         else:
-            counterseries: pd.Series = whitelist_guide_reporter_df.apply(lambda reporter: counterdict[tuple(reporter)], axis=1)
-            counterseries.index = pd.MultiIndex.from_frame(whitelist_guide_reporter_df)
-            return counterseries
+            # PERF: same fix as create_counterseries above (avoid .apply over whitelist).
+            cols = list(whitelist_guide_reporter_df.columns)
+            if not counterdict:
+                return pd.Series(
+                    dtype=float,
+                    index=pd.MultiIndex.from_frame(whitelist_guide_reporter_df.iloc[0:0]),
+                )
+            records = [(*key, value) for key, value in counterdict.items()]
+            df = pd.DataFrame.from_records(records, columns=cols + ["value"])
+            return df.set_index(cols)["value"]
 
     def create_mismatch_counterseries(counterdict):
         protospacer_match_suffix = "_ProtospacerMatch"
         surrogate_match_suffix = "_SurrogateMatch"
-        whitelist_guide_reporter_df_product = whitelist_guide_reporter_df.merge(whitelist_guide_reporter_df, how='cross', suffixes=(protospacer_match_suffix, surrogate_match_suffix))
+        proto_cols = [c + protospacer_match_suffix for c in whitelist_guide_reporter_df.columns]
+        surr_cols  = [c + surrogate_match_suffix  for c in whitelist_guide_reporter_df.columns]
 
         if contains_sample_barcode:
             records = []
             for cell_barcode, inner in counterdict.items():
                 for (protospacer_key, surrogate_key), value in inner.items():
                     records.append((cell_barcode, *protospacer_key, *surrogate_key, value))
-            columns = ["CellBarcode"] + [c + protospacer_match_suffix for c in whitelist_guide_reporter_df.columns] + [c + surrogate_match_suffix for c in whitelist_guide_reporter_df.columns] + ["value"]
+            columns = ["CellBarcode"] + proto_cols + surr_cols + ["value"]
             df = pd.DataFrame.from_records(records, columns=columns)
-            return df.set_index(["CellBarcode"] + [c + protospacer_match_suffix for c in whitelist_guide_reporter_df.columns] + [c + surrogate_match_suffix for c in whitelist_guide_reporter_df.columns])["value"]
+            return df.set_index(["CellBarcode"] + proto_cols + surr_cols)["value"]
         else:
-            counterseries: pd.Series = whitelist_guide_reporter_df_product.apply(
-                lambda pairwise_reporter: counterdict[
-                    tuple(pairwise_reporter[[index for index in pairwise_reporter.index if index.endswith(protospacer_match_suffix)]]),
-                    tuple(pairwise_reporter[[index for index in pairwise_reporter.index if index.endswith(surrogate_match_suffix)]])
-                ],
-                axis=1
-            )
-            counterseries.index = pd.MultiIndex.from_frame(whitelist_guide_reporter_df_product)
-            return counterseries
+            # PERF: previously this built a cross-product of the whitelist
+            # (N_guides^2 rows — 1.4M for a 1186-guide library) and then
+            # .apply(axis=1) looked up every (proto, surr) pair in counterdict.
+            # Because defaultdict access inserts a zero entry on miss, the dict
+            # also grew O(N^2). Build directly from counterdict.items() instead;
+            # rows for unseen pairs simply don't appear (they would have been
+            # zero anyway, and mapping_models.__setattr__ strips all-zero Series).
+            if not counterdict:
+                empty_df = pd.DataFrame(columns=proto_cols + surr_cols)
+                return pd.Series(
+                    dtype=float,
+                    index=pd.MultiIndex.from_frame(empty_df),
+                )
+            records = [(*proto_key, *surr_key, value)
+                       for (proto_key, surr_key), value in counterdict.items()]
+            df = pd.DataFrame.from_records(records, columns=proto_cols + surr_cols + ["value"])
+            return df.set_index(proto_cols + surr_cols)["value"]
 
 
     surrogate_protospacer_mismatch_set_whitelist_reporter_counter_series_results = SurrogateProtospacerMismatchSetWhitelistReporterCounterSeriesResults()

@@ -4,7 +4,10 @@ from .error_models import GuideCountError
 
 @dataclass
 class SingleInferenceQualityControlResult:
-    non_error_dict: Optional[DefaultDict] = None
+    # NOTE: the previous `non_error_dict` field was removed — it duplicated a
+    # tier-filtered copy of the entire inference dict inside every QC object
+    # (~78 % of the result pickle), even though nothing downstream read it.
+    # Summary counts below are the only QC surface consumers rely on.
     num_non_error_umi_noncollapsed_counts: Optional[int] = None
     num_non_error_umi_collapsed_counts: Optional[int] = None
     num_non_error_counts: Optional[int] = None

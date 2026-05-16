@@ -1,0 +1,40 @@
+name: CI
+
+on:
+  push:
+    branches: [master, multi-sample-support, "perf/**"]
+  pull_request:
+    branches: [master, multi-sample-support]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.11"]
+    defaults:
+      run:
+        working-directory: crispr-ambiguous-mapping
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: "pip"
+
+      - name: Install package + test deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .
+          pip install pytest
+
+      - name: Run smoke + CI-fast simulation regression (push)
+        if: github.event_name == 'push'
+        run: pytest tests/ -v -m "not slow"
+
+      - name: Run smoke + full 135-mode simulation regression (PR)
+        if: github.event_name == 'pull_request'
+        run: pytest tests/ -v

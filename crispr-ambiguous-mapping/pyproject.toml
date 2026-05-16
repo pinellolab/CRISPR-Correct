@@ -1,10 +1,17 @@
 [tool.poetry]
 name = "crispr-ambiguous-mapping"
-version = "0.0.236"
-description = ""
+version = "0.1.0"
+description = "Hamming-distance-based CRISPR guide RNA mapping with IUPAC-ambiguous base-editor support."
 authors = ["Basheer Becerra <bbecerr@outlook.com>"]
 readme = "README.md"
-packages = [{include = "crispr_ambiguous_mapping"}]
+# §4.11: ship the historical `crispr_ambiguous_mapping` module plus the new
+# `crispr_correct` alias that re-exports the public API (map_fastq, count,
+# alleles, ParsingConfig, MatchTier). New code should use `crispr_correct`;
+# the legacy import remains through 0.1.x.
+packages = [
+    {include = "crispr_ambiguous_mapping"},
+    {include = "crispr_correct"},
+]
 
 [tool.poetry.dependencies]
 python = ">=3.8,<3.12"
@@ -18,6 +25,18 @@ pandas = "^1.5.3"
 seaborn = "^0.13.2"
 anndata = "^0.11.1"
 pysam = "^0.22.1"
+click = "^8.1"
+pyarrow = ">=11,<22"
+
+[tool.poetry.scripts]
+# §4.5: flat-arg CLI. Install via `pip install -e .` to get the
+# `crispr-correct` console script on PATH.
+crispr-correct = "crispr_ambiguous_mapping.cli:main"
+
+[tool.pytest.ini_options]
+markers = [
+    "slow: heavy simulation modes (full triplet + UMI); skipped in CI-fast via -m 'not slow'.",
+]
 
 [build-system]
 requires = ["poetry-core"]

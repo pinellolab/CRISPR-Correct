@@ -23,10 +23,22 @@ from concurrent.futures import ProcessPoolExecutor
 
 from . import crispr_sequence_encoding
 from . import crispr_guide_inference
+
+
+# PERF §2.9: a module-level factory avoids `defaultdict(lambda: defaultdict(dict))`
+# — the outer lambda closes over the inner lambda, so each missing key call
+# constructs a fresh lambda stack. A named factory is equivalent but also
+# pickleable (the previous lambda broke pickling if the outer dict was ever
+# persisted directly).
+def _inference_dict_factory():
+    return defaultdict(dict)
 from .crispr_count_processing import get_counterseries_all_results
 from ..quality_control.crispr_mapping_quality_control import perform_counts_quality_control
 from ..models.mapping_models import GeneralGuideCountType, GeneralMappingInferenceDict
 from ..models.mapping_models import AllMatchSetWhitelistReporterCounterSeriesResults, WhitelistReporterCountsResult, InferenceResult, CountInput, QualityControlResult
+import logging
+_log = logging.getLogger(__name__)
+
 
 
 # TODO: There will probably be some type errors with the DefaultDict when testing on non UMI (since it requires CounterType), so make sure to test with different variations of inputs
@@ -38,11 +50,41 @@ def get_whitelist_reporter_counts_with_umi(observed_guide_reporter_umi_counts: G
                                            contains_guide_umi:bool = False, 
                                            contains_sample_barcode:bool = False, 
                                            protospacer_hamming_threshold_strict: Optional[int] = 7, 
-                                           surrogate_hamming_threshold_strict: Optional[int] = 2, 
+                                           surrogate_hamming_threshold_strict: Optional[int] = 10,
                                            guide_barcode_hamming_threshold_strict: Optional[int] = 2, 
-                                           store_intermediates: bool = False,
+                                           retain_inference_results: bool = False,
                                            cores: int=1) -> WhitelistReporterCountsResult:
     
+    # §4.3 (K.2): accept the consistent `guide_`-prefixed column names
+    # (`guide_surrogate`, `guide_barcode`) as aliases for the legacy
+    # `surrogate`/`barcode`. Normalize to the legacy names internally so the
+    # ~40 downstream references don't need to churn; full rename deferred.
+    if whitelist_guide_reporter_df is not None:
+        _alias_renames = {}
+        if "guide_surrogate" in whitelist_guide_reporter_df.columns and "surrogate" not in whitelist_guide_reporter_df.columns:
+            _alias_renames["guide_surrogate"] = "surrogate"
+        if "guide_barcode" in whitelist_guide_reporter_df.columns and "barcode" not in whitelist_guide_reporter_df.columns:
+            _alias_renames["guide_barcode"] = "barcode"
+        if _alias_renames:
+            whitelist_guide_reporter_df = whitelist_guide_reporter_df.rename(columns=_alias_renames)
+            _log.info(f"Accepted guide_-prefixed whitelist columns {list(_alias_renames)}; normalized to legacy names for internal use.")
+
+    # §4.4: validate whitelist DF columns up front so misnamed columns fail
+    # with a clear message instead of deep inside the encoding loop.
+    if whitelist_guide_reporter_df is not None:
+        _required_cols = {"protospacer"}
+        if contains_guide_surrogate:
+            _required_cols.add("surrogate")
+        if contains_guide_barcode:
+            _required_cols.add("barcode")
+        _missing = _required_cols - set(whitelist_guide_reporter_df.columns)
+        if _missing:
+            raise ValueError(
+                f"whitelist_guide_reporter_df is missing required columns: {sorted(_missing)}. "
+                f"Expected {sorted(_required_cols)} given contains_guide_surrogate={contains_guide_surrogate}, "
+                f"contains_guide_barcode={contains_guide_barcode}. Found columns: {list(whitelist_guide_reporter_df.columns)}."
+            )
+
     # Generate whitelist dataframe based on all observed sequences if none provided
     if whitelist_guide_reporter_df is None:
         whitelist_dataframe_input = {}
@@ -82,9 +124,12 @@ def get_whitelist_reporter_counts_with_umi(observed_guide_reporter_umi_counts: G
     if contains_guide_barcode:
         encoded_whitelist_barcode_sequences_series = crispr_sequence_encoding.encode_guide_series_whitelist(padded_whitelist_guide_reporter_df["barcode"])
 
-    
+    # §2.7: padded copy is only needed for encoding above; release it before
+    # the inference loop so peak RSS doesn't carry a duplicate of the
+    # whitelist through the multiprocessing pool. The unpadded
+    # whitelist_guide_reporter_df is still in scope for downstream slicing.
+    del padded_whitelist_guide_reporter_df
 
-    
     #
     #    SET THE PROTOSPACER HAMMING THRESHOLD
     #
@@ -96,7 +141,7 @@ def get_whitelist_reporter_counts_with_umi(observed_guide_reporter_umi_counts: G
         # TODO: Pass in arguments to set this hamming threshold. 
         protospacer_hamming_threshold: int = crispr_guide_inference.determine_hamming_threshold(whitelist_guide_reporter_df["protospacer"], encoded_whitelist_protospacer_sequences_series, sample_count = 100, quantile = 0.05)
         
-    print("Protospacer hamming threshold is " + str(protospacer_hamming_threshold))
+    _log.info("Protospacer hamming threshold is " + str(protospacer_hamming_threshold))
 
     #
     #   SET THE SURROGATE HAMMING THRESHOLD
@@ -108,7 +153,7 @@ def get_whitelist_reporter_counts_with_umi(observed_guide_reporter_umi_counts: G
             surrogate_hamming_threshold_dynamic = True
             # TODO: Pass in arguments to set this hamming threshold. 
             surrogate_hamming_threshold: int = crispr_guide_inference.determine_hamming_threshold(whitelist_guide_reporter_df["surrogate"], encoded_whitelist_surrogate_sequences_series, sample_count = 100, quantile = 0.05)
-        print("Surrogate hamming threshold is " + str(surrogate_hamming_threshold))
+        _log.info("Surrogate hamming threshold is " + str(surrogate_hamming_threshold))
 
     #
     #   SET THE BARCODE HAMMING THRESHOLD
@@ -119,14 +164,21 @@ def get_whitelist_reporter_counts_with_umi(observed_guide_reporter_umi_counts: G
         if guide_barcode_hamming_threshold_strict is  None:
             guide_barcode_hamming_threshold_dynamic = True
             guide_barcode_hamming_threshold: int = crispr_guide_inference.determine_hamming_threshold(whitelist_guide_reporter_df["barcode"], encoded_whitelist_barcode_sequences_series, sample_count = 100, quantile = 0.05)
-        print("Barcode hamming threshold is " + str(guide_barcode_hamming_threshold))
+        _log.info("Barcode hamming threshold is " + str(guide_barcode_hamming_threshold))
 
 
 
     #
     #   FROM THE OBSERVED SEQUENCES, INFER THE WHITELIST SEQUENCE
     #
-    print("Inferring the true guides from observed guides")
+    _log.info("Inferring the true guides from observed guides")
+
+    # PERF §3.6: precompute the whitelist per-column min lengths once so
+    # infer_whitelist_sequence doesn't recompute via
+    # `whitelist_df[col].apply(len).min()` on every observed sequence.
+    protospacer_min_len = int(whitelist_guide_reporter_df["protospacer"].apply(len).min())
+    surrogate_min_len = int(whitelist_guide_reporter_df["surrogate"].apply(len).min()) if contains_guide_surrogate else None
+    barcode_min_len = int(whitelist_guide_reporter_df["barcode"].apply(len).min()) if contains_guide_barcode else None
 
     infer_whitelist_sequence_p = partial(crispr_guide_inference.infer_whitelist_sequence,
             whitelist_guide_reporter_df=whitelist_guide_reporter_df,
@@ -136,58 +188,77 @@ def get_whitelist_reporter_counts_with_umi(observed_guide_reporter_umi_counts: G
             encoded_whitelist_protospacer_sequences_series=encoded_whitelist_protospacer_sequences_series,
             encoded_whitelist_surrogate_sequences_series=encoded_whitelist_surrogate_sequences_series,
             encoded_whitelist_barcode_sequences_series=encoded_whitelist_barcode_sequences_series,
-            protospacer_hamming_threshold=protospacer_hamming_threshold, 
-            surrogate_hamming_threshold=surrogate_hamming_threshold, 
+            protospacer_hamming_threshold=protospacer_hamming_threshold,
+            surrogate_hamming_threshold=surrogate_hamming_threshold,
             barcode_hamming_threshold=guide_barcode_hamming_threshold,
-            store_intermediates=store_intermediates)
+            protospacer_min_len=protospacer_min_len,
+            surrogate_min_len=surrogate_min_len,
+            barcode_min_len=barcode_min_len)
 
     # Perform inference: frpom the observed sequences (previously parsed), infer the true sequence from the whitelist DF.
     observed_guide_reporter_list = observed_guide_reporter_umi_counts.keys()
     inferred_true_reporter_sequences = None
     before_inference_time = datetime.now()
     if cores > 1:
-        print(f"Running inference parallelized on {len(observed_guide_reporter_list)} observed seqeunces with cores {cores}")
+        _log.info(f"Running inference parallelized on {len(observed_guide_reporter_list)} observed seqeunces with cores {cores}")
+        # PERF §3.2: pool.map's default chunksize=1 means one IPC round-trip
+        # per observed sequence, which dominates wall time for small
+        # per-call work. Amortize by chunking; aim for ~4 chunks per core so
+        # the pool stays busy while keeping per-chunk overhead low.
+        chunksize = max(1, len(observed_guide_reporter_list) // (cores * 4))
         with Pool(cores) as pool:
-            inferred_true_reporter_sequences = pool.map(
-            infer_whitelist_sequence_p,
-            observed_guide_reporter_list
-           )
+            _imap = pool.imap(infer_whitelist_sequence_p, observed_guide_reporter_list, chunksize=chunksize)
+            # §4.8: optional tqdm progress bar. tqdm is a soft dep; fall back
+            # to the plain iterable when it's not installed.
+            try:
+                from tqdm.auto import tqdm as _tqdm
+                _imap = _tqdm(_imap, total=len(observed_guide_reporter_list), desc="inference", disable=None)
+            except ImportError:
+                pass
+            inferred_true_reporter_sequences = list(_imap)
     else:
-        print(f"Running inference on {len(observed_guide_reporter_list)} observed seqeunces non-parallelized")
+        _log.info(f"Running inference on {len(observed_guide_reporter_list)} observed seqeunces non-parallelized")
         inferred_true_reporter_sequences = [infer_whitelist_sequence_p(observed_guide_reporter) for observed_guide_reporter in observed_guide_reporter_list]
     
     after_inference_time = datetime.now()
-    print(f"{(after_inference_time-before_inference_time).seconds} seconds for inference")
+    _log.info(f"{(after_inference_time-before_inference_time).seconds} seconds for inference")
 
 
-    print(f"Mapping inference results of length {len(inferred_true_reporter_sequences)} to the result object")
+    _log.info(f"Mapping inference results of length {len(inferred_true_reporter_sequences)} to the result object")
     # Some organization: Map the inferred result of each observed sequence to a dict with the inferred result and correspoding count
     
 
 
-    # NOTE 20251031: This may be able to be removed
     if contains_sample_barcode:
-        observed_guide_reporter_umi_counts_inferred_all_samples: DefaultDict[str, GeneralMappingInferenceDict] = defaultdict(lambda: defaultdict(dict))
-        
-        # Add all cell_barcodes
-        for observed_guide_reporter_key_index, observed_guide_reporter_key in enumerate(observed_guide_reporter_list): # Iterate through each observed guide key
+        observed_guide_reporter_umi_counts_inferred_all_samples: DefaultDict[str, GeneralMappingInferenceDict] = defaultdict(_inference_dict_factory)
+
+        # MEM §2.6: every (cell_barcode, observed_guide) pair gets its own
+        # InferenceResult wrapper, but the `inferred_value` (the expensive
+        # CompleteInferenceMatchResult) is shared by reference across all
+        # cells with the same observed guide — we just reuse the entry from
+        # `inferred_true_reporter_sequences` rather than re-running inference
+        # per cell. For 1.8 M cells × 100 observed guides this collapses
+        # ~180 M inference results into ~100 actual objects held by
+        # reference, at the cost of the (small) InferenceResult wrapper per
+        # (cell, observed) pair.
+        for observed_guide_reporter_key_index, observed_guide_reporter_key in enumerate(observed_guide_reporter_list):
             observed_guide_reporter_cell_counts = observed_guide_reporter_umi_counts[observed_guide_reporter_key]
-            observed_cell_barcodes = observed_guide_reporter_cell_counts.keys()
-            for cell_barcode in observed_cell_barcodes:
+            inferred_value_shared = inferred_true_reporter_sequences[observed_guide_reporter_key_index]
+            for cell_barcode in observed_guide_reporter_cell_counts.keys():
                 observed_guide_reporter_umi_counts_inferred_all_samples[cell_barcode][observed_guide_reporter_key] = InferenceResult(
-                    observed_value=observed_guide_reporter_cell_counts[cell_barcode], # Add the count to the cell_barcode for the particular guide
-                    inferred_value=inferred_true_reporter_sequences[observed_guide_reporter_key_index]
+                    observed_value=observed_guide_reporter_cell_counts[cell_barcode],
+                    inferred_value=inferred_value_shared,
                 )
 
         observed_guide_reporter_umi_counts_inferred_per_sample: GeneralMappingInferenceDict = defaultdict(dict)
     
         after_inference_processing_time = datetime.now()
-        print(f"{(after_inference_processing_time-after_inference_time).seconds} seconds for inference processing")
-        print("Completed inference")
+        _log.info(f"{(after_inference_processing_time-after_inference_time).seconds} seconds for inference processing")
+        _log.info("Completed inference")
 
 
         # GET THE MAPPED COUNT SERIES BASED ON THE INFERENCE RESULTS
-        print("Prepare the processed count series ")
+        _log.info("Prepare the processed count series ")
         all_cell_barcodes: List[str] = list(observed_guide_reporter_umi_counts_inferred_all_samples.keys())
         
         all_match_set_whitelist_reporter_counter_series_results: AllMatchSetWhitelistReporterCounterSeriesResults
@@ -197,7 +268,7 @@ def get_whitelist_reporter_counts_with_umi(observed_guide_reporter_umi_counts: G
         quality_control_result: QualityControlResult = perform_counts_quality_control(observed_guide_reporter_umi_counts_inferred_all_samples, contains_guide_umi, contains_guide_surrogate, contains_guide_barcode, contains_sample_barcode)
 
         count_input= CountInput(whitelist_guide_reporter_df=whitelist_guide_reporter_df,
-            contains_surrogate=contains_guide_surrogate,
+            contains_guide_surrogate=contains_guide_surrogate,
             contains_guide_barcode=contains_guide_barcode,
             contains_guide_umi=contains_guide_umi,
             contains_sample_barcode=contains_sample_barcode,
@@ -205,10 +276,17 @@ def get_whitelist_reporter_counts_with_umi(observed_guide_reporter_umi_counts: G
             surrogate_hamming_threshold_strict=surrogate_hamming_threshold,
             guide_barcode_hamming_threshold_strict=guide_barcode_hamming_threshold)
         
-        return WhitelistReporterCountsResult(all_match_set_whitelist_reporter_counter_series_results=all_match_set_whitelist_reporter_counter_series_results, 
-                                             observed_guide_reporter_umi_counts_inferred=observed_guide_reporter_umi_counts_inferred_all_samples, 
-                                             quality_control_result=quality_control_result, 
-                                             count_input=count_input)
+        # MEM: by default drop the heavyweight per-observation inference dict —
+        # it is only needed by allele/mutation post-processing, which users
+        # opt into by passing retain_inference_results=True.
+        return WhitelistReporterCountsResult(
+            all_match_set_whitelist_reporter_counter_series_results=all_match_set_whitelist_reporter_counter_series_results,
+            observed_guide_reporter_umi_counts_inferred=(
+                observed_guide_reporter_umi_counts_inferred_all_samples if retain_inference_results else None
+            ),
+            quality_control_result=quality_control_result,
+            count_input=count_input,
+        )
     else:    
         
         observed_guide_reporter_umi_counts_inferred: GeneralMappingInferenceDict = defaultdict(dict)
@@ -219,26 +297,26 @@ def get_whitelist_reporter_counts_with_umi(observed_guide_reporter_umi_counts: G
             )
     
         after_inference_processing_time = datetime.now()
-        print(f"{(after_inference_processing_time-after_inference_time).seconds} seconds for inference processing")
-        print("Completed inference")
+        _log.info(f"{(after_inference_processing_time-after_inference_time).seconds} seconds for inference processing")
+        _log.info("Completed inference")
 
 
         # GET THE MAPPED COUNT SERIES BASED ON THE INFERENCE RESULTS
-        print("Prepare the processed count series ")
+        _log.info("Prepare the processed count series ")
         # Count
         all_match_set_whitelist_reporter_counter_series_results = get_counterseries_all_results(observed_guide_reporter_umi_counts_inferred, whitelist_guide_reporter_df, contains_guide_barcode, contains_guide_surrogate, contains_guide_umi, contains_sample_barcode)
 
         after_counterseries_time = datetime.now()
-        print(f"{(after_counterseries_time-after_inference_processing_time).seconds} seconds for counter series generation")
+        _log.info(f"{(after_counterseries_time-after_inference_processing_time).seconds} seconds for counter series generation")
 
-        print("Preparing quality control")
+        _log.info("Preparing quality control")
         quality_control_result: QualityControlResult = perform_counts_quality_control(observed_guide_reporter_umi_counts_inferred, contains_guide_umi, contains_guide_surrogate, contains_guide_barcode, contains_sample_barcode)
         
         after_qualitycontrol_time = datetime.now()
-        print(f"{(after_qualitycontrol_time-after_counterseries_time).seconds} seconds for quality control")
+        _log.info(f"{(after_qualitycontrol_time-after_counterseries_time).seconds} seconds for quality control")
 
         count_input = CountInput(whitelist_guide_reporter_df=whitelist_guide_reporter_df,
-                contains_surrogate=contains_guide_surrogate,
+                contains_guide_surrogate=contains_guide_surrogate,
                 contains_guide_barcode=contains_guide_barcode,
                 contains_guide_umi=contains_guide_umi,
                 contains_sample_barcode=contains_sample_barcode,
@@ -246,4 +324,12 @@ def get_whitelist_reporter_counts_with_umi(observed_guide_reporter_umi_counts: G
                 surrogate_hamming_threshold_strict=surrogate_hamming_threshold,
                 guide_barcode_hamming_threshold_strict=guide_barcode_hamming_threshold)
         
-        return WhitelistReporterCountsResult(all_match_set_whitelist_reporter_counter_series_results=all_match_set_whitelist_reporter_counter_series_results, observed_guide_reporter_umi_counts_inferred=observed_guide_reporter_umi_counts_inferred, quality_control_result=quality_control_result, count_input=count_input)
+        # MEM: drop the inference dict by default — see note above.
+        return WhitelistReporterCountsResult(
+            all_match_set_whitelist_reporter_counter_series_results=all_match_set_whitelist_reporter_counter_series_results,
+            observed_guide_reporter_umi_counts_inferred=(
+                observed_guide_reporter_umi_counts_inferred if retain_inference_results else None
+            ),
+            quality_control_result=quality_control_result,
+            count_input=count_input,
+        )
