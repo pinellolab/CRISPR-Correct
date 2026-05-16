@@ -2,7 +2,7 @@
 
 Entries here are not yet assigned a version — the user reviews accumulated changes and picks the next release number.
 
-## [Unreleased]
+## [0.2.0] - 2026-05-16
 
 ### Added — public API
 
