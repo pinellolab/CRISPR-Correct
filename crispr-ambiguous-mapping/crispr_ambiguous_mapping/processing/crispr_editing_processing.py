@@ -295,7 +295,108 @@ def determine_mutations_in_sequence(true_sequence, observed_sequence):
     return observed_sequence_mutation_df
 
 
-def get_mutation_profile(match_set_whitelist_reporter_observed_sequence_counter_series_results: MatchSetWhitelistReporterObservedSequenceCounterSeriesResults, whitelist_reporter_df: pd.DataFrame, contains_guide_surrogate: bool, contains_guide_barcode: bool) -> MatchSetWhitelistReporterObservedSequenceMutationProfiles:
+from multiprocessing import Pool as _Pool
+
+# ---------------------------------------------------------------------------
+# PERF: parallelisation helpers for get_mutation_profile's per-guide loop.
+# The per-guide work is embarrassingly parallel across whitelist reporters. The (large)
+# alleleseries dict + the two component flags are shared with worker processes via fork
+# copy-on-write through these module globals (set by _gmp_set_context just before the Pool is
+# created), so only the small per-guide iterrows() row is pickled to each worker. The caller
+# accumulates results in input order, so the output is identical to the original serial loop.
+# ---------------------------------------------------------------------------
+_GMP_ALLELESERIES = None
+_GMP_CONTAINS_SURROGATE = False
+_GMP_CONTAINS_BARCODE = False
+
+
+def _gmp_set_context(alleleseries, contains_guide_surrogate, contains_guide_barcode):
+    global _GMP_ALLELESERIES, _GMP_CONTAINS_SURROGATE, _GMP_CONTAINS_BARCODE
+    _GMP_ALLELESERIES = alleleseries
+    _GMP_CONTAINS_SURROGATE = contains_guide_surrogate
+    _GMP_CONTAINS_BARCODE = contains_guide_barcode
+
+
+def _gmp_process_guide(whitelist_reporter_sequence):
+    """Process ONE whitelist reporter row (an iterrows() (index, Series) tuple), returning
+    (whitelist_reporter_tuple, linked_mutations_df, protospacer_unlinked_list,
+     surrogate_unlinked_list, barcode_unlinked_list) or None if the guide has no observed
+    sequences. Verbatim extraction of the original per-guide loop body; reads the shared
+    alleleseries + flags from module globals so it is picklable for multiprocessing.Pool."""
+    alleleseries = _GMP_ALLELESERIES
+    contains_guide_surrogate = _GMP_CONTAINS_SURROGATE
+    contains_guide_barcode = _GMP_CONTAINS_BARCODE
+
+    protospacer_unlinked_list = []
+    surrogate_unlinked_list = []
+    barcode_unlinked_list = []
+
+    whitelist_sequence_pretuple_list = []
+    whitelist_protospacer_sequence = whitelist_reporter_sequence[1]["protospacer"][:]
+    whitelist_sequence_pretuple_list.append(whitelist_protospacer_sequence)
+    if contains_guide_surrogate:
+        whitelist_surrogate_sequence = whitelist_reporter_sequence[1]["surrogate"][:]
+        whitelist_sequence_pretuple_list.append(whitelist_surrogate_sequence)
+    if contains_guide_barcode:
+        whitelist_barcode_sequence = whitelist_reporter_sequence[1]["barcode"][:]
+        whitelist_sequence_pretuple_list.append(whitelist_barcode_sequence)
+    whitelist_reporter_tuple = tuple(whitelist_sequence_pretuple_list)
+
+    linked_mutations_series_list = []
+    try:
+        observed_sequences_df = alleleseries[whitelist_reporter_tuple]
+        observed_sequences_df = observed_sequences_df.copy()  # avoid mutating the shared alleleseries' index
+        whitelist_reporter_sequence_copy = deepcopy(whitelist_reporter_sequence)
+        padded_observed_sequences_results = []
+        for level in range(observed_sequences_df.index.nlevels):
+            series_padding_results = pad_series(observed_sequences_df.index.get_level_values(level).to_series(), possible_max=len(whitelist_reporter_sequence_copy[1].iloc[level]))
+            padded_observed_sequences_results.append(series_padding_results[0].to_list())
+            whitelist_reporter_sequence_copy[1].iloc[level] = pad_sequence(whitelist_reporter_sequence_copy[1].iloc[level], sequence_max=series_padding_results[1])
+        padded_observed_sequence_results_tuples = [tuple(padded_observed_sequence_list) for padded_observed_sequence_list in zip(*padded_observed_sequences_results)]
+        observed_sequences_df.index = pd.MultiIndex.from_tuples(padded_observed_sequence_results_tuples)
+
+        for observed_sequences, count in observed_sequences_df.items():
+            observed_protospacer_sequence = observed_sequences[0]
+            observed_protospacer_unlinked_mutations_df = determine_mutations_in_sequence(true_sequence=whitelist_reporter_sequence_copy[1]["protospacer"], observed_sequence=observed_protospacer_sequence)
+            observed_protospacer_unlinked_mutations_df["count"] = count
+            observed_protospacer_unlinked_mutations_df.loc[:, whitelist_reporter_sequence_copy[1].index.values] = whitelist_reporter_sequence_copy[1].values
+            protospacer_unlinked_list.append(observed_protospacer_unlinked_mutations_df)
+
+            observed_linked_mutations_series = get_substitution_encoding(true_sequence=whitelist_reporter_sequence_copy[1]["protospacer"], observed_sequence=observed_protospacer_sequence)
+            observed_linked_mutations_series = pd.concat({'protospacer': observed_linked_mutations_series}, names=['SequenceType'])
+
+            if contains_guide_surrogate:
+                observed_surrogate_sequence = observed_sequences[1]
+                observed_surrogate_unlinked_mutations_df = determine_mutations_in_sequence(true_sequence=whitelist_reporter_sequence_copy[1]["surrogate"], observed_sequence=observed_surrogate_sequence)
+                observed_surrogate_unlinked_mutations_df["count"] = count
+                observed_surrogate_unlinked_mutations_df.loc[:, whitelist_reporter_sequence_copy[1].index.values] = whitelist_reporter_sequence_copy[1].values
+                surrogate_unlinked_list.append(observed_surrogate_unlinked_mutations_df)
+                observed_surrogate_linked_mutations_series = get_substitution_encoding(true_sequence=whitelist_reporter_sequence_copy[1]["surrogate"], observed_sequence=observed_surrogate_sequence)
+                observed_surrogate_linked_mutations_series = pd.concat({'surrogate': observed_surrogate_linked_mutations_series}, names=['SequenceType'])
+                observed_linked_mutations_series = pd.concat([observed_linked_mutations_series, observed_surrogate_linked_mutations_series])
+
+            if contains_guide_barcode:
+                observed_barcode_sequence = observed_sequences[2]
+                observed_barcode_unlinked_mutations_df = determine_mutations_in_sequence(true_sequence=whitelist_reporter_sequence_copy[1]["barcode"], observed_sequence=observed_barcode_sequence)
+                observed_barcode_unlinked_mutations_df["count"] = count
+                observed_barcode_unlinked_mutations_df.loc[:, whitelist_reporter_sequence_copy[1].index.values] = whitelist_reporter_sequence_copy[1].values
+                barcode_unlinked_list.append(observed_barcode_unlinked_mutations_df)
+                observed_barcode_linked_mutations_series = get_substitution_encoding(true_sequence=whitelist_reporter_sequence_copy[1]["barcode"], observed_sequence=observed_barcode_sequence)
+                observed_barcode_linked_mutations_series = pd.concat({'barcode': observed_barcode_linked_mutations_series}, names=['SequenceType'])
+                observed_linked_mutations_series = pd.concat([observed_linked_mutations_series, observed_barcode_linked_mutations_series])
+
+            observed_linked_mutations_series["count"] = count
+            linked_mutations_series_list.append(observed_linked_mutations_series)
+
+        linked_mutations_df = pd.concat(linked_mutations_series_list, axis=1).transpose()
+        linked_mutations_df.index = observed_sequences_df.index
+        return (whitelist_reporter_tuple, linked_mutations_df, protospacer_unlinked_list, surrogate_unlinked_list, barcode_unlinked_list)
+    except KeyError:
+        print(f"No observed sequences found for: {whitelist_reporter_tuple}")
+        return None
+
+
+def get_mutation_profile(match_set_whitelist_reporter_observed_sequence_counter_series_results: MatchSetWhitelistReporterObservedSequenceCounterSeriesResults, whitelist_reporter_df: pd.DataFrame, contains_guide_surrogate: bool, contains_guide_barcode: bool, strategies: Optional[List[str]] = None, cores: int = 1) -> MatchSetWhitelistReporterObservedSequenceMutationProfiles:
     """Compute per-position mutation profiles from allele count series.
 
     Given the allele Series built by ``get_matchset_alleleseries``, this walks
@@ -312,6 +413,12 @@ def get_mutation_profile(match_set_whitelist_reporter_observed_sequence_counter_
         reference sequence for computing mutations.
     contains_guide_surrogate, contains_guide_barcode
         Must match the mapping configuration.
+    strategies
+        Optional list of strategy base-names (e.g. ``["ambiguous_accepted_umi_noncollapsed"]``)
+        to compute; ``None`` (default) computes all nine, reproducing the original behaviour.
+    cores
+        Number of worker processes for the per-guide loop within each strategy. ``1`` (default)
+        runs serially (identical to the original); ``>1`` parallelises via multiprocessing.
 
     Returns
     -------
@@ -336,85 +443,25 @@ def get_mutation_profile(match_set_whitelist_reporter_observed_sequence_counter_
             if contains_guide_barcode:
                 all_observed_barcode_unlinked_mutations_df_list = []
 
-            for whitelist_reporter_sequence in whitelist_reporter_df.iterrows():
-                #
-                # GET OBSERVED SEQUENCE FRROM WHITELIST TUPLE KEY (the index of whitelist_reporter_df may have the tuple, though it may not be provided. I also want to ensure that the order of protospacer/surrogate/barcode is maintained if columns are swapped)
-                #
-                whitelist_sequence_pretuple_list = [] # For dynamically creating immutable tuple from reporter sequences based on if provided
-                whitelist_protospacer_sequence = whitelist_reporter_sequence[1]["protospacer"][:]
-                whitelist_sequence_pretuple_list.append(whitelist_protospacer_sequence)
-                if contains_guide_surrogate:
-                    whitelist_surrogate_sequence = whitelist_reporter_sequence[1]["surrogate"][:]
-                    whitelist_sequence_pretuple_list.append(whitelist_surrogate_sequence)
-                if contains_guide_barcode:
-                    whitelist_barcode_sequence = whitelist_reporter_sequence[1]["barcode"][:]
-                    whitelist_sequence_pretuple_list.append(whitelist_barcode_sequence)
-                whitelist_reporter_tuple = tuple(whitelist_sequence_pretuple_list)
-                
-                linked_mutations_series_list = []
-                try:
-                    
-                    # CALL THE DICT WITH WHITELIST TUPLE
-                    observed_sequences_df = alleleseries[whitelist_reporter_tuple] # Get the observed sequences (DF) for the specific whitelist sequence
-                    
-                    
-                    # PAD THE WHITELIST AND OBSERVED SEQUENCES TO ALLOW ENCODING OF EQUAL LENGTH SEQUENCES
-                    whitelist_reporter_sequence_copy = deepcopy(whitelist_reporter_sequence) # Copy the sequences since it will be modified by padding
-                    padded_observed_sequences_results: List[List[str], Optional[List[str]], Optional[List[str]]] = []
-                    for level in range(observed_sequences_df.index.nlevels): # Iterate over sequence components (protospacer or surrogate or barcode)
-                        series_padding_results = pad_series(observed_sequences_df.index.get_level_values(level).to_series(), possible_max=len(whitelist_reporter_sequence_copy[1].iloc[level])) # Pad the observed sequence series (protospacer or surrogate or barcode)
-                        padded_observed_sequences_results.append(series_padding_results[0].to_list()) # Append the results to the result list
-                        whitelist_reporter_sequence_copy[1].iloc[level] = pad_sequence(whitelist_reporter_sequence_copy[1].iloc[level], sequence_max=series_padding_results[1]) # Pad the result
-                    padded_observed_sequence_results_tuples = [tuple(padded_observed_sequence_list) for padded_observed_sequence_list in zip(*padded_observed_sequences_results)]
-                    observed_sequences_df.index = pd.MultiIndex.from_tuples(padded_observed_sequence_results_tuples)
-                    
-                    
-                    for observed_sequences, count in observed_sequences_df.items(): # Iterate through each observed sequence to tally mutations
-                        # Get protospacer unlinked mutations
-                        observed_protospacer_sequence = observed_sequences[0]
-                        observed_protospacer_unlinked_mutations_df = determine_mutations_in_sequence(true_sequence=whitelist_reporter_sequence_copy[1]["protospacer"], observed_sequence=observed_protospacer_sequence) # Get DF of mutations in 
-                        observed_protospacer_unlinked_mutations_df["count"] = count # Add count
-                        observed_protospacer_unlinked_mutations_df.loc[:, whitelist_reporter_sequence_copy[1].index.values] = whitelist_reporter_sequence_copy[1].values # Annotate the DF with the whitelist sequences
-                        all_observed_protospacer_unlinked_mutations_df_list.append(observed_protospacer_unlinked_mutations_df) # Add to complete list
-                        
-                        # Get protospacer linked mutations 
-                        observed_linked_mutations_series = get_substitution_encoding(true_sequence=whitelist_reporter_sequence_copy[1]["protospacer"], observed_sequence=observed_protospacer_sequence) # Get DF of mutations in 
-                        observed_linked_mutations_series = pd.concat({'protospacer': observed_linked_mutations_series}, names=['SequenceType'])
+            _gmp_set_context(alleleseries, contains_guide_surrogate, contains_guide_barcode)
+            _rows = list(whitelist_reporter_df.iterrows())
+            if cores and cores > 1 and len(_rows) > 1:                     # PERF: parallel per-guide loop
+                _nproc = min(int(cores), len(_rows))
+                with _Pool(_nproc) as _pool:
+                    _per_guide_results = _pool.map(_gmp_process_guide, _rows, chunksize=max(1, len(_rows) // (_nproc * 4)))
+            else:
+                _per_guide_results = [_gmp_process_guide(_row) for _row in _rows]
 
-                        # Get surrogate mutations (if surrogate provided)
-                        if contains_guide_surrogate:
-                            observed_surrogate_sequence = observed_sequences[1]
-                            observed_surrogate_unlinked_mutations_df = determine_mutations_in_sequence(true_sequence=whitelist_reporter_sequence_copy[1]["surrogate"], observed_sequence=observed_surrogate_sequence) # Get DF of mutations in 
-                            observed_surrogate_unlinked_mutations_df["count"] = count # Add count
-                            observed_surrogate_unlinked_mutations_df.loc[:, whitelist_reporter_sequence_copy[1].index.values] = whitelist_reporter_sequence_copy[1].values# Annotate the DF with the whitelist sequences
-                            all_observed_surrogate_unlinked_mutations_df_list.append(observed_surrogate_unlinked_mutations_df)# Add to complete list
-                            
-                            observed_surrogate_linked_mutations_series = get_substitution_encoding(true_sequence=whitelist_reporter_sequence_copy[1]["surrogate"], observed_sequence=observed_surrogate_sequence) # Get DF of mutations in 
-                            observed_surrogate_linked_mutations_series = pd.concat({'surrogate': observed_surrogate_linked_mutations_series}, names=['SequenceType'])
-                            observed_linked_mutations_series = pd.concat([observed_linked_mutations_series,observed_surrogate_linked_mutations_series])
-                            
-                        
-                        # Get barcode mutations (if barcode provided)
-                        if contains_guide_barcode:
-                            observed_barcode_sequence = observed_sequences[2]
-                            observed_barcode_unlinked_mutations_df = determine_mutations_in_sequence(true_sequence=whitelist_reporter_sequence_copy[1]["barcode"], observed_sequence=observed_barcode_sequence) # Get DF of mutations in 
-                            observed_barcode_unlinked_mutations_df["count"] = count # Add count
-                            observed_barcode_unlinked_mutations_df.loc[:, whitelist_reporter_sequence_copy[1].index.values] = whitelist_reporter_sequence_copy[1].values # Annotate the DF with the whitelist sequences
-                            all_observed_barcode_unlinked_mutations_df_list.append(observed_barcode_unlinked_mutations_df) # Add to complete list
-                            
-                            observed_barcode_linked_mutations_series = get_substitution_encoding(true_sequence=whitelist_reporter_sequence_copy[1]["barcode"], observed_sequence=observed_barcode_sequence) # Get DF of mutations in 
-                            observed_barcode_linked_mutations_series = pd.concat({'barcode': observed_barcode_linked_mutations_series}, names=['SequenceType'])
-                            observed_linked_mutations_series = pd.concat([observed_linked_mutations_series,observed_barcode_linked_mutations_series])
-                        
-                        observed_linked_mutations_series["count"] = count # Add count
-                        linked_mutations_series_list.append(observed_linked_mutations_series)
-                    
-                    # Add linked mutations DF to dict
-                    linked_mutations_df = pd.concat(linked_mutations_series_list, axis=1).transpose()
-                    linked_mutations_df.index = observed_sequences_df.index # Set the index of the encodings to be the observed sequences
-                    linked_mutations_whitelist_reporter_dict.update({whitelist_reporter_tuple:linked_mutations_df})
-                except KeyError as e:
-                    print(f"No observed sequences found for: {whitelist_reporter_tuple}")
+            for _res in _per_guide_results:                                # accumulate in input order -> identical to serial
+                if _res is None:
+                    continue
+                _wl_tuple, _linked_df, _proto_list, _surr_list, _bc_list = _res
+                linked_mutations_whitelist_reporter_dict.update({_wl_tuple: _linked_df})
+                all_observed_protospacer_unlinked_mutations_df_list.extend(_proto_list)
+                if contains_guide_surrogate:
+                    all_observed_surrogate_unlinked_mutations_df_list.extend(_surr_list)
+                if contains_guide_barcode:
+                    all_observed_barcode_unlinked_mutations_df_list.extend(_bc_list)
                 
                 
                 
@@ -437,26 +484,37 @@ def get_mutation_profile(match_set_whitelist_reporter_observed_sequence_counter_
     
     # Generate mutation counts for each count type
     mutations_results = MatchSetWhitelistReporterObservedSequenceMutationProfiles()
-    print("Generating ambiguous_ignored_umi_noncollapsed_mutations")
-    mutations_results.ambiguous_ignored_umi_noncollapsed_mutations = generate_mutations_results(match_set_whitelist_reporter_observed_sequence_counter_series_results.ambiguous_ignored_umi_noncollapsed_alleleseries_dict, whitelist_reporter_df, contains_guide_surrogate, contains_guide_barcode)
-    print("Generating ambiguous_ignored_umi_collapsed_mutations")
-    mutations_results.ambiguous_ignored_umi_collapsed_mutations = generate_mutations_results(match_set_whitelist_reporter_observed_sequence_counter_series_results.ambiguous_ignored_umi_collapsed_alleleseries_dict, whitelist_reporter_df, contains_guide_surrogate, contains_guide_barcode)
-    print("Generating ambiguous_ignored_unlinked_mutations")
-    mutations_results.ambiguous_ignored_mutations = generate_mutations_results(match_set_whitelist_reporter_observed_sequence_counter_series_results.ambiguous_ignored_alleleseries_dict, whitelist_reporter_df, contains_guide_surrogate, contains_guide_barcode)
+    def _want(_name):                                                  # PERF: compute only requested strategies
+        return strategies is None or _name in strategies
+    if _want("ambiguous_ignored_umi_noncollapsed"):
+        print("Generating ambiguous_ignored_umi_noncollapsed_mutations")
+        mutations_results.ambiguous_ignored_umi_noncollapsed_mutations = generate_mutations_results(match_set_whitelist_reporter_observed_sequence_counter_series_results.ambiguous_ignored_umi_noncollapsed_alleleseries_dict, whitelist_reporter_df, contains_guide_surrogate, contains_guide_barcode)
+    if _want("ambiguous_ignored_umi_collapsed"):
+        print("Generating ambiguous_ignored_umi_collapsed_mutations")
+        mutations_results.ambiguous_ignored_umi_collapsed_mutations = generate_mutations_results(match_set_whitelist_reporter_observed_sequence_counter_series_results.ambiguous_ignored_umi_collapsed_alleleseries_dict, whitelist_reporter_df, contains_guide_surrogate, contains_guide_barcode)
+    if _want("ambiguous_ignored"):
+        print("Generating ambiguous_ignored_unlinked_mutations")
+        mutations_results.ambiguous_ignored_mutations = generate_mutations_results(match_set_whitelist_reporter_observed_sequence_counter_series_results.ambiguous_ignored_alleleseries_dict, whitelist_reporter_df, contains_guide_surrogate, contains_guide_barcode)
 
-    print("Generating ambiguous_accepted_umi_noncollapsed_mutations")
-    mutations_results.ambiguous_accepted_umi_noncollapsed_mutations = generate_mutations_results(match_set_whitelist_reporter_observed_sequence_counter_series_results.ambiguous_accepted_umi_noncollapsed_alleleseries_dict, whitelist_reporter_df, contains_guide_surrogate, contains_guide_barcode)
-    print("Generating ambiguous_accepted_umi_collapsed_mutations")
-    mutations_results.ambiguous_accepted_umi_collapsed_mutations = generate_mutations_results(match_set_whitelist_reporter_observed_sequence_counter_series_results.ambiguous_accepted_umi_collapsed_alleleseries_dict, whitelist_reporter_df, contains_guide_surrogate, contains_guide_barcode)
-    print("Generating ambiguous_accepted_mutations")
-    mutations_results.ambiguous_accepted_mutations = generate_mutations_results(match_set_whitelist_reporter_observed_sequence_counter_series_results.ambiguous_accepted_alleleseries_dict, whitelist_reporter_df, contains_guide_surrogate, contains_guide_barcode)
+    if _want("ambiguous_accepted_umi_noncollapsed"):
+        print("Generating ambiguous_accepted_umi_noncollapsed_mutations")
+        mutations_results.ambiguous_accepted_umi_noncollapsed_mutations = generate_mutations_results(match_set_whitelist_reporter_observed_sequence_counter_series_results.ambiguous_accepted_umi_noncollapsed_alleleseries_dict, whitelist_reporter_df, contains_guide_surrogate, contains_guide_barcode)
+    if _want("ambiguous_accepted_umi_collapsed"):
+        print("Generating ambiguous_accepted_umi_collapsed_mutations")
+        mutations_results.ambiguous_accepted_umi_collapsed_mutations = generate_mutations_results(match_set_whitelist_reporter_observed_sequence_counter_series_results.ambiguous_accepted_umi_collapsed_alleleseries_dict, whitelist_reporter_df, contains_guide_surrogate, contains_guide_barcode)
+    if _want("ambiguous_accepted"):
+        print("Generating ambiguous_accepted_mutations")
+        mutations_results.ambiguous_accepted_mutations = generate_mutations_results(match_set_whitelist_reporter_observed_sequence_counter_series_results.ambiguous_accepted_alleleseries_dict, whitelist_reporter_df, contains_guide_surrogate, contains_guide_barcode)
 
-    print("Generating ambiguous_spread_umi_noncollapsed_mutations")
-    mutations_results.ambiguous_spread_umi_noncollapsed_mutations = generate_mutations_results(match_set_whitelist_reporter_observed_sequence_counter_series_results.ambiguous_spread_umi_noncollapsed_alleleseries_dict, whitelist_reporter_df, contains_guide_surrogate, contains_guide_barcode)
-    print("Generating ambiguous_spread_umi_collapsed_mutations")
-    mutations_results.ambiguous_spread_umi_collapsed_mutations = generate_mutations_results(match_set_whitelist_reporter_observed_sequence_counter_series_results.ambiguous_spread_umi_collapsed_alleleseries_dict, whitelist_reporter_df, contains_guide_surrogate, contains_guide_barcode)
-    print("Generating ambiguous_spread_mutations")
-    mutations_results.ambiguous_spread_mutations = generate_mutations_results(match_set_whitelist_reporter_observed_sequence_counter_series_results.ambiguous_spread_alleleseries_dict, whitelist_reporter_df, contains_guide_surrogate, contains_guide_barcode)
+    if _want("ambiguous_spread_umi_noncollapsed"):
+        print("Generating ambiguous_spread_umi_noncollapsed_mutations")
+        mutations_results.ambiguous_spread_umi_noncollapsed_mutations = generate_mutations_results(match_set_whitelist_reporter_observed_sequence_counter_series_results.ambiguous_spread_umi_noncollapsed_alleleseries_dict, whitelist_reporter_df, contains_guide_surrogate, contains_guide_barcode)
+    if _want("ambiguous_spread_umi_collapsed"):
+        print("Generating ambiguous_spread_umi_collapsed_mutations")
+        mutations_results.ambiguous_spread_umi_collapsed_mutations = generate_mutations_results(match_set_whitelist_reporter_observed_sequence_counter_series_results.ambiguous_spread_umi_collapsed_alleleseries_dict, whitelist_reporter_df, contains_guide_surrogate, contains_guide_barcode)
+    if _want("ambiguous_spread"):
+        print("Generating ambiguous_spread_mutations")
+        mutations_results.ambiguous_spread_mutations = generate_mutations_results(match_set_whitelist_reporter_observed_sequence_counter_series_results.ambiguous_spread_alleleseries_dict, whitelist_reporter_df, contains_guide_surrogate, contains_guide_barcode)
     
     return mutations_results
 
