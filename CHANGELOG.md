@@ -2,6 +2,15 @@
 
 Entries here are not yet assigned a version — the user reviews accumulated changes and picks the next release number.
 
+## [0.2.1] - 2026-06-26
+
+### Performance
+
+- **`get_mutation_profile`** gains two backward-compatible keyword arguments (defaults reproduce the previous behaviour exactly):
+  - `strategies: Optional[List[str]] = None` — restrict computation to the named ambiguity×UMI strategy base-names (e.g. `["ambiguous_accepted_umi_noncollapsed"]`); `None` computes all nine as before.
+  - `cores: int = 1` — parallelise the per-guide loop across worker processes; `1` runs serially. The per-guide body is factored into a module-level worker (`_gmp_process_guide`) that reads the shared allele Series via fork copy-on-write; results are accumulated in input order so the output is identical to the serial path.
+- On the equivalent change in the deployed older-API copy, computing a single strategy with `cores=12` was 713/713 guides bit-identical to the full nine-strategy serial output and cut one sample's mutation profile from >30 min to ~230 s.
+
 ## [0.2.0] - 2026-05-16
 
 ### Added — public API
